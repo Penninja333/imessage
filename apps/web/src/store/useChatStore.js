@@ -386,6 +386,13 @@ export const useChatStore = create(
         if (activeConversationId) {
           get().getMessages(activeConversationId);
           get().markMessagesAsSeen(activeConversationId);
+
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "CLEAR_NOTIFICATIONS",
+              senderId: activeConversationId,
+            });
+          }
         }
       },
 

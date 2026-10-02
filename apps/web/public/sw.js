@@ -21,10 +21,21 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Message: Allow clients to command the waiting worker to activate immediately
-self.addEventListener("message", (event) => {
+// Message: Allow clients to command the waiting worker to activate or clear notifications
+self.addEventListener("message", async (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+
+  if (event.data && event.data.type === "CLEAR_NOTIFICATIONS") {
+    try {
+      const senderId = event.data.senderId;
+      const tag = senderId ? `chat-${senderId}` : null;
+      const notifications = await self.registration.getNotifications(tag ? { tag } : undefined);
+      notifications.forEach((n) => n.close());
+    } catch (e) {
+      console.warn("Could not clear notifications:", e);
+    }
   }
 });
 
@@ -97,24 +108,77 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
-  try {
-    const data = event.data.json();
-    const title = data.title || "iMessage";
-    const body = data.body || "New message received";
+  const showNotificationAsync = async () => {
+    // 1. Don't send/show banner notification if the PWA is currently open and visible in the foreground
+    const windowClients = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
 
-    // Use unique tag per message so Android displays a fresh heads-up pop-down banner over other apps
-    const tag = (data.data && data.data.messageId)
-      ? `msg-${data.data.messageId}`
-      : `imessage-${Date.now()}`;
+    const isPwaActive = windowClients.some(
+      (client) => client.visibilityState === "visible"
+    );
+
+    if (isPwaActive) {
+      // PWA is active in foreground — user sees messages in real time, suppress notification banner
+      return;
+    }
+
+    let payload = {};
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { title: "iMessage", body: event.data.text() };
+    }
+
+    const senderName = payload.title || "iMessage";
+    const senderId = payload.data?.senderId || "general";
+    const newText = payload.body || "New message received";
+
+    // 2. Group multiple messages by sender in a single banner (tag: chat-<senderId>)
+    const tag = `chat-${senderId}`;
+
+    let existingNotifications = [];
+    try {
+      existingNotifications = await self.registration.getNotifications({ tag });
+    } catch (e) {
+      console.warn("Could not query existing notifications:", e);
+    }
+
+    const existing = existingNotifications.length > 0 ? existingNotifications[0] : null;
+
+    let finalTitle = senderName;
+    let finalBody = newText;
+    let accumulatedMessages = [newText];
+    let count = 1;
+
+    if (existing && existing.data && Array.isArray(existing.data.messages)) {
+      accumulatedMessages = [...existing.data.messages, newText].slice(-4);
+      count = (existing.data.count || existing.data.messages.length) + 1;
+      finalTitle = `${senderName} (${count} messages)`;
+      finalBody = accumulatedMessages.join("\n");
+    } else if (existing) {
+      const prevBody = existing.body || "";
+      accumulatedMessages = [prevBody, newText];
+      count = 2;
+      finalTitle = `${senderName} (2 messages)`;
+      finalBody = `${prevBody}\n${newText}`;
+    }
 
     const options = {
-      body,
+      body: finalBody,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      data: data.data || {},
+      data: {
+        ...(payload.data || {}),
+        senderId,
+        messages: accumulatedMessages,
+        count,
+        timestamp: Date.now(),
+      },
       vibrate: [200, 100, 200, 100, 200],
-      tag,
-      renotify: true,
+      tag, // Groups into a single banner per sender
+      renotify: true, // Re-triggers heads-up pop-down banner for each new message
       silent: false,
       requireInteraction: false,
       timestamp: Date.now(),
@@ -123,21 +187,10 @@ self.addEventListener("push", (event) => {
       ],
     };
 
-    event.waitUntil(self.registration.showNotification(title, options));
-  } catch (err) {
-    const text = event.data.text();
-    event.waitUntil(
-      self.registration.showNotification("iMessage", {
-        body: text,
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
-        vibrate: [200, 100, 200],
-        tag: `imessage-${Date.now()}`,
-        renotify: true,
-        silent: false,
-      })
-    );
-  }
+    await self.registration.showNotification(finalTitle, options);
+  };
+
+  event.waitUntil(showNotificationAsync());
 });
 
 // Click notification: focus existing chat window or open new

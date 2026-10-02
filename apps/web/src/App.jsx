@@ -42,8 +42,24 @@ function App() {
       };
 
       navigator.serviceWorker.addEventListener("message", handleSwMessage);
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          const activeId = useChatStore.getState().activeConversationId;
+          if (activeId && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "CLEAR_NOTIFICATIONS",
+              senderId: activeId,
+            });
+          }
+        }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
       return () => {
         navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
     }
   }, []);
