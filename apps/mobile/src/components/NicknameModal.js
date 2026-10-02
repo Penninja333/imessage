@@ -41,7 +41,7 @@ export default function NicknameModal({ visible, onClose, userId, currentNicknam
           <View style={styles.handle} />
           <Text style={[styles.title, { color: fg }]}>Nickname for {peerName}</Text>
           <Text style={[styles.subtitle, { color: isDark ? '#888' : '#555' }]}>
-            Only you see this nickname. Your friend can set their own nickname for you.
+            Set a nickname for {peerName}. Both of you will be able to see the nickname set for each other.
           </Text>
 
           <TextInput

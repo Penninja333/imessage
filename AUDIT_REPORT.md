@@ -56,8 +56,8 @@ All identified critical, high, and medium severity issues have been addressed wi
     }
     // Unique compound index: { forUserId: 1, withUserId: 1 }
     ```
-  - **Instagram-Style Privacy:** When User A nicknames User B as "Bestie", only User A sees "Bestie". User B sees User A's standard name or their own nickname set for User A. Neither user's nickname setting is leaked to the other.
-  - **Aggregation Query:** `getConversationsForSidebar` performs a dual `$lookup` to hydrate `nickname` (what I set for them) and `myNickname` (what they set for me).
+  - **Instagram-Style Mutual Visibility:** Both users in a conversation can set and edit nicknames for each other, and both users see the assigned nicknames in their chat view and list.
+  - **Aggregation Query:** `getConversationsForSidebar` performs a dual `$lookup` to hydrate `nickname` (the contact's nickname) and `myNickname` (the nickname assigned to me), allowing both to be referenced.
   - **Cross-Platform Sync:** Both Web (`ChatHeader.jsx`, `ChatSidebar.jsx`) and Mobile (`ChatScreen.js`, `ChatListScreen.js`, `NicknameModal.js`) dynamically display and update nicknames in real time.
 
 ---
