@@ -25,7 +25,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
   const hasChanged = nicknameInput.trim() !== currentNickname;
 
   const handleSave = async (e) => {
-    if (e) e.preventDefault();
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
     if (!hasChanged) {
       onClose();
       return;
@@ -33,7 +33,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
 
     setIsSaving(true);
     try {
-      await setNickname(peer.id, nicknameInput.trim());
+      await setNickname(String(peer.id), nicknameInput.trim());
       onClose();
     } finally {
       setIsSaving(false);
@@ -43,7 +43,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
   const handleClear = async () => {
     setIsSaving(true);
     try {
-      await setNickname(peer.id, "");
+      await setNickname(String(peer.id), "");
       setNicknameInput("");
       onClose();
     } finally {
@@ -74,10 +74,17 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={async () => {
+              if (hasChanged) {
+                await handleSave();
+              } else {
+                onClose();
+              }
+            }}
+            disabled={isSaving}
             className="flex items-center justify-center rounded-full px-3 py-1 text-sm font-semibold text-accent hover:bg-accent/10 active:scale-95 transition"
           >
-            Done
+            {isSaving ? "Saving..." : hasChanged ? "Save" : "Done"}
           </button>
         </div>
 
@@ -103,7 +110,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
           <div className="rounded-2xl border border-border/70 bg-surface/60 p-4 backdrop-blur-md">
             <div className="flex items-center justify-between mb-2">
               <label htmlFor="nickname-input" className="text-xs font-semibold uppercase tracking-wider text-muted">
-                Your Nickname for {peer.fullName.split(" ")[0]}
+                Your Nickname for {peer.fullName?.split(" ")[0] || "User"}
               </label>
               <span className="text-[10px] text-muted">{nicknameInput.length}/32</span>
             </div>
@@ -116,7 +123,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
                   maxLength={32}
                   value={nicknameInput}
                   onChange={(e) => setNicknameInput(e.target.value)}
-                  placeholder={`e.g. Bestie, ${peer.fullName.split(" ")[0]}`}
+                  placeholder={`e.g. Bestie, ${peer.fullName?.split(" ")[0] || ""}`}
                   className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted/60 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all pr-8"
                 />
                 {nicknameInput ? (
@@ -132,20 +139,23 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
               </div>
 
               <p className="text-[11px] text-muted/80">
-                This name will replace {peer.fullName.split(" ")[0]}'s name in your chat header, list, and alerts.
+                This name will replace {peer.fullName?.split(" ")[0] || "their"}'s name in your chat header, list, and alerts.
               </p>
 
-              {hasChanged && (
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  className="w-full mt-1 bg-accent text-accent-foreground font-semibold"
-                  isLoading={isSaving}
-                >
-                  <CheckIcon className="size-4 mr-1.5" /> Save Nickname
-                </Button>
-              )}
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isDisabled={!hasChanged || isSaving}
+                className={`w-full mt-1 font-semibold transition-all ${
+                  hasChanged
+                    ? "bg-accent text-accent-foreground shadow-sm"
+                    : "bg-surface text-muted"
+                }`}
+                isLoading={isSaving}
+              >
+                <CheckIcon className="size-4 mr-1.5" /> Save Nickname
+              </Button>
             </form>
           </div>
 
@@ -153,7 +163,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
           <div className="rounded-2xl border border-border/70 bg-surface/60 p-4 backdrop-blur-md">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                What {peer.fullName.split(" ")[0]} Calls You
+                What {peer.fullName?.split(" ")[0] || "They"} Call You
               </span>
               <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
                 Shared
@@ -176,8 +186,8 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
                 )}
                 <p className="text-[10px] text-muted/70">
                   {peer.myNickname
-                    ? `Set by ${peer.fullName.split(" ")[0]}`
-                    : `Only ${peer.fullName.split(" ")[0]} can set your nickname`}
+                    ? `Set by ${peer.fullName?.split(" ")[0] || "friend"}`
+                    : `Only ${peer.fullName?.split(" ")[0] || "friend"} can set your nickname`}
                 </p>
               </div>
             </div>

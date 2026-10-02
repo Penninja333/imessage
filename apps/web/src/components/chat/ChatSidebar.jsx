@@ -11,13 +11,14 @@ import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 
 function mapUserForList(user, onlineUsers) {
   const displayName = user.nickname || user.fullName;
+  const isOnline = onlineUsers.some((id) => String(id) === String(user._id));
   return {
-    conversationId: user._id,
-    id: user._id,
+    conversationId: String(user._id),
+    id: String(user._id),
     name: displayName,
     avatarUrl: user.profilePic,
     initials: getInitials(displayName),
-    isOnline: onlineUsers.includes(user._id),
+    isOnline,
     hasNickname: Boolean(user.nickname),
     lastMessage: user.lastMessage || "",
     lastMessageAt: user.lastMessageAt || null,
@@ -26,7 +27,7 @@ function mapUserForList(user, onlineUsers) {
       name: displayName,
       avatarUrl: user.profilePic,
       initials: getInitials(displayName),
-      isOnline: onlineUsers.includes(user._id),
+      isOnline,
     },
   };
 }

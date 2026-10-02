@@ -72,28 +72,6 @@ export async function getConversationsForSidebar(req, res) {
       { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
       { $unwind: "$user" },
       {
-        $lookup: {
-          from: "nicknames",
-          let: { partnerId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$withUserId", loggedInUserId] }, { $eq: ["$forUserId", "$$partnerId"] }] } } },
-            { $project: { nickname: 1, _id: 0 } },
-          ],
-          as: "nicknameDoc",
-        },
-      },
-      {
-        $lookup: {
-          from: "nicknames",
-          let: { partnerId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$withUserId", "$$partnerId"] }, { $eq: ["$forUserId", loggedInUserId] }] } } },
-            { $project: { nickname: 1, _id: 0 } },
-          ],
-          as: "myNicknameDoc",
-        },
-      },
-      {
         $project: {
           _id: "$user._id",
           fullName: "$user.fullName",
@@ -133,13 +111,29 @@ export async function getConversationsForSidebar(req, res) {
               },
             ],
           },
-          nickname: { $first: "$nicknameDoc.nickname" },
-          myNickname: { $first: "$myNicknameDoc.nickname" },
         },
       },
     ]);
 
-    res.status(200).json(conversations);
+    const [myNicknamesForThem, theirNicknamesForMe] = await Promise.all([
+      Nickname.find({ withUserId: loggedInUserId }).lean(),
+      Nickname.find({ forUserId: loggedInUserId }).lean(),
+    ]);
+
+    const nicknameMap = Object.fromEntries(
+      myNicknamesForThem.map((n) => [String(n.forUserId), n.nickname]),
+    );
+    const myNicknameMap = Object.fromEntries(
+      theirNicknamesForMe.map((n) => [String(n.withUserId), n.nickname]),
+    );
+
+    const conversationsWithNicknames = conversations.map((conv) => ({
+      ...conv,
+      nickname: nicknameMap[String(conv._id)] || null,
+      myNickname: myNicknameMap[String(conv._id)] || null,
+    }));
+
+    res.status(200).json(conversationsWithNicknames);
   } catch (error) {
     console.error("Error in getConversationsForSidebar:", error.message);
     res.status(500).json({ message: "Internal server error" });
@@ -232,36 +226,34 @@ export async function sendMessage(req, res) {
     io.to(String(receiverId)).emit("newMessage", newMessage);
     io.to(String(senderId)).emit("newMessage", newMessage);
 
-    // If receiver is offline, dispatch background Web Push / FCM
-    if (!isUserOnline(receiverId)) {
-      (async () => {
-        try {
-          const devices = await DeviceToken.find({ userId: receiverId });
-          if (devices && devices.length > 0) {
-            const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
-            const title = nicknameDoc?.nickname || senderName;
+    // Dispatch background Web Push / FCM to receiver devices
+    (async () => {
+      try {
+        const devices = await DeviceToken.find({ userId: receiverId });
+        if (devices && devices.length > 0) {
+          const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
+          const title = nicknameDoc?.nickname || senderName;
 
-            let body = text;
-            if (!body) {
-              if (imageUrl) body = "📷 Sent an image";
-              else if (videoUrl) body = "🎥 Sent a video";
-              else if (audioUrl) body = "🎤 Sent a voice message";
-              else body = "New message";
-            }
-
-            const tokens = devices.map((d) => d.token);
-            await sendPush({
-              tokens,
-              title,
-              body,
-              data: { senderId: senderId.toString(), messageId: newMessage._id.toString() },
-            });
+          let body = text;
+          if (!body) {
+            if (imageUrl) body = "📷 Sent an image";
+            else if (videoUrl) body = "🎥 Sent a video";
+            else if (audioUrl) body = "🎤 Sent a voice message";
+            else body = "New message";
           }
-        } catch (pushErr) {
-          console.warn("[push] Background notification attempt error:", pushErr.message);
+
+          const tokens = devices.map((d) => d.token);
+          await sendPush({
+            tokens,
+            title,
+            body,
+            data: { senderId: senderId.toString(), messageId: newMessage._id.toString() },
+          });
         }
-      })();
-    }
+      } catch (pushErr) {
+        console.warn("[push] Background notification attempt error:", pushErr.message);
+      }
+    })();
 
     res.status(201).json(newMessage);
   } catch (error) {
@@ -320,28 +312,21 @@ export async function setNickname(req, res) {
     });
     await systemMessage.save();
 
-    // Broadcast system message & nicknameUpdated to both participants
-    const partnerSocketId = getReceiverSocketId(forUserId);
-    const mySocketId = getReceiverSocketId(withUserId);
-
+    // Broadcast system message & nicknameUpdated to both participants across all active devices
     const updatePayload = {
-      forUserId,
-      withUserId,
+      forUserId: String(forUserId),
+      withUserId: String(withUserId),
       nickname: updatedNickname,
-      setByUserId: req.user._id,
+      setByUserId: String(req.user._id),
       setByName: req.user.fullName,
       targetName,
       systemMessage,
     };
 
-    if (partnerSocketId) {
-      io.to(partnerSocketId).emit("newMessage", systemMessage);
-      io.to(partnerSocketId).emit("nicknameUpdated", updatePayload);
-    }
-    if (mySocketId) {
-      io.to(mySocketId).emit("newMessage", systemMessage);
-      io.to(mySocketId).emit("nicknameUpdated", updatePayload);
-    }
+    io.to(String(forUserId)).emit("newMessage", systemMessage);
+    io.to(String(forUserId)).emit("nicknameUpdated", updatePayload);
+    io.to(String(withUserId)).emit("newMessage", systemMessage);
+    io.to(String(withUserId)).emit("nicknameUpdated", updatePayload);
 
     res.status(200).json({ nickname: updatedNickname, systemMessage });
   } catch (error) {

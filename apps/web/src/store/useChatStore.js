@@ -48,10 +48,9 @@ export const useChatStore = create(
           const res = await axiosInstance.get("/messages/users");
           set((state) => ({
             users: res.data,
-            selectedUser:
-              state.selectedUser && res.data.some((user) => user._id === state.selectedUser._id)
-                ? state.selectedUser
-                : null,
+            selectedUser: state.selectedUser
+              ? res.data.find((user) => String(user._id) === String(state.selectedUser._id)) || state.selectedUser
+              : null,
           }));
         } catch (error) {
           console.log("Error in getUsers:", error.message);
@@ -64,7 +63,12 @@ export const useChatStore = create(
         set({ isConversationsLoading: true });
         try {
           const res = await axiosInstance.get("/messages/conversations");
-          set({ conversations: res.data });
+          set((state) => ({
+            conversations: res.data,
+            selectedUser: state.selectedUser
+              ? res.data.find((user) => String(user._id) === String(state.selectedUser._id)) || state.selectedUser
+              : null,
+          }));
           get().syncBadge();
         } catch (error) {
           console.log("Error in getConversations:", error.message);
@@ -391,8 +395,29 @@ export const useChatStore = create(
       setSoundEnabled: (isSoundEnabled) => set({ isSoundEnabled }),
 
       setNickname: async (targetUserId, nickname) => {
+        const trimmed = (nickname || "").trim();
+        const newNickname = trimmed || null;
+        const targetIdStr = String(targetUserId);
+
+        // Optimistically update local state immediately so UI updates with zero lag
+        set((state) => {
+          const updateObj = (u) =>
+            String(u._id) === targetIdStr ? { ...u, nickname: newNickname } : u;
+
+          return {
+            users: state.users.map(updateObj),
+            conversations: state.conversations.map(updateObj),
+            selectedUser:
+              state.selectedUser && String(state.selectedUser._id) === targetIdStr
+                ? { ...state.selectedUser, nickname: newNickname }
+                : state.selectedUser,
+          };
+        });
+
         try {
-          const res = await axiosInstance.put(`/messages/nickname/${targetUserId}`, { nickname });
+          const res = await axiosInstance.put(`/messages/nickname/${targetIdStr}`, {
+            nickname: trimmed,
+          });
 
           if (res.data?.systemMessage) {
             set((state) => ({
@@ -403,10 +428,13 @@ export const useChatStore = create(
           get().getUsers();
           get().getConversations();
 
-          if (nickname) toast.success(`Nickname set: ${nickname}`);
+          if (trimmed) toast.success(`Nickname set: ${trimmed}`);
           else toast.success("Nickname cleared");
         } catch (error) {
+          console.error("setNickname error:", error);
           toast.error(error.response?.data?.message || "Failed to set nickname");
+          get().getUsers();
+          get().getConversations();
         }
       },
 
