@@ -10,6 +10,7 @@ import { useEffect } from "react";
 
 import { Toaster } from "react-hot-toast";
 import { registerServiceWorker, requestNotificationPermission } from "./lib/notifications";
+import InstallPwaBanner from "./components/InstallPwaBanner";
 
 function App() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -45,6 +46,7 @@ function App() {
             element={!isSignedIn ? <AuthPage /> : <Navigate to={"/"} replace />}
           />
         </Routes>
+        <InstallPwaBanner />
         <Toaster />
       </WallpaperProvider>
     </ThemeProvider>
