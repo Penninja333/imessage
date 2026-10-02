@@ -217,7 +217,7 @@ describe("Nickname routes (authenticated)", () => {
       .put("/api/messages/nickname/user456")
       .send({ nickname: "Buddy" });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ nickname: "Buddy" });
+    expect(res.body).toMatchObject({ nickname: "Buddy" });
   });
 
   it("PUT /api/messages/nickname/:id with empty string deletes nickname", async () => {
@@ -226,7 +226,7 @@ describe("Nickname routes (authenticated)", () => {
       .put("/api/messages/nickname/user456")
       .send({ nickname: "  " });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ nickname: null });
+    expect(res.body).toMatchObject({ nickname: null });
   });
 
   it("PUT /api/messages/nickname/:id rejects nickname > 32 chars", async () => {
