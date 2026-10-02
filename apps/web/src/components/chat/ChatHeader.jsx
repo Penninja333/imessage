@@ -1,5 +1,15 @@
 import { Avatar, Button } from "@heroui/react";
-import { ChevronLeftIcon, SparklesIcon, Volume2Icon, VolumeXIcon, XIcon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  SparklesIcon,
+  Volume2Icon,
+  VolumeXIcon,
+  XIcon,
+  MoreVerticalIcon,
+  MoonIcon,
+  SunIcon,
+  PaletteIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
@@ -8,6 +18,7 @@ import { NicknameDetailsModal } from "./NicknameDetailsModal";
 import { ThemePresetPicker } from "../ThemePresetPicker";
 import { ThemeToggle } from "../ThemeToggle";
 import { WallpaperPicker } from "../WallpaperPicker";
+import { useTheme } from "../../context/theme";
 
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
@@ -16,123 +27,210 @@ export function ChatHeader() {
   const isSoundEnabled = useChatStore((state) => state.isSoundEnabled);
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
   const setSoundEnabled = useChatStore((state) => state.setSoundEnabled);
+  const typingUser = useChatStore((state) => state.typingUser);
 
-  const { activeConversation, isLargeScreen } = useSelectedConversation();
+  const { theme, setTheme } = useTheme();
+  const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
+
   const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [showMobileOptions, setShowMobileOptions] = useState(false);
+
+  const isPartnerTyping =
+    typingUser && String(typingUser) === String(activeConversationId);
 
   return (
-    <header className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-1.5 py-1.5 sm:gap-2 sm:px-2 sm:py-2">
-      {activeConversation && !isLargeScreen ? (
-        <Button
-          variant="ghost"
-          isIconOnly
-          className="shrink-0 size-11"
-          onPress={() => setActiveConversationId(null)}
-        >
-          <ChevronLeftIcon className="size-6" strokeWidth={2.25} />
-        </Button>
-      ) : null}
-
-      {activeConversation ? (
-        <>
-          <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? true}>
-            <Avatar
-              className="size-9 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => setShowNicknameModal(true)}
-            >
-              <Avatar.Image
-                alt={activeConversation.peer.name}
-                src={activeConversation.peer.avatarUrl}
-              />
-              <Avatar.Fallback className="text-sm font-medium">
-                {activeConversation.peer.initials}
-              </Avatar.Fallback>
-            </Avatar>
-          </AvatarWithOnlineIndicator>
-
-          <div className="flex-1 text-center sm:text-left min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowNicknameModal(true)}
-                className="truncate text-[15px] font-bold leading-tight hover:text-accent transition-colors text-left"
-              >
-                {activeConversation.peer.name}
-              </button>
-              {activeConversation.peer.nickname ? (
-                <span className="truncate text-[11px] text-muted font-normal">
-                  ({activeConversation.peer.fullName})
-                </span>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setShowNicknameModal(true)}
-                title="View & Edit Nicknames"
-                className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent hover:bg-accent/20 transition-colors"
-              >
-                <SparklesIcon className="size-2.5" />
-                Nicknames
-              </button>
-            </div>
-
-            <p className="truncate text-xs text-muted">
-              {activeConversation.peer.isOnline ? (
-                <span className="font-medium text-success">Online</span>
-              ) : (
-                "Offline"
-              )}
-            </p>
-          </div>
-
-          <NicknameDetailsModal
-            isOpen={showNicknameModal}
-            onClose={() => setShowNicknameModal(false)}
-            peer={activeConversation.peer}
-          />
-        </>
-      ) : (
-        <div className="flex flex-1 items-center gap-2.5 sm:text-left">
-          <AppLogo size={36} className="rounded-[9px]" />
-          <div className="flex-1 text-center sm:text-left">
-            <p className="truncate text-[13px] font-medium text-muted">Select a conversation</p>
-          </div>
-        </div>
-      )}
-
-      <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-0.5 sm:gap-1">
-        <div className="hidden min-[400px]:contents">
-          <WallpaperPicker />
-          <ThemePresetPicker />
-        </div>
-
-        <ThemeToggle />
-
-        <Button
-          variant="ghost"
-          isIconOnly
-          className="shrink-0 size-11"
-          aria-pressed={isSoundEnabled}
-          onPress={() => setSoundEnabled(!isSoundEnabled)}
-        >
-          {isSoundEnabled ? (
-            <Volume2Icon className="size-5.5" strokeWidth={2} aria-hidden />
-          ) : (
-            <VolumeXIcon className="size-5.5" strokeWidth={2} aria-hidden />
-          )}
-        </Button>
-
-        {activeConversation ? (
+    <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-md px-2 py-2 sm:px-3 sm:py-2.5">
+      {/* Left side: Back button (mobile) + Contact info */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {activeConversation && !isLargeScreen ? (
           <Button
             variant="ghost"
             isIconOnly
-            className="shrink-0 size-11"
-            aria-label="Close chat"
+            className="size-9 shrink-0 text-accent hover:bg-accent/10 active:scale-95"
             onPress={() => setActiveConversationId(null)}
+            aria-label="Back to conversations"
           >
-            <XIcon className="size-5.5" strokeWidth={2} aria-hidden />
+            <ChevronLeftIcon className="size-6" strokeWidth={2.5} />
           </Button>
         ) : null}
+
+        {activeConversation ? (
+          <div
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 hover:opacity-90 transition-opacity"
+            onClick={() => setShowNicknameModal(true)}
+          >
+            <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? true}>
+              <Avatar className="size-9 shrink-0">
+                <Avatar.Image
+                  alt={activeConversation.peer.name}
+                  src={activeConversation.peer.avatarUrl}
+                />
+                <Avatar.Fallback className="text-sm font-medium">
+                  {activeConversation.peer.initials}
+                </Avatar.Fallback>
+              </Avatar>
+            </AvatarWithOnlineIndicator>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h2 className="truncate text-sm font-bold sm:text-base leading-tight">
+                  {activeConversation.peer.name}
+                </h2>
+                {activeConversation.peer.nickname ? (
+                  <span className="hidden sm:inline truncate text-[11px] text-muted font-normal">
+                    ({activeConversation.peer.fullName})
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-1 text-xs">
+                {isPartnerTyping ? (
+                  <span className="text-accent font-medium animate-pulse">typing…</span>
+                ) : activeConversation.peer.isOnline ? (
+                  <span className="text-success font-medium">Online</span>
+                ) : (
+                  <span className="text-muted">Offline</span>
+                )}
+
+                {activeConversation.peer.theirNicknameForMe ? (
+                  <span className="hidden sm:inline text-muted text-[11px] truncate">
+                    • Calls you "{activeConversation.peer.theirNicknameForMe}"
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <AppLogo size={32} className="rounded-[8px]" />
+            <p className="text-sm font-medium text-muted">Select a conversation</p>
+          </div>
+        )}
       </div>
+
+      {/* Right side controls */}
+      <div className="flex shrink-0 items-center gap-1">
+        {/* Desktop Controls (hidden on mobile) */}
+        <div className="hidden md:flex items-center gap-1">
+          <WallpaperPicker />
+          <ThemePresetPicker />
+          <ThemeToggle />
+
+          <Button
+            variant="ghost"
+            isIconOnly
+            className="size-9"
+            aria-pressed={isSoundEnabled}
+            onPress={() => setSoundEnabled(!isSoundEnabled)}
+          >
+            {isSoundEnabled ? (
+              <Volume2Icon className="size-4.5" strokeWidth={2} />
+            ) : (
+              <VolumeXIcon className="size-4.5" strokeWidth={2} />
+            )}
+          </Button>
+
+          {activeConversation ? (
+            <Button
+              variant="ghost"
+              isIconOnly
+              className="size-9"
+              aria-label="Close chat"
+              onPress={() => setActiveConversationId(null)}
+            >
+              <XIcon className="size-4.5" strokeWidth={2} />
+            </Button>
+          ) : null}
+        </div>
+
+        {/* Mobile Controls: clean & spacious */}
+        <div className="flex md:hidden items-center gap-1">
+          {activeConversation ? (
+            <button
+              type="button"
+              onClick={() => setShowNicknameModal(true)}
+              className="flex size-9 items-center justify-center rounded-full text-accent hover:bg-accent/10 active:scale-95 transition"
+              aria-label="Nicknames"
+            >
+              <SparklesIcon className="size-4.5" />
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => setShowMobileOptions(!showMobileOptions)}
+            className="flex size-9 items-center justify-center rounded-full text-foreground/80 hover:bg-surface active:scale-95 transition"
+            aria-label="More options"
+          >
+            <MoreVerticalIcon className="size-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Options Dropdown Sheet */}
+      {showMobileOptions ? (
+        <div className="absolute right-3 top-14 z-50 w-56 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 md:hidden">
+          <div className="space-y-1">
+            <button
+              onClick={() => {
+                setTheme(theme === "dark" ? "light" : "dark");
+                setShowMobileOptions(false);
+              }}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+            >
+              <span className="flex items-center gap-2">
+                {theme === "dark" ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
+                {theme === "dark" ? "Light Mode" : "Dark Mode"}
+              </span>
+              <span className="text-[10px] text-muted capitalize">{theme}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSoundEnabled(!isSoundEnabled);
+                setShowMobileOptions(false);
+              }}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+            >
+              <span className="flex items-center gap-2">
+                {isSoundEnabled ? <Volume2Icon className="size-4" /> : <VolumeXIcon className="size-4" />}
+                Message Sound
+              </span>
+              <span className="text-[10px] text-muted">{isSoundEnabled ? "On" : "Muted"}</span>
+            </button>
+
+            {activeConversation ? (
+              <button
+                onClick={() => {
+                  setShowNicknameModal(true);
+                  setShowMobileOptions(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-accent hover:bg-accent/10 transition"
+              >
+                <SparklesIcon className="size-4" />
+                Chat Nicknames
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Backdrop to close mobile dropdown */}
+      {showMobileOptions ? (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          onClick={() => setShowMobileOptions(false)}
+        />
+      ) : null}
+
+      {/* Nicknames modal */}
+      {activeConversation ? (
+        <NicknameDetailsModal
+          isOpen={showNicknameModal}
+          onClose={() => setShowNicknameModal(false)}
+          peer={activeConversation.peer}
+        />
+      ) : null}
     </header>
   );
 }

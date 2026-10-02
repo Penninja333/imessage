@@ -43,6 +43,13 @@ export function ChatComposer() {
     }
   };
 
+  const handleFocus = () => {
+    // Scroll chat to bottom when keyboard opens
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+    }, 100);
+  };
+
   const handleMediaPick = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -57,7 +64,7 @@ export function ChatComposer() {
   };
 
   return (
-    <footer className="shrink-0 border-t border-border px-1.5 pb-2 pt-2 sm:px-2">
+    <footer className="shrink-0 border-t border-border bg-background/95 backdrop-blur-md px-2 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] sm:px-3">
       {isSendingMedia ? (
         <div className="mx-auto mb-2 flex max-w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-muted">
           <LoaderIcon
@@ -83,8 +90,9 @@ export function ChatComposer() {
           variant="ghost"
           isIconOnly
           isDisabled={isSendingMedia}
-          className="size-11 shrink-0 touch-manipulation self-end text-accent"
+          className="size-10 shrink-0 touch-manipulation self-end text-accent"
           onPress={() => mediaInputRef.current?.click()}
+          aria-label="Attach media"
         >
           <ImageIcon className="size-5 sm:size-6" strokeWidth={2} />
         </Button>
@@ -95,16 +103,24 @@ export function ChatComposer() {
           rows={1}
           value={composerText}
           onChange={handleComposerTextChange}
+          onFocus={handleFocus}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               handleSend();
             }
           }}
-          className="flex-1 rounded-full"
+          className="flex-1 rounded-full text-base"
         />
 
-        <Button variant="primary" isIconOnly className="size-11 shrink-0" isDisabled={!composerText.trim()} onPress={handleSend}>
+        <Button
+          variant="primary"
+          isIconOnly
+          className="size-10 shrink-0"
+          isDisabled={!composerText.trim()}
+          onPress={handleSend}
+          aria-label="Send message"
+        >
           <SendHorizontalIcon className="size-5" />
         </Button>
       </div>
