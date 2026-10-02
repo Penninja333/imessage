@@ -10,11 +10,11 @@ export async function getUsersForSidebar(req, res) {
 
     const [filteredUsers, nicknames] = await Promise.all([
       User.find({ _id: { $ne: loggedInUserId } }).select("-clerkId").lean(),
-      Nickname.find({ setterId: loggedInUserId }).lean(),
+      Nickname.find({ withUserId: loggedInUserId }).lean(),
     ]);
 
     const nicknameMap = Object.fromEntries(
-      nicknames.map((n) => [String(n.targetId), n.nickname]),
+      nicknames.map((n) => [String(n.forUserId), n.nickname]),
     );
 
     const usersWithNicknames = filteredUsers.map((u) => ({
@@ -34,37 +34,44 @@ export async function getConversationsForSidebar(req, res) {
     const loggedInUserId = req.user._id;
 
     const conversations = await Message.aggregate([
-      // 1. Keep only the messages I sent or received.
       { $match: { $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }] } },
-      // 2. Collapse them into one row per chat partner, noting our latest message time.
       {
         $group: {
           _id: { $cond: [{ $eq: ["$senderId", loggedInUserId] }, "$receiverId", "$senderId"] },
           lastMessageAt: { $max: "$createdAt" },
         },
       },
-      // 3. Put the most recent conversation at the top.
       { $sort: { lastMessageAt: -1 } },
-      // 4. Look up each partner's user profile (comes back as an array).
       { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
-      // 5. Pull that profile out of the array and make it the document.
       { $replaceRoot: { newRoot: { $first: "$user" } } },
-      // 6. Look up my nickname for this partner (only my own — privacy boundary).
       {
         $lookup: {
           from: "nicknames",
           let: { partnerId: "$_id" },
           pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$setterId", loggedInUserId] }, { $eq: ["$targetId", "$$partnerId"] }] } } },
+            { $match: { $expr: { $and: [{ $eq: ["$withUserId", loggedInUserId] }, { $eq: ["$forUserId", "$$partnerId"] }] } } },
             { $project: { nickname: 1, _id: 0 } },
           ],
           as: "nicknameDoc",
         },
       },
-      // 7. Flatten nickname into a top-level field.
-      { $addFields: { nickname: { $first: "$nicknameDoc.nickname" } } },
-      // 8. Hide private fields.
-      { $project: { clerkId: 0, nicknameDoc: 0 } },
+      {
+        $lookup: {
+          from: "nicknames",
+          let: { partnerId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ["$withUserId", "$$partnerId"] }, { $eq: ["$forUserId", loggedInUserId] }] } } },
+            { $project: { nickname: 1, _id: 0 } },
+          ],
+          as: "myNicknameDoc",
+        },
+      },
+      { $addFields: { 
+          nickname: { $first: "$nicknameDoc.nickname" },
+          myNickname: { $first: "$myNicknameDoc.nickname" }
+        } 
+      },
+      { $project: { clerkId: 0, nicknameDoc: 0, myNicknameDoc: 0 } },
     ]);
 
     res.status(200).json(conversations);
@@ -136,9 +143,10 @@ export async function sendMessage(req, res) {
 
 export async function setNickname(req, res) {
   try {
-    const { id: targetId } = req.params;
+    // We are setting the nickname for the OTHER person in the chat
+    const { id: forUserId } = req.params;
     const { nickname } = req.body;
-    const setterId = req.user._id;
+    const withUserId = req.user._id;
 
     if (nickname === undefined || nickname === null) {
       return res.status(400).json({ message: "Nickname is required" });
@@ -147,7 +155,7 @@ export async function setNickname(req, res) {
     const trimmed = String(nickname).trim();
 
     if (trimmed.length === 0) {
-      await Nickname.findOneAndDelete({ setterId, targetId });
+      await Nickname.findOneAndDelete({ forUserId, withUserId });
       return res.status(200).json({ nickname: null });
     }
 
@@ -156,8 +164,8 @@ export async function setNickname(req, res) {
     }
 
     const updated = await Nickname.findOneAndUpdate(
-      { setterId, targetId },
-      { setterId, targetId, nickname: trimmed },
+      { forUserId, withUserId },
+      { forUserId, withUserId, nickname: trimmed, setByUserId: req.user._id },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
 
@@ -170,11 +178,11 @@ export async function setNickname(req, res) {
 
 export async function getNicknames(req, res) {
   try {
-    const setterId = req.user._id;
+    const loggedInUserId = req.user._id;
 
-    const nicknames = await Nickname.find({ setterId })
-      .select("targetId nickname -_id")
-      .lean();
+    const nicknames = await Nickname.find({
+      $or: [{ withUserId: loggedInUserId }, { forUserId: loggedInUserId }]
+    }).lean();
 
     res.status(200).json(nicknames);
   } catch (error) {

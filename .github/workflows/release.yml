@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # ── 1. Backend smoke tests ──────────────────────────────────────────────────
+  test-api:
+    name: API smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/api/package-lock.json
+      - run: npm ci
+        working-directory: services/api
+      - run: npm test
+        working-directory: services/api
+
+  # ── 2. Web build ─────────────────────────────────────────────────────────────
+  build-web:
+    name: Build web SPA
+    runs-on: ubuntu-latest
+    needs: test-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci --legacy-peer-deps
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+      - run: tar -czf web-dist.tar.gz -C apps/web/dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web-dist.tar.gz
+          retention-days: 14
+
+  # ── 3. API bundle ─────────────────────────────────────────────────────────────
+  build-api:
+    name: Build API bundle
+    runs-on: ubuntu-latest
+    needs: test-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/api/package-lock.json
+      - run: npm ci
+        working-directory: services/api
+      - run: npm run build
+        working-directory: services/api
+      - run: tar -czf api-dist.tar.gz -C services/api/dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: api-dist.tar.gz
+          retention-days: 14
+
+  # ── 4. Mobile EAS build (optional — only runs if EXPO_TOKEN secret is set) ──
+  build-mobile:
+    name: EAS Mobile build
+    runs-on: ubuntu-latest
+    needs: test-api
+    # Only run when EXPO_TOKEN is available in repo secrets
+    if: ${{ vars.EXPO_TOKEN_AVAILABLE == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci --legacy-peer-deps
+        working-directory: apps/mobile
+      - uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: EAS build (Android preview)
+        run: eas build --platform android --profile preview --non-interactive
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.API_URL }}
+
+  # ── 5. Release Please — auto version + GitHub Release ──────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-web, build-api]
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: node
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 6. Upload artifacts to the GitHub Release (only if release was created) ─
+  upload-artifacts:
+    name: Upload artifacts to release
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ needs.release.outputs.release_created == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: api-dist
+      - name: Upload web dist
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.tag_name }}
+          files: web-dist.tar.gz
+      - name: Upload api dist
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.tag_name }}
+          files: api-dist.tar.gz

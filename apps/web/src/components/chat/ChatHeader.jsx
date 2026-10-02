@@ -40,9 +40,8 @@ export function ChatHeader() {
       {activeConversation && !isLargeScreen ? (
         <Button
           variant="ghost"
-          size="sm"
           isIconOnly
-          className="shrink-0"
+          className="shrink-0 size-11"
           onPress={() => setActiveConversationId(null)}
         >
           <ChevronLeftIcon className="size-6" strokeWidth={2.25} />
@@ -79,7 +78,7 @@ export function ChatHeader() {
                   placeholder="Set nickname..."
                   className="w-full rounded-lg border border-border bg-background px-2 py-1 text-[15px] font-semibold text-foreground outline-none focus:border-accent"
                 />
-                <Button variant="ghost" size="sm" isIconOnly className="shrink-0 size-7" onPress={handleSaveNickname}>
+                <Button variant="ghost" isIconOnly className="shrink-0 size-11" onPress={handleSaveNickname}>
                   <PencilIcon className="size-3.5" />
                 </Button>
               </div>
@@ -93,9 +92,8 @@ export function ChatHeader() {
                 ) : null}
                 <Button
                   variant="ghost"
-                  size="sm"
                   isIconOnly
-                  className="shrink-0 size-6 text-muted"
+                  className="shrink-0 size-11 text-muted"
                   onPress={startEditing}
                 >
                   <PencilIcon className="size-3" strokeWidth={2} aria-label="Edit nickname" />
@@ -130,9 +128,8 @@ export function ChatHeader() {
 
         <Button
           variant="ghost"
-          size="sm"
           isIconOnly
-          className="shrink-0"
+          className="shrink-0 size-11"
           aria-pressed={isSoundEnabled}
           onPress={() => setSoundEnabled(!isSoundEnabled)}
         >
@@ -146,9 +143,8 @@ export function ChatHeader() {
         {activeConversation ? (
           <Button
             variant="ghost"
-            size="sm"
             isIconOnly
-            className="shrink-0"
+            className="shrink-0 size-11"
             aria-label="Close chat"
             onPress={() => setActiveConversationId(null)}
           >

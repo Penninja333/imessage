@@ -54,7 +54,7 @@ export function useSelectedConversation() {
   const authUser = useAuthStore((state) => state.authUser);
   const onlineUsers = useAuthStore((state) => state.onlineUsers);
 
-  const isLargeScreen = useMediaQuery("(min-width: 1024px)");
+  const isLargeScreen = useMediaQuery("(min-width: 1440px)");
 
   const selectedUser = activeConversationId
     ? users.find((user) => user._id === activeConversationId) ||

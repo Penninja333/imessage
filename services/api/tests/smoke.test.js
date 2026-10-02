@@ -230,11 +230,9 @@ describe("Nickname routes (authenticated)", () => {
 
   it("GET /api/messages/nicknames returns only my nicknames", async () => {
     mockNicknameFind.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        lean: vi.fn().mockResolvedValue([
-          { targetId: "user456", nickname: "Buddy" },
-        ]),
-      }),
+      lean: vi.fn().mockResolvedValue([
+        { forUserId: "user456", nickname: "Buddy" },
+      ]),
     });
     const res = await request(testApp).get("/api/messages/nicknames");
     expect(res.status).toBe(200);
