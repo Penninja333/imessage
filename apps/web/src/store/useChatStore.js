@@ -171,7 +171,11 @@ export const useChatStore = create(
         });
 
         socket.on("userTyping", ({ senderId }) => {
-          if (String(senderId) === String(userId)) {
+          const authUser = useAuthStore.getState().authUser;
+          if (
+            String(senderId) !== String(authUser?._id) &&
+            String(senderId) === String(userId)
+          ) {
             set({ typingUser: senderId });
           }
         });
@@ -277,6 +281,51 @@ export const useChatStore = create(
           return await get().sendMessage(formData);
         } finally {
           set({ isSendingMedia: false });
+        }
+      },
+
+      toggleReaction: async (messageId, emoji) => {
+        if (!messageId || !emoji) return false;
+        try {
+          const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
+          const updatedReactions = res.data?.reactions || [];
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m._id === messageId ? { ...m, reactions: updatedReactions } : m
+            ),
+          }));
+          return true;
+        } catch (error) {
+          console.error("toggleReaction error:", error);
+          toast.error("Could not add reaction");
+          return false;
+        }
+      },
+
+      deleteMessage: async (messageId) => {
+        if (!messageId) return false;
+        try {
+          await axiosInstance.delete(`/messages/${messageId}`);
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m._id === messageId
+                ? {
+                    ...m,
+                    deleted: true,
+                    text: "This message was deleted",
+                    image: null,
+                    video: null,
+                    audio: null,
+                  }
+                : m
+            ),
+          }));
+          toast.success("Message deleted");
+          return true;
+        } catch (error) {
+          console.error("deleteMessage error:", error);
+          toast.error(error.response?.data?.message || "Could not delete message");
+          return false;
         }
       },
     }),

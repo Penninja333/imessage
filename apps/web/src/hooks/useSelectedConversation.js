@@ -30,6 +30,7 @@ function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
     isSystem: Boolean(message.isSystem),
     reactions: message.reactions || [],
     deleted: Boolean(message.deleted),
+    createdAt: message.createdAt,
   }));
 
   const displayName = user.nickname || user.fullName;

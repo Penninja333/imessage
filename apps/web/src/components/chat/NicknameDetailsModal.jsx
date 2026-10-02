@@ -1,21 +1,40 @@
-import { useState } from "react";
-import { Button } from "@heroui/react";
-import { CheckIcon, PencilIcon, SparklesIcon, UserIcon, XIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Avatar, Button } from "@heroui/react";
+import {
+  CheckIcon,
+  SparklesIcon,
+  Trash2Icon,
+  UserCheckIcon,
+  XIcon,
+} from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 
 export function NicknameDetailsModal({ isOpen, onClose, peer }) {
   const setNickname = useChatStore((state) => state.setNickname);
   const [nicknameInput, setNicknameInput] = useState(peer?.nickname || "");
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync nicknameInput whenever peer changes
+  useEffect(() => {
+    setNicknameInput(peer?.nickname || "");
+  }, [peer?.nickname, isOpen]);
 
   if (!isOpen || !peer) return null;
 
-  const handleSave = async () => {
+  const currentNickname = peer.nickname || "";
+  const hasChanged = nicknameInput.trim() !== currentNickname;
+
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
+    if (!hasChanged) {
+      onClose();
+      return;
+    }
+
     setIsSaving(true);
     try {
       await setNickname(peer.id, nicknameInput.trim());
-      setIsEditing(false);
+      onClose();
     } finally {
       setIsSaving(false);
     }
@@ -26,147 +45,156 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
     try {
       await setNickname(peer.id, "");
       setNicknameInput("");
-      setIsEditing(false);
+      onClose();
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-2xl animate-in zoom-in-95">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-full p-1.5 text-muted hover:bg-surface hover:text-foreground transition-colors"
-        >
-          <XIcon className="size-5" />
-        </button>
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {/* Backdrop tap to dismiss */}
+      <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
-        {/* Modal Header */}
-        <div className="flex items-center gap-3 pb-4 border-b border-border">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-accent/15 text-accent">
-            <SparklesIcon className="size-5" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-foreground">Chat Nicknames</h3>
-            <p className="text-xs text-muted">Shared nickname settings for this conversation</p>
-          </div>
+      {/* iOS Style Sheet / Dialog */}
+      <div className="relative z-10 flex w-full flex-col overflow-hidden border-border bg-background shadow-2xl transition-all sm:max-w-md sm:rounded-3xl sm:border max-h-[92dvh] rounded-t-3xl border-t pb-[max(1.2rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom duration-250">
+        {/* Mobile drag handle bar */}
+        <div className="flex w-full justify-center pt-3 pb-1 sm:hidden">
+          <div className="h-1.5 w-12 rounded-full bg-muted/30" />
         </div>
 
-        {/* Modal Body */}
-        <div className="mt-5 space-y-4">
-          {/* Card 1: What they call YOU */}
-          <div className="rounded-xl border border-border/80 bg-surface/50 p-3.5 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                What {peer.fullName} calls you
-              </span>
-              <span className="text-[11px] rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent">
-                Visible to both
-              </span>
+        {/* Sheet Top Navigation Bar */}
+        <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              <SparklesIcon className="size-4" />
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <UserIcon className="size-4 text-muted" />
-              <p className="text-base font-bold text-foreground">
-                {peer.myNickname ? (
-                  <span>"{peer.myNickname}"</span>
-                ) : (
-                  <span className="text-muted font-normal text-sm italic">
-                    (No nickname set for you yet)
-                  </span>
-                )}
-              </p>
-            </div>
+            <h3 className="text-base font-bold text-foreground">Contact Info</h3>
           </div>
 
-          {/* Card 2: What you call THEM */}
-          <div className="rounded-xl border border-border/80 bg-surface/50 p-3.5 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                Your nickname for {peer.fullName}
-              </span>
-              {!isEditing && (
-                <button
-                  onClick={() => {
-                    setNicknameInput(peer.nickname || "");
-                    setIsEditing(true);
-                  }}
-                  className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-                >
-                  <PencilIcon className="size-3" /> Edit
-                </button>
-              )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center justify-center rounded-full px-3 py-1 text-sm font-semibold text-accent hover:bg-accent/10 active:scale-95 transition"
+          >
+            Done
+          </button>
+        </div>
+
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
+          {/* Profile Hero */}
+          <div className="flex flex-col items-center text-center pt-1 pb-2">
+            <div className="relative">
+              <Avatar className="size-20 border-2 border-border shadow-md">
+                <Avatar.Image alt={peer.name} src={peer.avatarUrl} />
+                <Avatar.Fallback className="text-xl font-bold">{peer.initials}</Avatar.Fallback>
+              </Avatar>
+              {peer.isOnline ? (
+                <span className="absolute bottom-1 right-1 size-4 rounded-full border-2 border-background bg-success ring-1 ring-background" />
+              ) : null}
             </div>
 
-            {isEditing ? (
-              <div className="mt-3 space-y-2">
+            <h4 className="mt-2.5 text-lg font-bold text-foreground">{peer.fullName}</h4>
+            <p className="text-xs text-muted">{peer.subtitle || (peer.isOnline ? "Active now" : "Offline")}</p>
+          </div>
+
+          {/* Card: Set Nickname */}
+          <div className="rounded-2xl border border-border/70 bg-surface/60 p-4 backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="nickname-input" className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Your Nickname for {peer.fullName.split(" ")[0]}
+              </label>
+              <span className="text-[10px] text-muted">{nicknameInput.length}/32</span>
+            </div>
+
+            <form onSubmit={handleSave} className="flex flex-col gap-2.5">
+              <div className="relative flex items-center">
                 <input
+                  id="nickname-input"
                   type="text"
-                  autoFocus
                   maxLength={32}
                   value={nicknameInput}
                   onChange={(e) => setNicknameInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSave();
-                    if (e.key === "Escape") setIsEditing(false);
-                  }}
-                  placeholder={`Nickname for ${peer.fullName}...`}
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  placeholder={`e.g. Bestie, ${peer.fullName.split(" ")[0]}`}
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted/60 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all pr-8"
                 />
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  {peer.nickname && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-danger hover:bg-danger/10"
-                      isDisabled={isSaving}
-                      onPress={handleClear}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    isDisabled={isSaving}
-                    onPress={() => setIsEditing(false)}
+                {nicknameInput ? (
+                  <button
+                    type="button"
+                    onClick={() => setNicknameInput("")}
+                    className="absolute right-2.5 text-muted hover:text-foreground p-0.5"
+                    aria-label="Clear input"
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="bg-accent text-accent-foreground"
-                    isLoading={isSaving}
-                    onPress={handleSave}
-                  >
-                    <CheckIcon className="size-3.5 mr-1" /> Save
-                  </Button>
-                </div>
+                    <XIcon className="size-4" />
+                  </button>
+                ) : null}
               </div>
-            ) : (
-              <div className="mt-2 flex items-center gap-2">
-                <SparklesIcon className="size-4 text-accent" />
-                <p className="text-base font-bold text-foreground">
-                  {peer.nickname ? (
-                    <span>"{peer.nickname}"</span>
-                  ) : (
-                    <span className="text-muted font-normal text-sm italic">
-                      (No nickname set)
-                    </span>
-                  )}
+
+              <p className="text-[11px] text-muted/80">
+                This name will replace {peer.fullName.split(" ")[0]}'s name in your chat header, list, and alerts.
+              </p>
+
+              {hasChanged && (
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  className="w-full mt-1 bg-accent text-accent-foreground font-semibold"
+                  isLoading={isSaving}
+                >
+                  <CheckIcon className="size-4 mr-1.5" /> Save Nickname
+                </Button>
+              )}
+            </form>
+          </div>
+
+          {/* Card: What they call YOU */}
+          <div className="rounded-2xl border border-border/70 bg-surface/60 p-4 backdrop-blur-md">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                What {peer.fullName.split(" ")[0]} Calls You
+              </span>
+              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                Shared
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-1">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-muted">
+                <UserCheckIcon className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                {peer.myNickname ? (
+                  <p className="text-sm font-bold text-foreground truncate">
+                    "{peer.myNickname}"
+                  </p>
+                ) : (
+                  <p className="text-xs italic text-muted">
+                    No nickname set for you yet
+                  </p>
+                )}
+                <p className="text-[10px] text-muted/70">
+                  {peer.myNickname
+                    ? `Set by ${peer.fullName.split(" ")[0]}`
+                    : `Only ${peer.fullName.split(" ")[0]} can set your nickname`}
                 </p>
               </div>
-            )}
+            </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-6 flex justify-end">
-          <Button variant="secondary" className="w-full sm:w-auto" onPress={onClose}>
-            Done
-          </Button>
+          {/* Action: Clear Nickname */}
+          {peer.nickname ? (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={isSaving}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs font-semibold text-danger hover:bg-danger/15 active:scale-98 transition"
+            >
+              <Trash2Icon className="size-4" />
+              <span>Remove Nickname</span>
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

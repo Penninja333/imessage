@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Scrolls a container to the bottom when `threadKey` or `lastItemId` changes,
+ * Scrolls a container to the bottom when `threadKey`, `lastItemId`, or `isTyping` changes,
  * or when the mobile virtual keyboard opens/closes.
  */
-function useScrollToBottom(threadKey, lastItemId) {
+function useScrollToBottom(threadKey, lastItemId, isTyping) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -18,7 +18,10 @@ function useScrollToBottom(threadKey, lastItemId) {
 
     scrollToBottom();
     requestAnimationFrame(scrollToBottom);
-  }, [threadKey, lastItemId]);
+    const timeout = setTimeout(scrollToBottom, 60);
+
+    return () => clearTimeout(timeout);
+  }, [threadKey, lastItemId, isTyping]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
@@ -26,16 +29,21 @@ function useScrollToBottom(threadKey, lastItemId) {
     const handleViewportChange = () => {
       const el = scrollRef.current;
       if (!el) return;
-      // When keyboard opens or viewport shrinks, keep user pinned to latest messages
+      // When keyboard opens or viewport shrinks, keep user pinned to latest messages & typing
       setTimeout(() => {
         el.scrollTop = el.scrollHeight;
       }, 50);
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
     };
 
     window.visualViewport.addEventListener("resize", handleViewportChange);
+    window.visualViewport.addEventListener("scroll", handleViewportChange);
 
     return () => {
       window.visualViewport.removeEventListener("resize", handleViewportChange);
+      window.visualViewport.removeEventListener("scroll", handleViewportChange);
     };
   }, []);
 

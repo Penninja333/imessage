@@ -10,18 +10,23 @@ export async function getUsersForSidebar(req, res) {
   try {
     const loggedInUserId = req.user._id;
 
-    const [filteredUsers, nicknames] = await Promise.all([
+    const [filteredUsers, myNicknamesForThem, theirNicknamesForMe] = await Promise.all([
       User.find({ _id: { $ne: loggedInUserId } }).select("-clerkId").lean(),
       Nickname.find({ withUserId: loggedInUserId }).lean(),
+      Nickname.find({ forUserId: loggedInUserId }).lean(),
     ]);
 
     const nicknameMap = Object.fromEntries(
-      nicknames.map((n) => [String(n.forUserId), n.nickname]),
+      myNicknamesForThem.map((n) => [String(n.forUserId), n.nickname]),
+    );
+    const myNicknameMap = Object.fromEntries(
+      theirNicknamesForMe.map((n) => [String(n.withUserId), n.nickname]),
     );
 
     const usersWithNicknames = filteredUsers.map((u) => ({
       ...u,
       nickname: nicknameMap[String(u._id)] || null,
+      myNickname: myNicknameMap[String(u._id)] || null,
     }));
 
     res.status(200).json(usersWithNicknames);
@@ -192,12 +197,15 @@ export async function setNickname(req, res) {
     const targetUser = await User.findById(forUserId);
     const targetName = targetUser?.fullName || "user";
 
+    const isSelf = String(forUserId) === String(withUserId);
     let updatedNickname = null;
     let systemText = "";
 
     if (trimmed.length === 0) {
       await Nickname.findOneAndDelete({ forUserId, withUserId });
-      systemText = `${req.user.fullName} cleared the nickname for ${targetName}`;
+      systemText = isSelf
+        ? `${req.user.fullName} cleared their nickname`
+        : `${req.user.fullName} cleared the nickname for ${targetName}`;
     } else {
       if (trimmed.length > 32) {
         return res.status(400).json({ message: "Nickname must be 32 characters or fewer" });
@@ -209,7 +217,9 @@ export async function setNickname(req, res) {
         { new: true, upsert: true, setDefaultsOnInsert: true },
       );
       updatedNickname = updated.nickname;
-      systemText = `${req.user.fullName} set the nickname for ${targetName} to "${trimmed}"`;
+      systemText = isSelf
+        ? `${req.user.fullName} set their nickname to "${trimmed}"`
+        : `${req.user.fullName} set the nickname for ${targetName} to "${trimmed}"`;
     }
 
     // Create and save an in-chat system message so the nickname update displays right in the chat stream!
