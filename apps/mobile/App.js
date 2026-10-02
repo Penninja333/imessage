@@ -1,4 +1,4 @@
-import { ClerkProvider, ClerkLoaded } from '@clerk/expo';
+import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';

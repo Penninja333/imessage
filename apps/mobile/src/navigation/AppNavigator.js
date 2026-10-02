@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View, AppState, Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useAuth } from '@clerk/expo';
+import { useAuth } from '@clerk/clerk-expo';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useAuthStore } from '../store/useAuthStore';
