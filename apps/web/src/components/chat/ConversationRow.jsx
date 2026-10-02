@@ -33,7 +33,7 @@ export function ConversationRow({ user, selected, onSelect }) {
               {user.name}
             </p>
             {user.hasNickname ? (
-              <span className="shrink-0 rounded bg-accent/10 px-1 py-0.2 text-[9px] font-medium uppercase tracking-wide text-accent">
+              <span className="shrink-0 rounded bg-accent/10 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-accent">
                 nick
               </span>
             ) : null}

@@ -220,7 +220,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
               type="button"
               onClick={handleClear}
               disabled={isSaving}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs font-semibold text-danger hover:bg-danger/15 active:scale-98 transition"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs font-semibold text-danger hover:bg-danger/15 active:scale-95 transition"
             >
               <Trash2Icon className="size-4" />
               <span>Remove Nickname</span>

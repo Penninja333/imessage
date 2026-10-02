@@ -146,7 +146,7 @@ function ChatSidebar() {
               <MessageSquareIcon className="size-3.5 opacity-80" aria-hidden />
               <span>Chats</span>
               {totalUnread > 0 ? (
-                <span className="flex items-center justify-center rounded-full bg-accent px-1.5 py-0.2 text-[10px] font-bold text-accent-foreground min-w-[18px]">
+                <span className="flex items-center justify-center rounded-full bg-accent px-1.5 py-px text-[10px] font-bold text-accent-foreground min-w-[18px]">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               ) : null}
