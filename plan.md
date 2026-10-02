@@ -1,49 +1,51 @@
-# React Native APK Build Plan
+# React Native APK Build Plan & Architecture
 
 ## Goal
-Build a signed debug/release APK directly from the Expo project using **`expo prebuild`** (bare workflow) and **Gradle**, without EAS. This produces a native `.apk` that can be sideloaded on any Android device.
-
-## Environment
-
-| Tool | Status |
-|---|---|
-| Java (OpenJDK 26) | ✅ `/usr/bin/java` |
-| ADB | ✅ `/usr/bin/adb` |
-| Android SDK | ✅ `/home/wind/Desktop/APP/.tools/android-sdk` |
-| Gradle Wrapper | ⬇️ Auto-downloaded by generated project |
-| EAS | ❌ NOT used |
-
-## Strategy: Expo Prebuild → Gradle APK
-
-### Why `expo prebuild`?
-The current project is a managed Expo app (no `android/` directory). `expo prebuild` generates the native Android project files (gradle, manifests, java sources) from the JS config (`app.json` + plugins). After that it's a standard React Native app that builds with Gradle — **zero EAS required**.
+Build a sideloadable Android APK directly from the Expo project using **EAS Build** integrated into GitHub Actions CI, attached automatically to every GitHub Release on push to `master`.
 
 ---
 
-## Step-by-Step Plan
+## Architecture & Configuration
 
-### Phase 1 — Prep the environment
-1. Export `ANDROID_HOME=/home/wind/Desktop/APP/.tools/android-sdk`
-2. Ensure `build-tools`, `platforms/android-35`, `platform-tools` are installed via `sdkmanager`
-3. Accept SDK licenses
+| Component | Setting / Value | Purpose |
+|---|---|---|
+| **Expo Account** | `fin45309` | Project owner on Expo cloud |
+| **Project ID** | `0a7d858e-6991-44c3-88f9-d67a24d87edd` | Linked via `apps/mobile/app.json` |
+| **EAS Config** | `apps/mobile/eas.json` | `preview` profile builds standalone `.apk` for distribution |
+| **CI Integration** | `.github/workflows/release.yml` | `build-android` job runs on push to `master` with `EXPO_TOKEN` |
+| **Artifact Output** | `app-debug.apk` | Uploaded to CI artifacts and attached to GitHub Releases |
 
-### Phase 2 — Update app.json
-4. Add `android.adaptiveIcon`, proper `versionCode`, `permissions`
+---
 
-### Phase 3 — Prebuild (generate native Android project)
-5. Run `npx expo prebuild --platform android --clean` in `apps/mobile/`
-   - Reads `app.json`, processes plugins, generates `apps/mobile/android/`
+## Build Pipeline Workflow
 
-### Phase 4 — Configure build
-6. Write `android/local.properties` with correct `sdk.dir`
+```mermaid
+flowchart LR
+    Push[git push master] --> CI[GitHub Actions: release.yml]
+    CI --> Test[API Smoke Tests]
+    Test --> Web[Build Web SPA]
+    Test --> Landing[Build Landing Page]
+    Test --> API[Build API Bundle]
+    Test --> EAS[Build Android APK via EAS]
+    EAS --> Download[Download APK Artifact]
+    Web & Landing & API & Download --> Release[Publish GitHub Release v1.0.X with All Artifacts]
+```
 
-### Phase 5 — Build the APK
-7. Run `./gradlew assembleDebug` in `apps/mobile/android/`
-8. APK: `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`
+---
 
-### Phase 6 — Wire into GitHub Actions CI
-9. Add `build-android` job in `.github/workflows/release.yml`
+## EAS Profiles (`eas.json`)
+- **`preview`**: Builds standalone Android APK for distribution / sideloading without going through Google Play Console.
+- **`production`**: Configured for store release.
+- **`development`**: For Expo Dev Client.
 
-## Output
-- `app-debug.apk` — installable on any Android with "Unknown sources" enabled
-- Attached to GitHub Release as artifact on every push to master
+---
+
+## Local Commands (Optional manual builds)
+```bash
+# Sideloadable APK via cloud:
+cd apps/mobile
+npx eas-cli build --platform android --profile preview
+
+# Run local development:
+npm start
+```

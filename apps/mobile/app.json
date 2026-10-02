@@ -34,7 +34,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.VIBRATE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -54,7 +55,11 @@
       "expo-notifications"
     ],
     "extra": {
-      "clerkPublishableKey": ""
-    }
+      "clerkPublishableKey": "",
+      "eas": {
+        "projectId": "0a7d858e-6991-44c3-88f9-d67a24d87edd"
+      }
+    },
+    "owner": "fin45309"
   }
 }
