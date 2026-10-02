@@ -52,7 +52,6 @@
           "cameraPermission": "iMessage needs camera access to send photos."
         }
       ],
-      "expo-notifications",
       "expo-asset",
       "expo-font"
     ],
