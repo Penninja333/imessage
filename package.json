@@ -4,8 +4,12 @@
   "private": true,
   "description": "iMessage cross-platform real-time chat application",
   "workspaces": [
-    "apps/*",
-    "services/*",
-    "packages/*"
-  ]
+    "apps/web",
+    "apps/landing",
+    "services/api",
+    "packages/design-tokens"
+  ],
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
 }
