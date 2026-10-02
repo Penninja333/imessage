@@ -15,6 +15,7 @@ import job from "./lib/cron.js";
 import clerkWebhook from "./webhooks/clerk.webhook.js";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
+import deviceRoutes from "./routes/device.route.js";
 import { app, server } from "./lib/socket.js";
 
 const PORT = process.env.PORT || 3001;
@@ -35,6 +36,7 @@ app.get("/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/devices", deviceRoutes);
 
 // if the public directory exists, serve the static files
 // this is for the production build

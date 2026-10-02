@@ -15,7 +15,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.imessage.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "iMessage needs camera access to send photos."
+        "NSCameraUsageDescription": "iMessage needs camera access to send photos.",
+        "NSPhotoLibraryUsageDescription": "iMessage needs photo library access to send photos."
       }
     },
     "android": {

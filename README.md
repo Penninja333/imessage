@@ -1,88 +1,100 @@
-# 💬 Full Stack Real-Time Chat App 🚀
+# 💬 iMessage Multi-Platform
 
-![Demo App](/frontend/public/screenshot-for-readme.png)
+A production-ready, full-stack, real-time chat application extending across web, mobile (React Native), and a landing page, powered by a unified API.
 
 ---
 
-## ✨ Highlights:
+## 🏗️ Architecture
 
-- 💬 Full Stack Real-Time Chat Application built from scratch
-- ⚛️ Frontend with React, Tailwind CSS & Hero UI
-- 🚀 Backend with Node.js & Express.js
-- 🔐 Authentication with Clerk
-- 🗄️ MongoDB Database Integration
-- ⚡ Real-Time Messaging with Socket.io
-- 🟢 Online User Presence Tracking
-- 🖼️ Image & Video Sharing Support
-- 🎨 Light & Dark Mode
-- 🖌️ 13 Custom Wallpapers
-- 🌈 11 Beautiful Themes
-- ⌨️ Optional Keyboard Sound Effects
-- 🔌 Build Your Own WebSocket Server
-- 🚫 No Firebase or Supabase Required
-- 📤 Media Uploads & Optimization with ImageKit
-- 🔔 Webhooks Explained & Implemented
-- ⏰ Cron Jobs from Scratch
-- 🛡️ Express Middleware Deep Dive
-- 📁 File Uploads & Media Handling
-- 🌐 Deploy Your App with a Live URL
-- 🆓 100% Free Setup to Get Started
-- 📂 Full Source Code Included
-- 🎯 Resume-Ready Production-Style Project
+This repository is structured as a **monorepo**:
+
+```
+imessage/
+├── apps/
+│   ├── web/            # React SPA (Vite + Tailwind + Zustand + Socket.io)
+│   ├── mobile/         # React Native (Expo + Clerk + Socket.io)
+│   └── landing/        # Landing page (Vite + React)
+├── services/
+│   └── api/            # Backend (Express + MongoDB + Socket.io + Firebase Push)
+├── packages/
+│   └── design-tokens/  # Shared color palette/themes across web and mobile
+└── .github/workflows/
+    └── release.yml     # Automated CI/CD for versioning and artifacts
+```
+
+## ✨ Features
+
+- **Cross-Platform:** Full feature parity between Web and iOS/Android.
+- **Real-Time:** Socket.io for instant messaging and online presence tracking.
+- **Push Notifications:** Firebase Cloud Messaging (FCM) and APNs for offline message delivery.
+- **Shared Nicknames:** Instagram-style private nicknames for contacts.
+- **Themes:** Light/dark modes with 8 accent colors synced across devices.
+- **Auth:** Clerk identity provider across all apps.
+- **Media:** Image and video sharing via ImageKit.
 
 ---
 
 ## 🧪 Environment Variables
 
-### Backend (`/backend`)
-
+### Backend (`services/api/.env`)
 ```bash
-PORT=<your_port>
-
-NODE_ENV=<development_or_production>
-
-MONGO_URI=<your_mongodb_connection_string>
-
-CLERK_PUBLISHABLE_KEY=<your_clerk_publishable_key>
-CLERK_SECRET_KEY=<your_clerk_secret_key>
-CLERK_WEBHOOK_SIGNING_SECRET=<your_clerk_webhook_signing_secret>
-
-IMAGEKIT_PRIVATE_KEY=<your_imagekit_private_key>
-
-FRONTEND_URL=<your_frontend_url>
+PORT=3001
+NODE_ENV=development
+MONGO_URI=mongodb+srv://...
+CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
+IMAGEKIT_PRIVATE_KEY=private_...
+IMAGEKIT_PUBLIC_KEY=public_...
+IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/...
+FRONTEND_URL=http://localhost:5173
+FIREBASE_SERVICE_ACCOUNT=base64_encoded_json_string  # For Push Notifications
 ```
 
-### Frontend (`/frontend`)
-
+### Web (`apps/web/.env`)
 ```bash
-VITE_CLERK_PUBLISHABLE_KEY=<your_clerk_publishable_key>
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+```
+
+### Mobile (`apps/mobile/.env`)
+```bash
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+EXPO_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ---
 
-## 🚀 Tech Stack
+## 🚀 Local Development
 
-### Frontend
-
-- React
-- Tailwind CSS
-- Hero UI
-- Zustand
-- Socket.io Client
-
-### Backend
-
-- Node.js
-- Express.js
-- MongoDB
-- Socket.io
-- Clerk
-- ImageKit
-
-### Deployment
-
-- Frontend: Render
-- Backend: Render
-- Database: MongoDB Atlas
+1. **Install dependencies:** Run `npm install` in `services/api`, `apps/web`, `apps/mobile`, and `apps/landing`.
+2. **Start the API:** `cd services/api && npm run dev`
+3. **Start the Web app:** `cd apps/web && npm run dev`
+4. **Start the Mobile app:** `cd apps/mobile && npx expo start`
 
 ---
+
+## 🌐 Deployment (Render)
+
+The web and API applications are deployed together on Render as a single web service.
+1. Connect Render to the GitHub repository.
+2. Build Command: `cd services/api && npm install && npm run build && cd ../../apps/web && npm install --legacy-peer-deps && npm run build`
+3. Start Command: `cd services/api && npm start`
+4. Provide all required environment variables in the Render dashboard.
+
+The Landing page can be deployed as a static site:
+1. Build Command: `cd apps/landing && npm install && npm run build`
+2. Publish Directory: `apps/landing/dist`
+
+---
+
+## 🔄 GitHub Actions Releases
+
+This repository uses [Release Please](https://github.com/googleapis/release-please) for automated versioning and changelog generation based on Conventional Commits (`feat:`, `fix:`, etc.).
+
+On every push to `master`, the `.github/workflows/release.yml` workflow:
+1. Runs API smoke tests (`services/api/tests/smoke.test.js`).
+2. Builds the Web SPA and Landing Page.
+3. Compiles the API bundle.
+4. Generates a new GitHub Release (if a feature or fix was merged).
+5. Uploads `web-dist.tar.gz`, `landing-dist.tar.gz`, and `api-dist.tar.gz` as release artifacts.
+
+*Note: Ensure `VITE_CLERK_PUBLISHABLE_KEY` is set in your repository's GitHub Secrets for the CI web build to succeed.*

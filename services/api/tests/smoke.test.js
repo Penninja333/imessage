@@ -13,6 +13,14 @@ vi.mock("../src/lib/cron.js", () => ({
   default: { start: vi.fn() },
 }));
 
+// Mock DeviceToken model
+vi.mock("../src/models/deviceToken.model.js", () => ({
+  default: {
+    find: vi.fn().mockResolvedValue([]),
+    findOneAndUpdate: vi.fn().mockResolvedValue({}),
+  },
+}));
+
 // Mock User model
 const mockUserFindOne = vi.fn();
 const mockUserFind = vi.fn();

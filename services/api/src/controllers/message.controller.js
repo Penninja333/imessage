@@ -1,8 +1,10 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Nickname from "../models/nickname.model.js";
+import DeviceToken from "../models/deviceToken.model.js";
 import { hasImageKitConfig, uploadChatMedia } from "../lib/imagekit.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
+import { sendPush } from "../lib/push.js";
 
 export async function getUsersForSidebar(req, res) {
   try {
@@ -105,6 +107,7 @@ export async function sendMessage(req, res) {
     const { text } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
+    const senderName = req.user.fullName; // Fallback for push title
 
     let imageUrl;
     let videoUrl;
@@ -132,6 +135,31 @@ export async function sendMessage(req, res) {
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
+    } else {
+      // Receiver is offline, send push notification
+      const devices = await DeviceToken.find({ userId: receiverId });
+      if (devices.length > 0) {
+        // Fetch sender's nickname for receiver (if any) to use in push title
+        const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
+        const title = nicknameDoc?.nickname || senderName;
+        
+        let body = text;
+        if (!body) {
+           if (imageUrl) body = "📷 Sent an image";
+           else if (videoUrl) body = "🎥 Sent a video";
+           else body = "New message";
+        }
+
+        const tokens = devices.map(d => d.token);
+        
+        // sendPush is async but we don't await it so we don't block the API response
+        sendPush({
+          tokens,
+          title,
+          body,
+          data: { senderId: senderId.toString(), messageId: newMessage._id.toString() }
+        });
+      }
     }
 
     res.status(201).json(newMessage);
