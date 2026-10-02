@@ -24,7 +24,7 @@ export function AuthActionPanel() {
   const clerk = useClerk();
 
   return (
-    <section className="relative flex flex-1 flex-col items-stretch justify-center overflow-hidden px-5 py-12 sm:px-10 md:px-14 md:py-10 lg:px-16">
+    <section className="relative flex flex-1 flex-col items-stretch justify-center px-4 py-8 sm:px-10 md:px-14 md:py-10 lg:px-16">
       <AuthCardShell>
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="relative mb-5">

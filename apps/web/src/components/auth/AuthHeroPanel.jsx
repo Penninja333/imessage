@@ -2,10 +2,10 @@ import { APP_NAME } from "../AppLogo";
 import { AuthHeroPattern } from "./AuthHeroPattern";
 
 const heroPanelClassName = [
-  "relative flex min-h-[min(320px,42vh)] shrink-0 flex-col overflow-hidden",
+  "relative hidden md:flex min-h-[min(320px,42vh)] shrink-0 flex-col overflow-hidden",
   "bg-[#E8E8ED] dark:bg-black",
-  "md:w-[44%] md:max-w-xl md:border-r md:border-black/10 dark:md:border-white/10",
-  "lg:w-[42%] lg:max-w-none",
+  "md:w-[48%] md:max-w-xl md:border-r md:border-black/10 dark:md:border-white/10",
+  "lg:w-[45%] lg:max-w-none",
 ].join(" ");
 
 const heroImageClassName = [
