@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
+import { showWebNotification } from "../lib/notifications";
 import toast from "react-hot-toast";
 
 export const useChatStore = create(
@@ -92,6 +93,15 @@ export const useChatStore = create(
           if (String(newMessage.senderId) !== String(userId)) return;
 
           set({ messages: [...get().messages, newMessage] });
+
+          const partner = get().selectedUser || get().users.find((u) => u._id === userId);
+          const senderName = partner?.nickname || partner?.fullName || "iMessage";
+          const body = newMessage.text || (newMessage.image ? "📷 Photo" : newMessage.video ? "🎥 Video" : "New message");
+
+          showWebNotification(senderName, {
+            body,
+            data: { conversationId: userId },
+          });
 
           get().getConversations();
         });

@@ -27,7 +27,6 @@ export function ChatComposer() {
 
   const handleComposerTextChange = (event) => {
     setComposerText(event.target.value);
-    playSoundIfEnabled();
   };
 
   const handleMediaPick = async (event) => {

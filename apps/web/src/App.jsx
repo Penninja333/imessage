@@ -9,23 +9,28 @@ import { useAuthStore } from "./store/useAuthStore";
 import { useEffect } from "react";
 
 import { Toaster } from "react-hot-toast";
+import { registerServiceWorker, requestNotificationPermission } from "./lib/notifications";
 
 function App() {
   const { isSignedIn, isLoaded } = useAuth();
 
-  // option 1
-  // const { checkAuth, isCheckingAuth, clearAuth } = useAuthStore();
-
-  // option 2 - better for performance
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const checkAuth = useAuthStore((state) => state.checkAuth);
   const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
 
   useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  useEffect(() => {
     if (!isLoaded) return;
 
-    if (isSignedIn) checkAuth();
-    else clearAuth();
+    if (isSignedIn) {
+      checkAuth();
+      requestNotificationPermission();
+    } else {
+      clearAuth();
+    }
   }, [checkAuth, clearAuth, isLoaded, isSignedIn]);
 
   if (!isLoaded || (isSignedIn && isCheckingAuth)) return <PageLoader />;
