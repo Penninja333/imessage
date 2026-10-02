@@ -36,11 +36,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci --legacy-peer-deps
-        working-directory: apps/web
-      - run: npm run build
-        working-directory: apps/web
+      - run: npm run build -w apps/web
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
       - run: tar -czf web-dist.tar.gz -C apps/web/dist .
