@@ -1,0 +1,22 @@
+# Expo / React Native
+node_modules/
+.expo/
+dist/
+
+# Android build output (keep source, ignore build artifacts)
+android/app/build/
+android/.gradle/
+android/build/
+android/app/.cxx/
+*.keystore
+!debug.keystore
+
+# iOS
+ios/build/
+ios/Pods/
+ios/DerivedData/
+*.xcworkspace
+
+# Misc
+*.log
+.DS_Store
