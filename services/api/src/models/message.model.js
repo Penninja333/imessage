@@ -21,6 +21,20 @@ const messageSchema = new mongoose.Schema(
     video: {
       type: String,
     },
+    isSystem: {
+      type: Boolean,
+      default: false,
+    },
+    reactions: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        emoji: { type: String, required: true },
+      },
+    ],
+    deleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

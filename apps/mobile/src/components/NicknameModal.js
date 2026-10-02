@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useChatStore } from '../store/useChatStore';
 
-export default function NicknameModal({ visible, onClose, userId, currentNickname, peerName, theme, accent }) {
+export default function NicknameModal({ visible, onClose, userId, currentNickname, peerNicknameForMe, peerName, theme, accent }) {
   const [value, setValue] = useState(currentNickname || '');
   const setNickname = useChatStore((s) => s.setNickname);
 
@@ -30,6 +30,7 @@ export default function NicknameModal({ visible, onClose, userId, currentNicknam
   const bg = isDark ? '#1c1c1e' : '#fff';
   const fg = isDark ? '#fff' : '#000';
   const border = isDark ? '#333' : '#ddd';
+  const cardBg = isDark ? '#2c2c2e' : '#f2f2f7';
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -39,22 +40,38 @@ export default function NicknameModal({ visible, onClose, userId, currentNicknam
       >
         <View style={[styles.sheet, { backgroundColor: bg }]}>
           <View style={styles.handle} />
-          <Text style={[styles.title, { color: fg }]}>Nickname for {peerName}</Text>
+          <Text style={[styles.title, { color: fg }]}>Chat Nicknames</Text>
           <Text style={[styles.subtitle, { color: isDark ? '#888' : '#555' }]}>
-            Set a nickname for {peerName}. Both of you will be able to see the nickname set for each other.
+            Shared nicknames between you and {peerName}.
           </Text>
 
-          <TextInput
-            style={[styles.input, { color: fg, borderColor: border, backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
-            value={value}
-            onChangeText={setValue}
-            placeholder={`Nickname for ${peerName}…`}
-            placeholderTextColor="#888"
-            maxLength={32}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-          />
+          {/* Section: What they call you */}
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}>
+            <Text style={[styles.cardLabel, { color: isDark ? '#aaa' : '#666' }]}>
+              WHAT {peerName.toUpperCase()} CALLS YOU
+            </Text>
+            <Text style={[styles.cardValue, { color: fg }]}>
+              {peerNicknameForMe ? `"${peerNicknameForMe}"` : '(No nickname set for you yet)'}
+            </Text>
+          </View>
+
+          {/* Section: Your nickname for them */}
+          <View style={{ marginTop: 12 }}>
+            <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>
+              YOUR NICKNAME FOR {peerName.toUpperCase()}
+            </Text>
+            <TextInput
+              style={[styles.input, { color: fg, borderColor: border, backgroundColor: cardBg }]}
+              value={value}
+              onChangeText={setValue}
+              placeholder={`Nickname for ${peerName}…`}
+              placeholderTextColor="#888"
+              maxLength={32}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
+            />
+          </View>
 
           <View style={styles.actions}>
             {currentNickname ? (
@@ -102,8 +119,30 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
-    marginBottom: 20,
+    marginBottom: 16,
     lineHeight: 18,
+  },
+  card: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  cardLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  cardValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,

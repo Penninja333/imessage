@@ -16,17 +16,31 @@ export function ChatComposer() {
   const { playRandomKeyStrokeSound } = useKeyboardSound();
   const mediaInputRef = useRef(null);
 
+  const sendTyping = useChatStore((state) => state.sendTyping);
+  const sendStopTyping = useChatStore((state) => state.sendStopTyping);
+  const typingTimeoutRef = useRef(null);
+
   const playSoundIfEnabled = () => {
     if (isSoundEnabled) playRandomKeyStrokeSound();
   };
 
   const handleSend = async () => {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    sendStopTyping(activeConversationId);
     const didSendMessage = await sendTextMessage(activeConversationId);
     if (didSendMessage) playSoundIfEnabled();
   };
 
   const handleComposerTextChange = (event) => {
     setComposerText(event.target.value);
+
+    if (activeConversationId) {
+      sendTyping(activeConversationId);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendStopTyping(activeConversationId);
+      }, 2000);
+    }
   };
 
   const handleMediaPick = async (event) => {

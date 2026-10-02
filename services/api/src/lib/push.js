@@ -13,12 +13,21 @@ function initFirebase() {
   }
 
   try {
-    const serviceAccount = JSON.parse(
-      Buffer.from(serviceAccountB64, "base64").toString("utf8"),
-    );
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    let serviceAccount;
+    const trimmed = serviceAccountB64.trim();
+    if (trimmed.startsWith("{")) {
+      serviceAccount = JSON.parse(trimmed);
+    } else {
+      serviceAccount = JSON.parse(
+        Buffer.from(trimmed, "base64").toString("utf8"),
+      );
+    }
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
     initialized = true;
     console.log("[push] Firebase Admin initialized ✓");
   } catch (err) {

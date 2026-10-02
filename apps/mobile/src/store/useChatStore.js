@@ -18,6 +18,7 @@ export const useChatStore = create(
       searchQuery: "",
       composerText: "",
       isSendingMedia: false,
+      typingUser: null,
 
       getUsers: async () => {
         set({ isUsersLoading: true });
@@ -77,23 +78,78 @@ export const useChatStore = create(
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
+        // Clear all listeners first to avoid duplicates
         socket.off("newMessage");
+        socket.off("nicknameUpdated");
+        socket.off("messageReaction");
+        socket.off("messageDeleted");
+        socket.off("userTyping");
+        socket.off("userStopTyping");
+
         socket.on("newMessage", (newMessage) => {
-          if (String(newMessage.senderId) !== String(userId)) return;
-          set({ messages: [...get().messages, newMessage] });
+          const { messages } = get();
+          // Accept messages from peer, or system messages relevant to this chat
+          const isRelevant =
+            String(newMessage.senderId) === String(userId) ||
+            String(newMessage.receiverId) === String(userId) ||
+            newMessage.isSystem;
+          if (!isRelevant) return;
+          set({ messages: [...messages, newMessage] });
           get().getConversations();
+        });
+
+        socket.on("nicknameUpdated", () => {
+          get().getUsers();
+          get().getConversations();
+        });
+
+        socket.on("messageReaction", ({ messageId, reactions }) => {
+          set({
+            messages: get().messages.map((m) =>
+              String(m._id) === String(messageId) ? { ...m, reactions } : m
+            ),
+          });
+        });
+
+        socket.on("messageDeleted", ({ messageId }) => {
+          set({
+            messages: get().messages.map((m) =>
+              String(m._id) === String(messageId)
+                ? { ...m, deleted: true, text: null, image: null }
+                : m
+            ),
+          });
+        });
+
+        socket.on("userTyping", ({ senderId }) => {
+          if (String(senderId) === String(userId)) {
+            set({ typingUser: senderId });
+          }
+        });
+
+        socket.on("userStopTyping", ({ senderId }) => {
+          if (String(senderId) === String(userId)) {
+            set({ typingUser: null });
+          }
         });
       },
 
       unsubscribeFromMessages: () => {
         const socket = useAuthStore.getState().socket;
-        socket?.off("newMessage");
+        if (!socket) return;
+        socket.off("newMessage");
+        socket.off("nicknameUpdated");
+        socket.off("messageReaction");
+        socket.off("messageDeleted");
+        socket.off("userTyping");
+        socket.off("userStopTyping");
       },
 
       setActiveConversationId: (activeConversationId) => {
         set((state) => ({
           activeConversationId,
           messages: activeConversationId ? state.messages : [],
+          typingUser: null,
         }));
       },
 
@@ -102,12 +158,42 @@ export const useChatStore = create(
 
       setNickname: async (targetUserId, nickname) => {
         try {
-          await axiosInstance.put(`/messages/nickname/${targetUserId}`, { nickname });
+          const res = await axiosInstance.put(`/messages/nickname/${targetUserId}`, { nickname });
+          // Append system message if the server returned one
+          if (res.data?.systemMessage) {
+            set({ messages: [...get().messages, res.data.systemMessage] });
+          }
           get().getUsers();
           get().getConversations();
         } catch (error) {
           console.error("Failed to set nickname", error);
         }
+      },
+
+      toggleReaction: async (messageId, emoji) => {
+        try {
+          await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
+        } catch (error) {
+          console.error("Failed to toggle reaction", error);
+        }
+      },
+
+      deleteMessage: async (messageId) => {
+        try {
+          await axiosInstance.delete(`/messages/${messageId}`);
+        } catch (error) {
+          console.error("Failed to delete message", error);
+        }
+      },
+
+      sendTyping: (receiverId) => {
+        const socket = useAuthStore.getState().socket;
+        socket?.emit("typing", { receiverId });
+      },
+
+      sendStopTyping: (receiverId) => {
+        const socket = useAuthStore.getState().socket;
+        socket?.emit("stopTyping", { receiverId });
       },
 
       sendTextMessage: async () => {

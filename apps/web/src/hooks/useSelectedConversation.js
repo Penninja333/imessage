@@ -26,6 +26,9 @@ function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
     time: formatMessageTime(message.createdAt),
     imageUrl: message.image,
     videoUrl: message.video,
+    isSystem: Boolean(message.isSystem),
+    reactions: message.reactions || [],
+    deleted: Boolean(message.deleted),
   }));
 
   const displayName = user.nickname || user.fullName;
@@ -33,9 +36,11 @@ function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
   return {
     id: user._id,
     peer: {
+      id: user._id,
       name: displayName,
       fullName: user.fullName,
       nickname: user.nickname || null,
+      myNickname: user.myNickname || null,
       subtitle: user.email,
       isOnline: onlineUsers.includes(user._id),
       avatarUrl: user.profilePic,

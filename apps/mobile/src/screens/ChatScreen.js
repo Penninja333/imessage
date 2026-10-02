@@ -201,6 +201,7 @@ export default function ChatScreen({ route, navigation }) {
         onClose={() => setShowNickname(false)}
         userId={userId}
         currentNickname={myNickname || null}
+        peerNicknameForMe={nickname || null}
         peerName={fullName || name}
         theme={theme}
         accent={accent}

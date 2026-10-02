@@ -81,6 +81,8 @@ export const useChatStore = create(
         }
       },
 
+      typingUser: null,
+
       subscribeToMessages: (userId) => {
         if (!userId) return;
 
@@ -88,28 +90,107 @@ export const useChatStore = create(
         if (!socket) return;
 
         socket.off("newMessage");
+        socket.off("nicknameUpdated");
+        socket.off("messageReaction");
+        socket.off("messageDeleted");
+        socket.off("userTyping");
+        socket.off("userStopTyping");
+
         socket.on("newMessage", (newMessage) => {
-          // if im not the receiver don't do anything just return
-          if (String(newMessage.senderId) !== String(userId)) return;
+          const isCurrentChat =
+            String(newMessage.senderId) === String(userId) ||
+            String(newMessage.receiverId) === String(userId);
 
-          set({ messages: [...get().messages, newMessage] });
+          if (isCurrentChat) {
+            set({ messages: [...get().messages, newMessage] });
+          }
 
-          const partner = get().selectedUser || get().users.find((u) => u._id === userId);
-          const senderName = partner?.nickname || partner?.fullName || "iMessage";
-          const body = newMessage.text || (newMessage.image ? "📷 Photo" : newMessage.video ? "🎥 Video" : "New message");
+          if (String(newMessage.senderId) === String(userId) && !newMessage.isSystem) {
+            const partner = get().selectedUser || get().users.find((u) => u._id === userId);
+            const senderName = partner?.nickname || partner?.fullName || "iMessage";
+            const body = newMessage.text || (newMessage.image ? "📷 Photo" : newMessage.video ? "🎥 Video" : "New message");
 
-          showWebNotification(senderName, {
-            body,
-            data: { conversationId: userId },
-          });
+            showWebNotification(senderName, {
+              body,
+              data: { conversationId: userId },
+            });
+          }
 
           get().getConversations();
+        });
+
+        socket.on("nicknameUpdated", (data) => {
+          // data: { forUserId, withUserId, nickname, setByUserId, setByName, targetName, systemMessage }
+          const authUser = useAuthStore.getState().authUser;
+          const myId = String(authUser?._id);
+
+          const applyNickname = (u) => {
+            if (String(u._id) === String(data.forUserId) && String(data.withUserId) === myId) {
+              return { ...u, nickname: data.nickname };
+            }
+            if (String(u._id) === String(data.withUserId) && String(data.forUserId) === myId) {
+              return { ...u, myNickname: data.nickname };
+            }
+            return u;
+          };
+
+          set((state) => ({
+            users: state.users.map(applyNickname),
+            conversations: state.conversations.map(applyNickname),
+            selectedUser: state.selectedUser ? applyNickname(state.selectedUser) : null,
+          }));
+
+          get().getConversations();
+          get().getUsers();
+        });
+
+        socket.on("messageReaction", ({ messageId, reactions }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m._id === messageId ? { ...m, reactions } : m
+            ),
+          }));
+        });
+
+        socket.on("messageDeleted", ({ messageId, text }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m._id === messageId ? { ...m, text, deleted: true, image: null, video: null } : m
+            ),
+          }));
+        });
+
+        socket.on("userTyping", ({ senderId }) => {
+          if (String(senderId) === String(userId)) {
+            set({ typingUser: senderId });
+          }
+        });
+
+        socket.on("userStopTyping", ({ senderId }) => {
+          if (String(senderId) === String(userId)) {
+            set({ typingUser: null });
+          }
         });
       },
 
       unsubscribeFromMessages: () => {
         const socket = useAuthStore.getState().socket;
         socket?.off("newMessage");
+        socket?.off("nicknameUpdated");
+        socket?.off("messageReaction");
+        socket?.off("messageDeleted");
+        socket?.off("userTyping");
+        socket?.off("userStopTyping");
+      },
+
+      sendTyping: (receiverId) => {
+        const socket = useAuthStore.getState().socket;
+        socket?.emit("typing", { receiverId });
+      },
+
+      sendStopTyping: (receiverId) => {
+        const socket = useAuthStore.getState().socket;
+        socket?.emit("stopTyping", { receiverId });
       },
 
       setSelectedUser: (selectedUser) => set({ selectedUser }),
@@ -132,17 +213,19 @@ export const useChatStore = create(
 
       setNickname: async (targetUserId, nickname) => {
         try {
-          await axiosInstance.put(`/messages/nickname/${targetUserId}`, { nickname });
+          const res = await axiosInstance.put(`/messages/nickname/${targetUserId}`, { nickname });
 
-          const applyNickname = (user) =>
-            user._id === targetUserId ? { ...user, nickname: nickname || null } : user;
+          if (res.data?.systemMessage) {
+            set((state) => ({
+              messages: [...state.messages, res.data.systemMessage],
+            }));
+          }
 
-          set((state) => ({
-            users: state.users.map(applyNickname),
-            conversations: state.conversations.map(applyNickname),
-          }));
+          get().getUsers();
+          get().getConversations();
 
           if (nickname) toast.success(`Nickname set: ${nickname}`);
+          else toast.success("Nickname cleared");
         } catch (error) {
           toast.error(error.response?.data?.message || "Failed to set nickname");
         }

@@ -107,7 +107,7 @@ export async function sendMessage(req, res) {
     const { text } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
-    const senderName = req.user.fullName; // Fallback for push title
+    const senderName = req.user.fullName;
 
     let imageUrl;
     let videoUrl;
@@ -136,30 +136,33 @@ export async function sendMessage(req, res) {
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     } else {
-      // Receiver is offline, send push notification
-      const devices = await DeviceToken.find({ userId: receiverId });
-      if (devices.length > 0) {
-        // Fetch sender's nickname for receiver (if any) to use in push title
-        const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
-        const title = nicknameDoc?.nickname || senderName;
-        
-        let body = text;
-        if (!body) {
-           if (imageUrl) body = "📷 Sent an image";
-           else if (videoUrl) body = "🎥 Sent a video";
-           else body = "New message";
-        }
+      // Receiver is offline — safely send push notification without blocking
+      (async () => {
+        try {
+          const devices = await DeviceToken.find({ userId: receiverId });
+          if (devices && devices.length > 0) {
+            const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
+            const title = nicknameDoc?.nickname || senderName;
 
-        const tokens = devices.map(d => d.token);
-        
-        // sendPush is async but we don't await it so we don't block the API response
-        sendPush({
-          tokens,
-          title,
-          body,
-          data: { senderId: senderId.toString(), messageId: newMessage._id.toString() }
-        });
-      }
+            let body = text;
+            if (!body) {
+              if (imageUrl) body = "📷 Sent an image";
+              else if (videoUrl) body = "🎥 Sent a video";
+              else body = "New message";
+            }
+
+            const tokens = devices.map((d) => d.token);
+            await sendPush({
+              tokens,
+              title,
+              body,
+              data: { senderId: senderId.toString(), messageId: newMessage._id.toString() },
+            });
+          }
+        } catch (pushErr) {
+          console.warn("[push] Background notification attempt error:", pushErr.message);
+        }
+      })();
     }
 
     res.status(201).json(newMessage);
@@ -171,7 +174,6 @@ export async function sendMessage(req, res) {
 
 export async function setNickname(req, res) {
   try {
-    // We are setting the nickname for the OTHER person in the chat
     const { id: forUserId } = req.params;
     const { nickname } = req.body;
     const withUserId = req.user._id;
@@ -182,22 +184,63 @@ export async function setNickname(req, res) {
 
     const trimmed = String(nickname).trim();
 
+    // Get the target user's info
+    const targetUser = await User.findById(forUserId);
+    const targetName = targetUser?.fullName || "user";
+
+    let updatedNickname = null;
+    let systemText = "";
+
     if (trimmed.length === 0) {
       await Nickname.findOneAndDelete({ forUserId, withUserId });
-      return res.status(200).json({ nickname: null });
+      systemText = `${req.user.fullName} cleared the nickname for ${targetName}`;
+    } else {
+      if (trimmed.length > 32) {
+        return res.status(400).json({ message: "Nickname must be 32 characters or fewer" });
+      }
+
+      const updated = await Nickname.findOneAndUpdate(
+        { forUserId, withUserId },
+        { forUserId, withUserId, nickname: trimmed, setByUserId: req.user._id },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      );
+      updatedNickname = updated.nickname;
+      systemText = `${req.user.fullName} set the nickname for ${targetName} to "${trimmed}"`;
     }
 
-    if (trimmed.length > 32) {
-      return res.status(400).json({ message: "Nickname must be 32 characters or fewer" });
+    // Create and save an in-chat system message so the nickname update displays right in the chat stream!
+    const systemMessage = new Message({
+      senderId: req.user._id,
+      receiverId: forUserId,
+      text: systemText,
+      isSystem: true,
+    });
+    await systemMessage.save();
+
+    // Broadcast system message & nicknameUpdated to both participants
+    const partnerSocketId = getReceiverSocketId(forUserId);
+    const mySocketId = getReceiverSocketId(withUserId);
+
+    const updatePayload = {
+      forUserId,
+      withUserId,
+      nickname: updatedNickname,
+      setByUserId: req.user._id,
+      setByName: req.user.fullName,
+      targetName,
+      systemMessage,
+    };
+
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit("newMessage", systemMessage);
+      io.to(partnerSocketId).emit("nicknameUpdated", updatePayload);
+    }
+    if (mySocketId) {
+      io.to(mySocketId).emit("newMessage", systemMessage);
+      io.to(mySocketId).emit("nicknameUpdated", updatePayload);
     }
 
-    const updated = await Nickname.findOneAndUpdate(
-      { forUserId, withUserId },
-      { forUserId, withUserId, nickname: trimmed, setByUserId: req.user._id },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
-    );
-
-    res.status(200).json({ nickname: updated.nickname });
+    res.status(200).json({ nickname: updatedNickname, systemMessage });
   } catch (error) {
     console.error("Error in setNickname:", error.message);
     res.status(500).json({ message: "Internal server error" });
@@ -209,12 +252,99 @@ export async function getNicknames(req, res) {
     const loggedInUserId = req.user._id;
 
     const nicknames = await Nickname.find({
-      $or: [{ withUserId: loggedInUserId }, { forUserId: loggedInUserId }]
+      $or: [{ withUserId: loggedInUserId }, { forUserId: loggedInUserId }],
     }).lean();
 
     res.status(200).json(nicknames);
   } catch (error) {
     console.error("Error in getNicknames:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function toggleReaction(req, res) {
+  try {
+    const { id: messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user._id;
+
+    if (!emoji) {
+      return res.status(400).json({ message: "Emoji is required" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    const existingIndex = message.reactions.findIndex(
+      (r) => String(r.userId) === String(userId) && r.emoji === emoji,
+    );
+
+    if (existingIndex > -1) {
+      // Toggle off
+      message.reactions.splice(existingIndex, 1);
+    } else {
+      // Toggle on
+      message.reactions.push({ userId, emoji });
+    }
+
+    await message.save();
+
+    const partnerId = String(message.senderId) === String(userId) ? message.receiverId : message.senderId;
+    const partnerSocketId = getReceiverSocketId(partnerId);
+    const mySocketId = getReceiverSocketId(userId);
+
+    const payload = {
+      messageId: message._id,
+      reactions: message.reactions,
+    };
+
+    if (partnerSocketId) io.to(partnerSocketId).emit("messageReaction", payload);
+    if (mySocketId) io.to(mySocketId).emit("messageReaction", payload);
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.error("Error in toggleReaction:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function deleteMessage(req, res) {
+  try {
+    const { id: messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (String(message.senderId) !== String(userId)) {
+      return res.status(403).json({ message: "Cannot delete someone else's message" });
+    }
+
+    message.deleted = true;
+    message.text = "This message was deleted";
+    message.image = null;
+    message.video = null;
+    await message.save();
+
+    const partnerSocketId = getReceiverSocketId(message.receiverId);
+    const mySocketId = getReceiverSocketId(userId);
+
+    const payload = {
+      messageId: message._id,
+      deleted: true,
+      text: message.text,
+    };
+
+    if (partnerSocketId) io.to(partnerSocketId).emit("messageDeleted", payload);
+    if (mySocketId) io.to(mySocketId).emit("messageDeleted", payload);
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.error("Error in deleteMessage:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 }
