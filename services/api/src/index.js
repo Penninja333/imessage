@@ -67,9 +67,13 @@ if (fs.existsSync(publicDir)) {
   });
 }
 
-server.listen(PORT, () => {
-  connectDB();
-  console.log("Server is up and running on PORT:", PORT);
-
-  if (process.env.NODE_ENV === "production") job.start();
+// Connect to DB first, then start listening so migrations run before requests arrive
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log("Server is up and running on PORT:", PORT);
+    if (process.env.NODE_ENV === "production") job.start();
+  });
+}).catch((err) => {
+  console.error("Failed to connect to DB, aborting startup:", err.message);
+  process.exit(1);
 });
