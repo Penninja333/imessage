@@ -19,6 +19,9 @@ function mapUserForList(user, onlineUsers) {
     initials: getInitials(displayName),
     isOnline: onlineUsers.includes(user._id),
     hasNickname: Boolean(user.nickname),
+    lastMessage: user.lastMessage || "",
+    lastMessageAt: user.lastMessageAt || null,
+    unreadCount: user.unreadCount || 0,
     peer: {
       name: displayName,
       avatarUrl: user.profilePic,
@@ -64,6 +67,11 @@ function ChatSidebar() {
   const filteredUsers = normalizedSearchQuery
     ? allUsers.filter((user) => user.name.toLowerCase().includes(normalizedSearchQuery))
     : allUsers;
+
+  const totalUnread = conversations.reduce(
+    (sum, c) => sum + (c.unreadCount || 0),
+    0,
+  );
 
   return (
     <aside
@@ -135,11 +143,16 @@ function ChatSidebar() {
           <Tabs.List className="w-full gap-0.5">
             <Tabs.Tab id="chats" className="flex-1 justify-center gap-1.5">
               <MessageSquareIcon className="size-3.5 opacity-80" aria-hidden />
-              Chats
+              <span>Chats</span>
+              {totalUnread > 0 ? (
+                <span className="flex items-center justify-center rounded-full bg-accent px-1.5 py-0.2 text-[10px] font-bold text-accent-foreground min-w-[18px]">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              ) : null}
             </Tabs.Tab>
             <Tabs.Tab id="users" className="flex-1 justify-center gap-1.5">
               <UsersIcon className="size-3.5 opacity-80" aria-hidden />
-              Users
+              <span>Users</span>
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>

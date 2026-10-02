@@ -9,7 +9,11 @@ import { useAuthStore } from "./store/useAuthStore";
 import { useEffect } from "react";
 
 import { Toaster } from "react-hot-toast";
-import { registerServiceWorker, requestNotificationPermission } from "./lib/notifications";
+import {
+  registerServiceWorker,
+  requestNotificationPermission,
+  subscribeToWebPush,
+} from "./lib/notifications";
 import InstallPwaBanner from "./components/InstallPwaBanner";
 import UpdatePwaBanner from "./components/UpdatePwaBanner";
 import { usePwaUpdateStore } from "./store/usePwaUpdateStore";
@@ -34,7 +38,9 @@ function App() {
 
     if (isSignedIn) {
       checkAuth();
-      requestNotificationPermission();
+      requestNotificationPermission().then((granted) => {
+        if (granted) subscribeToWebPush();
+      });
     } else {
       clearAuth();
     }

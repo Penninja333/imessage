@@ -1,4 +1,15 @@
 import DeviceToken from "../models/deviceToken.model.js";
+import { getVapidPublicKey } from "../lib/push.js";
+
+export async function getPublicKey(req, res) {
+  try {
+    const key = getVapidPublicKey();
+    res.status(200).json({ publicKey: key });
+  } catch (error) {
+    console.error("Error in getPublicKey:", error.message);
+    res.status(500).json({ message: "Failed to get public key" });
+  }
+}
 
 export async function registerDevice(req, res) {
   try {
@@ -8,13 +19,23 @@ export async function registerDevice(req, res) {
     if (!token || !platform) {
       return res.status(400).json({ message: "token and platform are required" });
     }
-    if (!["ios", "android"].includes(platform)) {
-      return res.status(400).json({ message: "platform must be ios or android" });
+
+    const cleanPlatform = String(platform).toLowerCase();
+    if (!["ios", "android", "web"].includes(cleanPlatform)) {
+      return res.status(400).json({ message: "platform must be ios, android, or web" });
     }
 
+    const tokenStr = typeof token === "object" ? JSON.stringify(token) : String(token);
+
     await DeviceToken.findOneAndUpdate(
-      { userId, token },
-      { userId, token, platform, appVersion: appVersion || "", lastSeen: new Date() },
+      { userId, token: tokenStr },
+      {
+        userId,
+        token: tokenStr,
+        platform: cleanPlatform,
+        appVersion: appVersion || "",
+        lastSeen: new Date(),
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 

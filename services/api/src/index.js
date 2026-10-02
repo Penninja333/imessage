@@ -19,7 +19,8 @@ import deviceRoutes from "./routes/device.route.js";
 import { app, server } from "./lib/socket.js";
 
 const PORT = process.env.PORT || 3001;
-const FRONTEND_URL = process.env.FRONTEND_URL?.replace(/\/$/, "");
+const rawFrontend = process.env.FRONTEND_URL || "";
+const normalizedFrontend = rawFrontend.replace(/\/+$/, "");
 
 const publicDir = path.join(process.cwd(), "public");
 
@@ -27,7 +28,25 @@ const publicDir = path.join(process.cwd(), "public");
 app.use("/api/webhooks/clerk", express.raw({ type: "application/json" }), clerkWebhook);
 
 app.use(express.json());
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        origin === normalizedFrontend ||
+        origin === rawFrontend ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.includes("onrender.com") ||
+        origin.includes("vercel.app")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  }),
+);
 app.use(clerkMiddleware());
 
 app.get("/health", (req, res) => {

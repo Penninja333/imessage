@@ -1,4 +1,16 @@
 // Web Push & Browser Notifications utility
+import { axiosInstance } from "./axios";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export async function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
@@ -22,10 +34,59 @@ export async function requestNotificationPermission() {
   }
 
   if (Notification.permission !== "denied") {
-    const permission = await Notification.requestPermission();
-    return permission === "granted";
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        subscribeToWebPush().catch((e) =>
+          console.warn("[notifications] subscribeToWebPush after prompt error:", e.message),
+        );
+        return true;
+      }
+    } catch (e) {
+      console.warn("[notifications] Permission request error:", e.message);
+    }
   }
 
+  return false;
+}
+
+export async function subscribeToWebPush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return false;
+  }
+
+  try {
+    const hasPermission = await requestNotificationPermission();
+    if (!hasPermission) return false;
+
+    const registration = await navigator.serviceWorker.ready;
+    if (!registration) return false;
+
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      const res = await axiosInstance.get("/devices/vapid-public-key");
+      const publicKey = res.data?.publicKey;
+      if (!publicKey) return false;
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    if (subscription) {
+      await axiosInstance.post("/devices/register", {
+        platform: "web",
+        token: JSON.stringify(subscription),
+        appVersion: "1.0.0",
+      });
+      console.log("[notifications] Web Push registered successfully ✓");
+      return true;
+    }
+  } catch (error) {
+    console.warn("[notifications] Failed to subscribe to Web Push:", error.message);
+  }
   return false;
 }
 

@@ -6,6 +6,16 @@ import { useAuthStore } from "./useAuthStore";
 import { showWebNotification } from "../lib/notifications";
 import toast from "react-hot-toast";
 
+function updateAppBadge(totalCount) {
+  if ("setAppBadge" in navigator) {
+    if (totalCount > 0) {
+      navigator.setAppBadge(totalCount).catch(() => {});
+    } else {
+      navigator.clearAppBadge().catch(() => {});
+    }
+  }
+}
+
 export const useChatStore = create(
   persist(
     (set, get) => ({
@@ -22,6 +32,15 @@ export const useChatStore = create(
       composerText: "",
       isSoundEnabled: true,
       isSendingMedia: false,
+      typingUser: null,
+
+      syncBadge: () => {
+        const total = get().conversations.reduce(
+          (sum, c) => sum + (c.unreadCount || 0),
+          0,
+        );
+        updateAppBadge(total);
+      },
 
       getUsers: async () => {
         set({ isUsersLoading: true });
@@ -35,7 +54,7 @@ export const useChatStore = create(
                 : null,
           }));
         } catch (error) {
-          console.log("Error in get Users", error.message);
+          console.log("Error in getUsers:", error.message);
         } finally {
           set({ isUsersLoading: false });
         }
@@ -46,8 +65,9 @@ export const useChatStore = create(
         try {
           const res = await axiosInstance.get("/messages/conversations");
           set({ conversations: res.data });
+          get().syncBadge();
         } catch (error) {
-          console.log("Error in getConversations", error.message);
+          console.log("Error in getConversations:", error.message);
         } finally {
           set({ isConversationsLoading: false });
         }
@@ -66,14 +86,71 @@ export const useChatStore = create(
         }
       },
 
+      markMessagesAsSeen: async (partnerId) => {
+        if (!partnerId) return;
+
+        // Clear unread count locally immediately
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            String(c._id) === String(partnerId) ? { ...c, unreadCount: 0 } : c,
+          ),
+        }));
+        get().syncBadge();
+
+        try {
+          await axiosInstance.post(`/messages/${partnerId}/seen`);
+          const socket = useAuthStore.getState().socket;
+          if (socket?.connected) {
+            socket.emit("markSeen", { senderId: partnerId });
+          }
+        } catch (error) {
+          console.warn("Failed to mark messages as seen:", error.message);
+        }
+      },
+
       sendMessage: async (messageData) => {
         const { selectedUser, messages } = get();
         if (!selectedUser) return false;
 
         try {
           const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-          set({ messages: [...messages, res.data], composerText: "" });
-          get().getConversations();
+          set({
+            messages: [...messages, res.data],
+            composerText: "",
+          });
+
+          // Update conversations list with our newly sent message at top
+          const previewText =
+            res.data.text ||
+            (res.data.image
+              ? "📷 Photo"
+              : res.data.video
+                ? "🎥 Video"
+                : res.data.audio
+                  ? "🎤 Voice message"
+                  : "New message");
+
+          set((state) => {
+            const partnerId = String(selectedUser._id);
+            const existingIndex = state.conversations.findIndex(
+              (c) => String(c._id) === partnerId,
+            );
+
+            if (existingIndex !== -1) {
+              const existing = state.conversations[existingIndex];
+              const updated = {
+                ...existing,
+                lastMessage: previewText,
+                lastMessageAt: res.data.createdAt || new Date().toISOString(),
+              };
+              const rest = state.conversations.filter((_, idx) => idx !== existingIndex);
+              return { conversations: [updated, ...rest] };
+            } else {
+              get().getConversations();
+              return state;
+            }
+          });
+
           return true;
         } catch (error) {
           toast.error(error.response?.data?.message || "Failed to send message");
@@ -81,15 +158,12 @@ export const useChatStore = create(
         }
       },
 
-      typingUser: null,
-
-      subscribeToMessages: (userId) => {
-        if (!userId) return;
-
-        const socket = useAuthStore.getState().socket;
+      initSocketListeners: (socket) => {
         if (!socket) return;
 
+        // Clean up previous listeners to prevent multiple registrations
         socket.off("newMessage");
+        socket.off("messagesSeen");
         socket.off("nicknameUpdated");
         socket.off("messageReaction");
         socket.off("messageDeleted");
@@ -97,19 +171,63 @@ export const useChatStore = create(
         socket.off("userStopTyping");
 
         socket.on("newMessage", (newMessage) => {
-          const isCurrentChat =
-            String(newMessage.senderId) === String(userId) ||
-            String(newMessage.receiverId) === String(userId);
+          const authUser = useAuthStore.getState().authUser;
+          const myId = String(authUser?._id);
+          const currentActiveId = get().activeConversationId;
 
+          const isCurrentChat =
+            (currentActiveId && String(newMessage.senderId) === String(currentActiveId)) ||
+            (currentActiveId && String(newMessage.receiverId) === String(currentActiveId));
+
+          // 1. If currently inside this chat, append to message list
           if (isCurrentChat) {
-            set({ messages: [...get().messages, newMessage] });
+            set((state) => {
+              if (state.messages.some((m) => m._id === newMessage._id)) return state;
+              return { messages: [...state.messages, newMessage] };
+            });
+
+            // Mark seen if from the other user
+            if (String(newMessage.senderId) === String(currentActiveId)) {
+              get().markMessagesAsSeen(currentActiveId);
+            }
+          } else {
+            // 2. Received while looking elsewhere / on another conversation
+            if (String(newMessage.senderId) !== myId && !newMessage.isSystem) {
+              if (get().isSoundEnabled) {
+                const audio = new Audio("/sounds/keystroke1.mp3");
+                audio.play().catch(() => {});
+              }
+
+              const partner =
+                get().conversations.find((c) => String(c._id) === String(newMessage.senderId)) ||
+                get().users.find((u) => String(u._id) === String(newMessage.senderId));
+              const senderName = partner?.nickname || partner?.fullName || "iMessage";
+              const body =
+                newMessage.text ||
+                (newMessage.image
+                  ? "📷 Photo"
+                  : newMessage.video
+                    ? "🎥 Video"
+                    : newMessage.audio
+                      ? "🎤 Voice message"
+                      : "New message");
+
+              showWebNotification(senderName, {
+                body,
+                data: { conversationId: newMessage.senderId },
+              });
+            }
           }
 
-          if (String(newMessage.senderId) === String(userId) && !newMessage.isSystem) {
-            const partner = get().selectedUser || get().users.find((u) => u._id === userId);
-            const senderName = partner?.nickname || partner?.fullName || "iMessage";
-            const body =
-              newMessage.text ||
+          // 3. Update conversations list & unread counters
+          const partnerId =
+            String(newMessage.senderId) === myId
+              ? String(newMessage.receiverId)
+              : String(newMessage.senderId);
+
+          const previewText = newMessage.deleted
+            ? "This message was deleted"
+            : newMessage.text ||
               (newMessage.image
                 ? "📷 Photo"
                 : newMessage.video
@@ -118,17 +236,87 @@ export const useChatStore = create(
                     ? "🎤 Voice message"
                     : "New message");
 
-            showWebNotification(senderName, {
-              body,
-              data: { conversationId: userId },
-            });
-          }
+          set((state) => {
+            const existingIndex = state.conversations.findIndex(
+              (c) => String(c._id) === partnerId,
+            );
 
-          get().getConversations();
+            if (existingIndex !== -1) {
+              const existing = state.conversations[existingIndex];
+              const shouldIncrementUnread =
+                String(newMessage.senderId) !== myId &&
+                String(get().activeConversationId) !== partnerId;
+
+              const updatedConv = {
+                ...existing,
+                lastMessage: previewText,
+                lastMessageAt: newMessage.createdAt || new Date().toISOString(),
+                unreadCount: shouldIncrementUnread
+                  ? (existing.unreadCount || 0) + 1
+                  : existing.unreadCount || 0,
+              };
+
+              const rest = state.conversations.filter((_, idx) => idx !== existingIndex);
+              return { conversations: [updatedConv, ...rest] };
+            } else {
+              get().getConversations();
+              return state;
+            }
+          });
+
+          get().syncBadge();
+        });
+
+        socket.on("messagesSeen", ({ byUserId }) => {
+          const activeId = get().activeConversationId;
+          const authUser = useAuthStore.getState().authUser;
+          const myId = String(authUser?._id);
+
+          if (activeId && String(byUserId) === String(activeId)) {
+            set((state) => ({
+              messages: state.messages.map((m) =>
+                String(m.senderId) === myId ? { ...m, seen: true } : m,
+              ),
+            }));
+          }
+        });
+
+        socket.on("messageReaction", ({ messageId, reactions }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m._id === messageId ? { ...m, reactions } : m,
+            ),
+          }));
+        });
+
+        socket.on("messageDeleted", ({ messageId, text }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m._id === messageId
+                ? { ...m, text, deleted: true, image: null, video: null, audio: null }
+                : m,
+            ),
+          }));
+        });
+
+        socket.on("userTyping", ({ senderId }) => {
+          const authUser = useAuthStore.getState().authUser;
+          const activeId = get().activeConversationId;
+          if (
+            String(senderId) !== String(authUser?._id) &&
+            String(senderId) === String(activeId)
+          ) {
+            set({ typingUser: senderId });
+          }
+        });
+
+        socket.on("userStopTyping", ({ senderId }) => {
+          if (String(senderId) === String(get().activeConversationId)) {
+            set({ typingUser: null });
+          }
         });
 
         socket.on("nicknameUpdated", (data) => {
-          // data: { forUserId, withUserId, nickname, setByUserId, setByName, targetName, systemMessage }
           const authUser = useAuthStore.getState().authUser;
           const myId = String(authUser?._id);
 
@@ -151,51 +339,22 @@ export const useChatStore = create(
           get().getConversations();
           get().getUsers();
         });
-
-        socket.on("messageReaction", ({ messageId, reactions }) => {
-          set((state) => ({
-            messages: state.messages.map((m) =>
-              m._id === messageId ? { ...m, reactions } : m
-            ),
-          }));
-        });
-
-        socket.on("messageDeleted", ({ messageId, text }) => {
-          set((state) => ({
-            messages: state.messages.map((m) =>
-              m._id === messageId
-                ? { ...m, text, deleted: true, image: null, video: null, audio: null }
-                : m
-            ),
-          }));
-        });
-
-        socket.on("userTyping", ({ senderId }) => {
-          const authUser = useAuthStore.getState().authUser;
-          if (
-            String(senderId) !== String(authUser?._id) &&
-            String(senderId) === String(userId)
-          ) {
-            set({ typingUser: senderId });
-          }
-        });
-
-        socket.on("userStopTyping", ({ senderId }) => {
-          if (String(senderId) === String(userId)) {
-            set({ typingUser: null });
-          }
-        });
       },
 
-      unsubscribeFromMessages: () => {
+      cleanupSocketListeners: () => {
         const socket = useAuthStore.getState().socket;
         socket?.off("newMessage");
+        socket?.off("messagesSeen");
         socket?.off("nicknameUpdated");
         socket?.off("messageReaction");
         socket?.off("messageDeleted");
         socket?.off("userTyping");
         socket?.off("userStopTyping");
       },
+
+      // Kept for backward compatibility
+      subscribeToMessages: () => {},
+      unsubscribeFromMessages: () => {},
 
       sendTyping: (receiverId) => {
         const socket = useAuthStore.getState().socket;
@@ -213,11 +372,17 @@ export const useChatStore = create(
         set((state) => ({
           activeConversationId,
           selectedUser:
-            state.users.find((user) => user._id === activeConversationId) ||
-            state.conversations.find((user) => user._id === activeConversationId) ||
+            state.users.find((user) => String(user._id) === String(activeConversationId)) ||
+            state.conversations.find((user) => String(user._id) === String(activeConversationId)) ||
             null,
           messages: activeConversationId ? state.messages : [],
+          typingUser: null,
         }));
+
+        if (activeConversationId) {
+          get().getMessages(activeConversationId);
+          get().markMessagesAsSeen(activeConversationId);
+        }
       },
 
       setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -291,7 +456,7 @@ export const useChatStore = create(
           const updatedReactions = res.data?.reactions || [];
           set((state) => ({
             messages: state.messages.map((m) =>
-              m._id === messageId ? { ...m, reactions: updatedReactions } : m
+              m._id === messageId ? { ...m, reactions: updatedReactions } : m,
             ),
           }));
           return true;
@@ -317,7 +482,7 @@ export const useChatStore = create(
                     video: null,
                     audio: null,
                   }
-                : m
+                : m,
             ),
           }));
           toast.success("Message deleted");

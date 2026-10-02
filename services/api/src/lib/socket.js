@@ -5,44 +5,84 @@ import { Server } from "socket.io";
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl) or any web origin
+      callback(null, true);
+    },
+    credentials: true,
+  },
+  pingTimeout: 30000,
+  pingInterval: 15000,
+});
 
-const io = new Server(server, { cors: { origin: [allowedOrigin] } });
+// Map of userId -> Set of socket IDs (to support multiple tabs/devices per user)
+const userSocketMap = new Map();
 
-function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
+function isUserOnline(userId) {
+  const sockets = userSocketMap.get(String(userId));
+  return Boolean(sockets && sockets.size > 0);
 }
 
-// online users map = { userId: socketId }
-const userSocketMap = {};
+function getReceiverSocketId(userId) {
+  // Returns the room name (userId) if online, so io.to(userId) sends to all user's devices
+  if (isUserOnline(userId)) {
+    return String(userId);
+  }
+  return null;
+}
 
 io.on("connection", (socket) => {
   const userId = socket.handshake.query.userId;
 
-  if (userId) userSocketMap[userId] = socket.id;
+  if (userId) {
+    const idStr = String(userId);
+    if (!userSocketMap.has(idStr)) {
+      userSocketMap.set(idStr, new Set());
+    }
+    userSocketMap.get(idStr).add(socket.id);
 
-  // io.emit() sends event to everyone - broadcast
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+    // Join room for this user so io.to(userId) reaches all their active devices
+    socket.join(idStr);
 
-  // socket.on is used to listen for events
+    // Broadcast list of currently online user IDs
+    io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
+  }
+
+  // Typing indicators
   socket.on("typing", ({ receiverId }) => {
-    const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("userTyping", { senderId: userId });
+    if (receiverId) {
+      io.to(String(receiverId)).emit("userTyping", { senderId: userId });
     }
   });
 
   socket.on("stopTyping", ({ receiverId }) => {
-    const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("userStopTyping", { senderId: userId });
+    if (receiverId) {
+      io.to(String(receiverId)).emit("userStopTyping", { senderId: userId });
+    }
+  });
+
+  // Mark messages as seen in real-time
+  socket.on("markSeen", ({ senderId }) => {
+    if (senderId) {
+      io.to(String(senderId)).emit("messagesSeen", { byUserId: userId });
     }
   });
 
   socket.on("disconnect", () => {
-    if (userId) delete userSocketMap[userId];
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+    if (userId) {
+      const idStr = String(userId);
+      const sockets = userSocketMap.get(idStr);
+      if (sockets) {
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          userSocketMap.delete(idStr);
+        }
+      }
+      io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
+    }
   });
 });
 
-export { app, server, io, getReceiverSocketId };
+export { app, server, io, getReceiverSocketId, isUserOnline };

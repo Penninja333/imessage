@@ -15,8 +15,6 @@ function ChatPage() {
   const getConversations = useChatStore((state) => state.getConversations);
   const getMessages = useChatStore((state) => state.getMessages);
   const getUsers = useChatStore((state) => state.getUsers);
-  const subscribeToMessages = useChatStore((state) => state.subscribeToMessages);
-  const unsubscribeFromMessages = useChatStore((state) => state.unsubscribeFromMessages);
 
   const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
 
@@ -27,13 +25,8 @@ function ChatPage() {
 
   useEffect(() => {
     if (!activeConversationId) return;
-
     getMessages(activeConversationId);
-    subscribeToMessages(activeConversationId);
-
-    // cleanup
-    return () => unsubscribeFromMessages();
-  }, [getMessages, activeConversationId, subscribeToMessages, unsubscribeFromMessages]);
+  }, [getMessages, activeConversationId]);
 
   const heightStyle =
     !isLargeScreen && viewportHeight

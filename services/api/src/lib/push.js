@@ -1,4 +1,24 @@
 import admin from "firebase-admin";
+import webpush from "web-push";
+
+const VAPID_PUBLIC_KEY =
+  process.env.VAPID_PUBLIC_KEY ||
+  "BDq_PryHvnxNvRITzcbPIQx3S0KWOidrxcgwiX96Kh-qbqTZR3xSKRy_jys9WaL4zGn9ZzugurdFk4wY9FpfQXw";
+const VAPID_PRIVATE_KEY =
+  process.env.VAPID_PRIVATE_KEY || "3KxzrBXjdAscnTHIeXp2MsH4sSQxWtNrXqHDHjHPj9Q";
+const VAPID_SUBJECT =
+  process.env.VAPID_SUBJECT || "mailto:support@imessage-pwa.app";
+
+try {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  console.log("[push] Web Push (VAPID) initialized ✓");
+} catch (e) {
+  console.warn("[push] Failed to initialize Web Push VAPID:", e.message);
+}
+
+export function getVapidPublicKey() {
+  return VAPID_PUBLIC_KEY;
+}
 
 let initialized = false;
 
@@ -8,7 +28,9 @@ function initFirebase() {
   const serviceAccountB64 = process.env.FIREBASE_SERVICE_ACCOUNT;
 
   if (!serviceAccountB64) {
-    console.warn("[push] FIREBASE_SERVICE_ACCOUNT not set — running in dry-run mode (pushes logged, not sent)");
+    console.warn(
+      "[push] FIREBASE_SERVICE_ACCOUNT not set — running in dry-run mode (pushes logged, not sent)",
+    );
     return;
   }
 
@@ -36,43 +58,76 @@ function initFirebase() {
 }
 
 /**
- * Send a push notification to a list of device tokens.
- *
- * @param {object} opts
- * @param {string[]} opts.tokens   — FCM/APNs device tokens
- * @param {string}   opts.title    — notification title (sender name)
- * @param {string}   opts.body     — notification body (message preview)
- * @param {object}   opts.data     — extra data payload (senderId, messageId)
+ * Send a push notification to device tokens (Web Push VAPID + FCM multicast)
  */
 export async function sendPush({ tokens, title, body, data = {} }) {
   if (!tokens || tokens.length === 0) return;
 
-  const payload = {
-    notification: { title, body },
-    data: Object.fromEntries(
-      Object.entries(data).map(([k, v]) => [k, String(v)]),
-    ),
-    tokens,
-  };
+  const webPushTokens = [];
+  const fcmTokens = [];
 
-  // Dry-run mode: Firebase not configured
-  if (!initialized) {
-    console.log("[push][dry-run] Would send to", tokens.length, "device(s):", JSON.stringify({ title, body, data }));
-    return;
+  for (const token of tokens) {
+    try {
+      if (typeof token === "string" && token.includes('"endpoint"')) {
+        webPushTokens.push(JSON.parse(token));
+      } else if (typeof token === "object" && token.endpoint) {
+        webPushTokens.push(token);
+      } else {
+        fcmTokens.push(token);
+      }
+    } catch {
+      fcmTokens.push(token);
+    }
   }
 
-  try {
-    const response = await admin.messaging().sendEachForMulticast(payload);
-    console.log(`[push] Sent: ${response.successCount} ok, ${response.failureCount} failed`);
-
-    // Log individual failures for debugging
-    response.responses.forEach((r, i) => {
-      if (!r.success) {
-        console.warn(`[push] Token ${i} failed:`, r.error?.message);
-      }
+  // 1. Deliver Web Push (PWA on Chrome, Android, iOS Safari 16.4+, Firefox)
+  if (webPushTokens.length > 0) {
+    const webPayload = JSON.stringify({
+      title,
+      body,
+      icon: "/logo.png",
+      badge: "/logo.png",
+      data: { ...data, timestamp: Date.now() },
     });
-  } catch (err) {
-    console.error("[push] sendEachForMulticast error:", err.message);
+
+    await Promise.allSettled(
+      webPushTokens.map((sub) =>
+        webpush.sendNotification(sub, webPayload).catch((err) => {
+          console.warn("[push] Web Push delivery failed for endpoint:", sub.endpoint, err.message);
+        }),
+      ),
+    );
+    console.log(`[push] Dispatched Web Push to ${webPushTokens.length} PWA client(s)`);
+  }
+
+  // 2. Deliver FCM Push
+  if (fcmTokens.length > 0) {
+    if (!initialized) {
+      console.log(
+        "[push][dry-run] Would send to",
+        fcmTokens.length,
+        "FCM device(s):",
+        JSON.stringify({ title, body, data }),
+      );
+      return;
+    }
+
+    try {
+      const payload = {
+        notification: { title, body },
+        data: Object.fromEntries(
+          Object.entries(data).map(([k, v]) => [k, String(v)]),
+        ),
+        tokens: fcmTokens,
+      };
+
+      const response = await admin.messaging().sendEachForMulticast(payload);
+      console.log(
+        `[push] FCM Sent: ${response.successCount} ok, ${response.failureCount} failed`,
+      );
+    } catch (err) {
+      console.error("[push] sendEachForMulticast error:", err.message);
+    }
   }
 }
 

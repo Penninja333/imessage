@@ -55,6 +55,7 @@ vi.mock("../src/models/message.model.js", () => {
   }
   MockMessage.find = mockMessageFind;
   MockMessage.aggregate = mockMessageAggregate;
+  MockMessage.updateMany = vi.fn().mockResolvedValue({ modifiedCount: 0 });
   return { default: MockMessage };
 });
 
@@ -78,11 +79,13 @@ vi.mock("../src/lib/imagekit.js", () => ({
 
 // Mock socket
 const mockGetReceiverSocketId = vi.fn(() => null);
+const mockIsUserOnline = vi.fn(() => false);
 vi.mock("../src/lib/socket.js", () => ({
   app: express(),
   server: { listen: vi.fn(), close: vi.fn() },
   io: { to: vi.fn(() => ({ emit: vi.fn() })), emit: vi.fn(), on: vi.fn() },
   getReceiverSocketId: mockGetReceiverSocketId,
+  isUserOnline: mockIsUserOnline,
 }));
 
 // Mock @clerk/express

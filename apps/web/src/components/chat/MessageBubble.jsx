@@ -218,15 +218,23 @@ export function MessageBubble({ message, showTime = true }) {
         ) : null}
       </div>
 
-      {/* Timestamp */}
+      {/* Timestamp & Delivery/Seen Status */}
       {showTime ? (
-        <span
-          className={`mt-0.5 px-1 text-[10px] tabular-nums text-muted-foreground/60 ${
-            isOwnMessage ? "text-right" : "text-left"
+        <div
+          className={`mt-0.5 flex items-center gap-1 px-1 text-[10px] tabular-nums text-muted-foreground/60 ${
+            isOwnMessage ? "justify-end text-right" : "justify-start text-left"
           }`}
         >
-          {message.time}
-        </span>
+          <span>{message.time}</span>
+          {isOwnMessage && !message.isSystem && (
+            <span
+              className={message.seen ? "text-accent font-semibold" : "opacity-60"}
+              title={message.seen ? "Read" : "Delivered"}
+            >
+              {message.seen ? "✓✓" : "✓"}
+            </span>
+          )}
+        </div>
       ) : null}
     </div>
   );

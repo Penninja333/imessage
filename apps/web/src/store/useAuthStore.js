@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import { io } from "socket.io-client";
+import { useChatStore } from "./useChatStore";
 
 const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:3000" : "/";
 
@@ -32,20 +33,45 @@ export const useAuthStore = create((set, get) => ({
   },
 
   connectSocket: (user) => {
-    if (!user || get().socket?.connected) return;
+    if (!user) return;
+    const existingSocket = get().socket;
+    if (existingSocket?.connected) return;
 
-    const socket = io(BASE_URL, { query: { userId: user._id } });
+    const socket = io(BASE_URL, {
+      query: { userId: user._id },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000,
+    });
 
     set({ socket });
+
+    socket.on("connect", () => {
+      console.log("[socket] Connected to server ✓");
+      useChatStore.getState().initSocketListeners(socket);
+    });
 
     socket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
     });
+
+    socket.on("disconnect", (reason) => {
+      console.log("[socket] Disconnected:", reason);
+    });
+
+    // Also call immediately in case connection was instantaneous
+    if (socket.connected) {
+      useChatStore.getState().initSocketListeners(socket);
+    }
   },
 
   disconnectSocket: () => {
     const socket = get().socket;
-    if (socket?.connected) socket.disconnect();
+    if (socket) {
+      useChatStore.getState().cleanupSocketListeners();
+      socket.disconnect();
+    }
     set({ socket: null });
   },
 }));

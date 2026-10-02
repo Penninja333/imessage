@@ -46,19 +46,30 @@ export function ChatHeader() {
   const isPartnerTyping =
     typingUser && String(typingUser) === String(activeConversationId);
 
+  const conversations = useChatStore((state) => state.conversations);
+  const otherPendingCount = conversations.reduce(
+    (acc, c) =>
+      String(c._id) !== String(activeConversationId) ? acc + (c.unreadCount || 0) : acc,
+    0,
+  );
+
   return (
     <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-md px-2 py-2 sm:px-3 sm:py-2.5">
       {/* Left side: Back button (mobile) + Contact info */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
         {activeConversation && !isLargeScreen ? (
           <Button
             variant="ghost"
-            isIconOnly
-            className="size-9 shrink-0 text-accent hover:bg-accent/10 active:scale-95"
+            className="flex items-center gap-0.5 text-accent hover:bg-accent/10 active:scale-95 px-1 py-1 rounded-full h-9 shrink-0"
             onPress={() => setActiveConversationId(null)}
             aria-label="Back to conversations"
           >
-            <ChevronLeftIcon className="size-6" strokeWidth={2.5} />
+            <ChevronLeftIcon className="size-6 shrink-0" strokeWidth={2.5} />
+            {otherPendingCount > 0 ? (
+              <span className="flex items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-bold text-accent-foreground min-w-[20px] shadow-xs">
+                {otherPendingCount > 99 ? "99+" : otherPendingCount}
+              </span>
+            ) : null}
           </Button>
         ) : null}
 
@@ -111,7 +122,14 @@ export function ChatHeader() {
         ) : (
           <div className="flex items-center gap-2.5">
             <AppLogo size={32} className="rounded-[8px]" />
-            <p className="text-sm font-medium text-muted">Select a conversation</p>
+            <div>
+              <p className="text-sm font-semibold text-foreground/90">Select a conversation</p>
+              {otherPendingCount > 0 ? (
+                <p className="text-[11px] font-medium text-accent">
+                  {otherPendingCount} pending message{otherPendingCount > 1 ? "s" : ""}
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
       </div>

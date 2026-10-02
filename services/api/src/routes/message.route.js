@@ -8,6 +8,7 @@ import {
   sendMessage,
   setNickname,
   toggleReaction,
+  markMessagesAsSeen,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
@@ -21,6 +22,7 @@ router.get("/conversations", getConversationsForSidebar);
 router.get("/nicknames", getNicknames);
 router.put("/nickname/:id", setNickname);
 router.get("/:id", getMessages);
+router.post("/:id/seen", markMessagesAsSeen);
 router.post("/send/:id", upload.single("media"), sendMessage);
 router.post("/:id/react", toggleReaction);
 router.delete("/:id", deleteMessage);

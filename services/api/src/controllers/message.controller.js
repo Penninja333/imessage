@@ -3,7 +3,7 @@ import Message from "../models/message.model.js";
 import Nickname from "../models/nickname.model.js";
 import DeviceToken from "../models/deviceToken.model.js";
 import { hasImageKitConfig, uploadChatMedia } from "../lib/imagekit.js";
-import { getReceiverSocketId, io } from "../lib/socket.js";
+import { getReceiverSocketId, isUserOnline, io } from "../lib/socket.js";
 import { sendPush } from "../lib/push.js";
 
 export async function getUsersForSidebar(req, res) {
@@ -42,15 +42,35 @@ export async function getConversationsForSidebar(req, res) {
 
     const conversations = await Message.aggregate([
       { $match: { $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }] } },
+      { $sort: { createdAt: -1 } },
       {
         $group: {
           _id: { $cond: [{ $eq: ["$senderId", loggedInUserId] }, "$receiverId", "$senderId"] },
-          lastMessageAt: { $max: "$createdAt" },
+          lastMessageAt: { $first: "$createdAt" },
+          lastMessageText: { $first: "$text" },
+          lastMessageImage: { $first: "$image" },
+          lastMessageVideo: { $first: "$video" },
+          lastMessageAudio: { $first: "$audio" },
+          lastMessageDeleted: { $first: "$deleted" },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$receiverId", loggedInUserId] },
+                    { $ne: ["$seen", true] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
       { $sort: { lastMessageAt: -1 } },
       { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
-      { $replaceRoot: { newRoot: { $first: "$user" } } },
+      { $unwind: "$user" },
       {
         $lookup: {
           from: "nicknames",
@@ -73,12 +93,50 @@ export async function getConversationsForSidebar(req, res) {
           as: "myNicknameDoc",
         },
       },
-      { $addFields: { 
+      {
+        $project: {
+          _id: "$user._id",
+          fullName: "$user.fullName",
+          email: "$user.email",
+          profilePic: "$user.profilePic",
+          createdAt: "$user.createdAt",
+          lastMessageAt: 1,
+          unreadCount: 1,
+          lastMessage: {
+            $cond: [
+              "$lastMessageDeleted",
+              "This message was deleted",
+              {
+                $cond: [
+                  { $gt: [{ $strLenCP: { $ifNull: ["$lastMessageText", ""] } }, 0] },
+                  "$lastMessageText",
+                  {
+                    $cond: [
+                      { $ne: ["$lastMessageImage", null] },
+                      "📷 Photo",
+                      {
+                        $cond: [
+                          { $ne: ["$lastMessageAudio", null] },
+                          "🎤 Voice message",
+                          {
+                            $cond: [
+                              { $ne: ["$lastMessageVideo", null] },
+                              "🎥 Video",
+                              "",
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
           nickname: { $first: "$nicknameDoc.nickname" },
-          myNickname: { $first: "$myNicknameDoc.nickname" }
-        } 
+          myNickname: { $first: "$myNicknameDoc.nickname" },
+        },
       },
-      { $project: { clerkId: 0, nicknameDoc: 0, myNicknameDoc: 0 } },
     ]);
 
     res.status(200).json(conversations);
@@ -100,9 +158,38 @@ export async function getMessages(req, res) {
       ],
     }).sort({ createdAt: 1 });
 
+    // Mark unread messages from userToChatId as seen in background
+    Message.updateMany(
+      { senderId: userToChatId, receiverId: myId, seen: false },
+      { $set: { seen: true } },
+    )
+      .then(() => {
+        io.to(String(userToChatId)).emit("messagesSeen", { byUserId: String(myId) });
+      })
+      .catch((err) => console.warn("Error marking messages as seen:", err.message));
+
     res.status(200).json(messages);
   } catch (error) {
     console.error("Error in getMessages:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function markMessagesAsSeen(req, res) {
+  try {
+    const { id: userToChatId } = req.params;
+    const myId = req.user._id;
+
+    await Message.updateMany(
+      { senderId: userToChatId, receiverId: myId, seen: false },
+      { $set: { seen: true } },
+    );
+
+    io.to(String(userToChatId)).emit("messagesSeen", { byUserId: String(myId) });
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("Error in markMessagesAsSeen:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 }
@@ -136,15 +223,17 @@ export async function sendMessage(req, res) {
       image: imageUrl,
       video: videoUrl,
       audio: audioUrl,
+      seen: false,
     });
 
     await newMessage.save();
 
-    const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("newMessage", newMessage);
-    } else {
-      // Receiver is offline — safely send push notification without blocking
+    // Broadcast in real-time to receiver and sender (all active devices/tabs)
+    io.to(String(receiverId)).emit("newMessage", newMessage);
+    io.to(String(senderId)).emit("newMessage", newMessage);
+
+    // If receiver is offline, dispatch background Web Push / FCM
+    if (!isUserOnline(receiverId)) {
       (async () => {
         try {
           const devices = await DeviceToken.find({ userId: receiverId });
