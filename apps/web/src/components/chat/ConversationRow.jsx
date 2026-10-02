@@ -14,7 +14,7 @@ export function ConversationRow({ user, selected, onSelect }) {
         selected ? "bg-accent-soft" : ""
       }`}
     >
-      <AvatarWithOnlineIndicator isOnline={user.isOnline ?? true}>
+      <AvatarWithOnlineIndicator isOnline={user.isOnline ?? false}>
         <Avatar className="size-12 shrink-0">
           <Avatar.Image alt={user.name} src={user.avatarUrl} />
           <Avatar.Fallback className="text-sm font-medium">{user.initials}</Avatar.Fallback>

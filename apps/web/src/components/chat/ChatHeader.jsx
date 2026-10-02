@@ -78,7 +78,7 @@ export function ChatHeader() {
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 hover:opacity-90 transition-opacity"
             onClick={() => setShowNicknameModal(true)}
           >
-            <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? true}>
+            <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? false}>
               <Avatar className="size-9 shrink-0">
                 <Avatar.Image
                   alt={activeConversation.peer.name}
