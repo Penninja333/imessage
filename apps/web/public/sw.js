@@ -17,9 +17,15 @@ self.addEventListener("install", (event) => {
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
       .catch((err) => console.warn("PWA pre-cache warning:", err))
   );
+});
+
+// Message: Allow clients to command the waiting worker to activate immediately
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // Activate: Clean up old caches & claim clients

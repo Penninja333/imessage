@@ -11,6 +11,8 @@ import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { registerServiceWorker, requestNotificationPermission } from "./lib/notifications";
 import InstallPwaBanner from "./components/InstallPwaBanner";
+import UpdatePwaBanner from "./components/UpdatePwaBanner";
+import { usePwaUpdateStore } from "./store/usePwaUpdateStore";
 
 function App() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -20,7 +22,11 @@ function App() {
   const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
 
   useEffect(() => {
-    registerServiceWorker();
+    registerServiceWorker().then((reg) => {
+      if (reg) {
+        usePwaUpdateStore.getState().setRegistration(reg);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -47,6 +53,7 @@ function App() {
           />
         </Routes>
         <InstallPwaBanner />
+        <UpdatePwaBanner />
         <Toaster />
       </WallpaperProvider>
     </ThemeProvider>

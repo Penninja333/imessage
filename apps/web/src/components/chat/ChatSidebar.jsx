@@ -5,8 +5,9 @@ import { APP_NAME, AppLogo } from "../AppLogo";
 import { UserButton } from "@clerk/react";
 
 import { SearchField, Tabs } from "@heroui/react";
-import { MessageSquareIcon, UsersIcon } from "lucide-react";
+import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon } from "lucide-react";
 import { ConversationRow } from "./ConversationRow";
+import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 
 function mapUserForList(user, onlineUsers) {
   const displayName = user.nickname || user.fullName;
@@ -42,6 +43,11 @@ function ChatSidebar() {
 
   const onlineUsers = useAuthStore((state) => state.onlineUsers);
 
+  const needRefresh = usePwaUpdateStore((state) => state.needRefresh);
+  const isChecking = usePwaUpdateStore((state) => state.isChecking);
+  const checkForUpdate = usePwaUpdateStore((state) => state.checkForUpdate);
+  const updateApp = usePwaUpdateStore((state) => state.updateApp);
+
   const { activeConversationId, isLargeScreen } = useSelectedConversation();
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -71,6 +77,28 @@ function ChatSidebar() {
           <p className="flex-1 truncate text-lg font-bold tracking-tight sm:text-[22px]">
             {APP_NAME}
           </p>
+          {needRefresh ? (
+            <button
+              type="button"
+              onClick={updateApp}
+              className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground shadow-sm animate-pulse active:scale-95 transition"
+              title="New version ready! Tap to update"
+            >
+              <ArrowUpCircleIcon className="size-3.5" />
+              <span>Update</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => checkForUpdate(true)}
+              disabled={isChecking}
+              className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-foreground active:scale-95 transition"
+              title="Check for updates"
+              aria-label="Check for updates"
+            >
+              <RefreshCwIcon className={`size-4 ${isChecking ? "animate-spin text-accent" : ""}`} />
+            </button>
+          )}
           <UserButton
             appearance={{
               elements: {

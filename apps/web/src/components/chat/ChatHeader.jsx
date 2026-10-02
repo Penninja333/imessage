@@ -9,6 +9,8 @@ import {
   MoonIcon,
   SunIcon,
   PaletteIcon,
+  ArrowUpCircleIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
@@ -22,12 +24,18 @@ import { useTheme } from "../../context/theme";
 
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
+import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 
 export function ChatHeader() {
   const isSoundEnabled = useChatStore((state) => state.isSoundEnabled);
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
   const setSoundEnabled = useChatStore((state) => state.setSoundEnabled);
   const typingUser = useChatStore((state) => state.typingUser);
+
+  const needRefresh = usePwaUpdateStore((state) => state.needRefresh);
+  const isChecking = usePwaUpdateStore((state) => state.isChecking);
+  const checkForUpdate = usePwaUpdateStore((state) => state.checkForUpdate);
+  const updateApp = usePwaUpdateStore((state) => state.updateApp);
 
   const { theme, setTheme } = useTheme();
   const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
@@ -130,6 +138,30 @@ export function ChatHeader() {
             )}
           </Button>
 
+          {needRefresh ? (
+            <Button
+              variant="primary"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs font-semibold animate-pulse"
+              onPress={updateApp}
+            >
+              <ArrowUpCircleIcon className="size-3.5" />
+              Update
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              isIconOnly
+              className="size-9"
+              aria-label="Check for updates"
+              title="Check for updates"
+              isDisabled={isChecking}
+              onPress={() => checkForUpdate(true)}
+            >
+              <RefreshCwIcon className={`size-4 ${isChecking ? "animate-spin text-accent" : ""}`} />
+            </Button>
+          )}
+
           {activeConversation ? (
             <Button
               variant="ghost"
@@ -159,10 +191,13 @@ export function ChatHeader() {
           <button
             type="button"
             onClick={() => setShowMobileOptions(!showMobileOptions)}
-            className="flex size-9 items-center justify-center rounded-full text-foreground/80 hover:bg-surface active:scale-95 transition"
+            className="relative flex size-9 items-center justify-center rounded-full text-foreground/80 hover:bg-surface active:scale-95 transition"
             aria-label="More options"
           >
             <MoreVerticalIcon className="size-5" />
+            {needRefresh ? (
+              <span className="absolute top-1.5 right-1.5 flex size-2 rounded-full bg-accent animate-ping" />
+            ) : null}
           </button>
         </div>
       </div>
@@ -171,6 +206,30 @@ export function ChatHeader() {
       {showMobileOptions ? (
         <div className="absolute right-3 top-14 z-50 w-56 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 md:hidden">
           <div className="space-y-1">
+            <button
+              onClick={() => {
+                setShowMobileOptions(false);
+                if (needRefresh) {
+                  updateApp();
+                } else {
+                  checkForUpdate(true);
+                }
+              }}
+              disabled={isChecking}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+            >
+              <span className="flex items-center gap-2">
+                <RefreshCwIcon className={`size-4 ${isChecking ? "animate-spin text-accent" : needRefresh ? "text-accent" : ""}`} />
+                {needRefresh ? "Update App Now" : "Check for Updates"}
+              </span>
+              {needRefresh ? (
+                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground animate-pulse">
+                  New
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted">PWA</span>
+              )}
+            </button>
             <button
               onClick={() => {
                 setTheme(theme === "dark" ? "light" : "dark");
