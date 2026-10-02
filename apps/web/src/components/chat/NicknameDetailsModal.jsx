@@ -20,7 +20,17 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
     setNicknameInput(peer?.nickname || "");
   }, [peer?.nickname, isOpen]);
 
-  if (!isOpen || !peer) return null;
+  // Handle ESC key to dismiss modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !peer || typeof document === "undefined") return null;
 
   const currentNickname = peer.nickname || "";
   const hasChanged = nicknameInput.trim() !== currentNickname;
@@ -28,6 +38,11 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
   const handleSave = async (e) => {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
     if (!hasChanged) {
+      onClose();
+      return;
+    }
+
+    if (!peer?.id) {
       onClose();
       return;
     }
@@ -42,6 +57,11 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
   };
 
   const handleClear = async () => {
+    if (!peer?.id) {
+      onClose();
+      return;
+    }
+
     setIsSaving(true);
     try {
       await setNickname(String(peer.id), "");
@@ -53,14 +73,14 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9999] flex flex-col justify-end md:justify-center md:items-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Backdrop tap to dismiss */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
-      {/* iOS Style Sheet / Dialog */}
-      <div className="relative z-10 flex w-full flex-col overflow-hidden border-border bg-background text-foreground shadow-2xl transition-all sm:max-w-md sm:rounded-3xl sm:border max-h-[90dvh] rounded-t-3xl border-t pb-[max(1.2rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom duration-250">
+      {/* iOS Style Sheet (mobile) / Dialog (desktop) */}
+      <div className="relative z-10 flex w-full flex-col overflow-hidden border-border bg-background text-foreground shadow-2xl transition-all md:max-w-md md:rounded-3xl md:border max-h-[88dvh] rounded-t-3xl border-t pb-[max(1.2rem,env(safe-area-inset-bottom))] md:pb-5 animate-in slide-in-from-bottom duration-250">
         {/* Mobile drag handle bar */}
-        <div className="flex w-full justify-center pt-3 pb-1 sm:hidden">
+        <div className="flex w-full justify-center pt-3 pb-1 md:hidden">
           <div className="h-1.5 w-12 rounded-full bg-muted/30" />
         </div>
 
@@ -178,7 +198,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
               <div className="min-w-0 flex-1">
                 {peer.myNickname ? (
                   <p className="text-sm font-bold text-foreground truncate">
-                    "{peer.myNickname}"
+                    &ldquo;{peer.myNickname}&rdquo;
                   </p>
                 ) : (
                   <p className="text-xs italic text-muted">

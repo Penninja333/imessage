@@ -395,6 +395,11 @@ export const useChatStore = create(
       setSoundEnabled: (isSoundEnabled) => set({ isSoundEnabled }),
 
       setNickname: async (targetUserId, nickname) => {
+        if (!targetUserId || targetUserId === "undefined" || targetUserId === "null") {
+          toast.error("Could not determine user to set nickname for");
+          return;
+        }
+
         const trimmed = (nickname || "").trim();
         const newNickname = trimmed || null;
         const targetIdStr = String(targetUserId);

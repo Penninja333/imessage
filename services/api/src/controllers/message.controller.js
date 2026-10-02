@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Nickname from "../models/nickname.model.js";
@@ -145,6 +146,10 @@ export async function getMessages(req, res) {
     const { id: userToChatId } = req.params;
     const myId = req.user._id;
 
+    if (!userToChatId || userToChatId === "undefined" || userToChatId === "null") {
+      return res.status(200).json([]);
+    }
+
     const messages = await Message.find({
       $or: [
         { senderId: myId, receiverId: userToChatId },
@@ -174,6 +179,10 @@ export async function markMessagesAsSeen(req, res) {
     const { id: userToChatId } = req.params;
     const myId = req.user._id;
 
+    if (!userToChatId || userToChatId === "undefined" || userToChatId === "null") {
+      return res.status(200).json({ ok: true });
+    }
+
     await Message.updateMany(
       { senderId: userToChatId, receiverId: myId, seen: false },
       { $set: { seen: true } },
@@ -194,6 +203,10 @@ export async function sendMessage(req, res) {
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
     const senderName = req.user.fullName;
+
+    if (!receiverId || receiverId === "undefined" || receiverId === "null") {
+      return res.status(400).json({ message: "Invalid recipient ID" });
+    }
 
     let imageUrl;
     let videoUrl;
@@ -268,14 +281,23 @@ export async function setNickname(req, res) {
     const { nickname } = req.body;
     const withUserId = req.user._id;
 
+    if (!forUserId || forUserId === "undefined" || forUserId === "null") {
+      return res.status(400).json({ message: "Invalid target user ID" });
+    }
+
     if (nickname === undefined || nickname === null) {
       return res.status(400).json({ message: "Nickname is required" });
     }
 
     const trimmed = String(nickname).trim();
 
-    // Get the target user's info
-    const targetUser = await User.findById(forUserId);
+    // Get the target user's info safely
+    let targetUser = null;
+    try {
+      targetUser = await User.findById(forUserId);
+    } catch (e) {
+      console.warn("Could not find user by ID:", forUserId, e.message);
+    }
     const targetName = targetUser?.fullName || "user";
 
     const isSelf = String(forUserId) === String(withUserId);
@@ -292,25 +314,55 @@ export async function setNickname(req, res) {
         return res.status(400).json({ message: "Nickname must be 32 characters or fewer" });
       }
 
-      const updated = await Nickname.findOneAndUpdate(
-        { forUserId, withUserId },
-        { forUserId, withUserId, nickname: trimmed, setByUserId: req.user._id },
-        { new: true, upsert: true, setDefaultsOnInsert: true },
-      );
-      updatedNickname = updated.nickname;
+      let updated;
+      try {
+        updated = await Nickname.findOneAndUpdate(
+          { forUserId, withUserId },
+          { forUserId, withUserId, nickname: trimmed, setByUserId: req.user._id },
+          { new: true, upsert: true, setDefaultsOnInsert: true },
+        );
+      } catch (upsertErr) {
+        if (upsertErr.code === 11000) {
+          console.warn("[setNickname] E11000 duplicate key, recovering:", upsertErr.message);
+          // Try direct update first
+          updated = await Nickname.findOneAndUpdate(
+            { forUserId, withUserId },
+            { $set: { nickname: trimmed, setByUserId: req.user._id } },
+            { new: true },
+          );
+          if (!updated) {
+            await Nickname.deleteMany({ forUserId, withUserId });
+            updated = await Nickname.create({
+              forUserId,
+              withUserId,
+              nickname: trimmed,
+              setByUserId: req.user._id,
+            });
+          }
+        } else {
+          throw upsertErr;
+        }
+      }
+
+      updatedNickname = updated?.nickname ?? trimmed;
       systemText = isSelf
         ? `${req.user.fullName} set their nickname to "${trimmed}"`
         : `${req.user.fullName} set the nickname for ${targetName} to "${trimmed}"`;
     }
 
     // Create and save an in-chat system message so the nickname update displays right in the chat stream!
-    const systemMessage = new Message({
-      senderId: req.user._id,
-      receiverId: forUserId,
-      text: systemText,
-      isSystem: true,
-    });
-    await systemMessage.save();
+    let systemMessage = null;
+    try {
+      systemMessage = new Message({
+        senderId: req.user._id,
+        receiverId: forUserId,
+        text: systemText,
+        isSystem: true,
+      });
+      await systemMessage.save();
+    } catch (msgErr) {
+      console.warn("Failed to create system message for nickname:", msgErr.message);
+    }
 
     // Broadcast system message & nicknameUpdated to both participants across all active devices
     const updatePayload = {
@@ -323,15 +375,17 @@ export async function setNickname(req, res) {
       systemMessage,
     };
 
-    io.to(String(forUserId)).emit("newMessage", systemMessage);
+    if (systemMessage) {
+      io.to(String(forUserId)).emit("newMessage", systemMessage);
+      io.to(String(withUserId)).emit("newMessage", systemMessage);
+    }
     io.to(String(forUserId)).emit("nicknameUpdated", updatePayload);
-    io.to(String(withUserId)).emit("newMessage", systemMessage);
     io.to(String(withUserId)).emit("nicknameUpdated", updatePayload);
 
     res.status(200).json({ nickname: updatedNickname, systemMessage });
   } catch (error) {
-    console.error("Error in setNickname:", error.message);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error in setNickname:", error);
+    res.status(500).json({ message: error.message || "Failed to set nickname" });
   }
 }
 
@@ -355,6 +409,10 @@ export async function toggleReaction(req, res) {
     const { id: messageId } = req.params;
     const { emoji } = req.body;
     const userId = req.user._id;
+
+    if (!messageId || messageId === "undefined" || messageId === "null") {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
 
     if (!emoji) {
       return res.status(400).json({ message: "Emoji is required" });
@@ -402,6 +460,10 @@ export async function deleteMessage(req, res) {
   try {
     const { id: messageId } = req.params;
     const userId = req.user._id;
+
+    if (!messageId || messageId === "undefined" || messageId === "null") {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
 
     const message = await Message.findById(messageId);
     if (!message) {
