@@ -26,6 +26,7 @@ function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
     time: formatMessageTime(message.createdAt),
     imageUrl: message.image,
     videoUrl: message.video,
+    audioUrl: message.audio,
     isSystem: Boolean(message.isSystem),
     reactions: message.reactions || [],
     deleted: Boolean(message.deleted),

@@ -111,6 +111,7 @@ export async function sendMessage(req, res) {
 
     let imageUrl;
     let videoUrl;
+    let audioUrl;
 
     if (req.file) {
       if (!hasImageKitConfig()) {
@@ -119,6 +120,7 @@ export async function sendMessage(req, res) {
 
       const url = await uploadChatMedia(req.file);
       if (req.file.mimetype.startsWith("video/")) videoUrl = url;
+      else if (req.file.mimetype.startsWith("audio/")) audioUrl = url;
       else imageUrl = url;
     }
 
@@ -128,6 +130,7 @@ export async function sendMessage(req, res) {
       text,
       image: imageUrl,
       video: videoUrl,
+      audio: audioUrl,
     });
 
     await newMessage.save();
@@ -148,6 +151,7 @@ export async function sendMessage(req, res) {
             if (!body) {
               if (imageUrl) body = "📷 Sent an image";
               else if (videoUrl) body = "🎥 Sent a video";
+              else if (audioUrl) body = "🎤 Sent a voice message";
               else body = "New message";
             }
 
@@ -328,6 +332,7 @@ export async function deleteMessage(req, res) {
     message.text = "This message was deleted";
     message.image = null;
     message.video = null;
+    message.audio = null;
     await message.save();
 
     const partnerSocketId = getReceiverSocketId(message.receiverId);

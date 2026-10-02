@@ -1,5 +1,6 @@
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
+import { MessageAudio } from "./MessageAudio";
 import { SparklesIcon } from "lucide-react";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -22,6 +23,7 @@ export function MessageBubble({ message }) {
   const isOwnMessage = message.role === "me";
   const hasImage = Boolean(message.imageUrl);
   const hasVideo = Boolean(message.videoUrl);
+  const hasAudio = Boolean(message.audioUrl);
   const isDeleted = Boolean(message.deleted);
 
   return (
@@ -41,6 +43,7 @@ export function MessageBubble({ message }) {
           />
         ) : null}
         {hasVideo ? <MessageVideo src={message.videoUrl} /> : null}
+        {hasAudio ? <MessageAudio src={message.audioUrl} isOwnMessage={isOwnMessage} /> : null}
         {message.text ? (
           <p
             className={`whitespace-pre-wrap wrap-break-word ${

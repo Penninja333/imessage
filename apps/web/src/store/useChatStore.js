@@ -108,7 +108,15 @@ export const useChatStore = create(
           if (String(newMessage.senderId) === String(userId) && !newMessage.isSystem) {
             const partner = get().selectedUser || get().users.find((u) => u._id === userId);
             const senderName = partner?.nickname || partner?.fullName || "iMessage";
-            const body = newMessage.text || (newMessage.image ? "📷 Photo" : newMessage.video ? "🎥 Video" : "New message");
+            const body =
+              newMessage.text ||
+              (newMessage.image
+                ? "📷 Photo"
+                : newMessage.video
+                  ? "🎥 Video"
+                  : newMessage.audio
+                    ? "🎤 Voice message"
+                    : "New message");
 
             showWebNotification(senderName, {
               body,
@@ -155,7 +163,9 @@ export const useChatStore = create(
         socket.on("messageDeleted", ({ messageId, text }) => {
           set((state) => ({
             messages: state.messages.map((m) =>
-              m._id === messageId ? { ...m, text, deleted: true, image: null, video: null } : m
+              m._id === messageId
+                ? { ...m, text, deleted: true, image: null, video: null, audio: null }
+                : m
             ),
           }));
         });
@@ -240,6 +250,24 @@ export const useChatStore = create(
 
       sendMediaMessage: async ({ conversationId, file }) => {
         if (!conversationId || !file) return false;
+
+        const formData = new FormData();
+        formData.append("media", file);
+
+        set({ isSendingMedia: true });
+        try {
+          return await get().sendMessage(formData);
+        } finally {
+          set({ isSendingMedia: false });
+        }
+      },
+
+      sendVoiceMessage: async ({ conversationId, audioBlob }) => {
+        if (!conversationId || !audioBlob) return false;
+
+        const mime = audioBlob.type || "audio/webm";
+        const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : "webm";
+        const file = new File([audioBlob], `voice-${Date.now()}.${ext}`, { type: mime });
 
         const formData = new FormData();
         formData.append("media", file);

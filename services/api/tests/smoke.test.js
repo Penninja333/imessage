@@ -197,6 +197,28 @@ describe("Messages routes (authenticated)", () => {
       .field("text", "hello world");
     expect(res.status).toBe(201);
   });
+
+  it("POST /api/messages/send/:id supports audio upload via ImageKit", async () => {
+    const { hasImageKitConfig, uploadChatMedia } = await import("../src/lib/imagekit.js");
+    hasImageKitConfig.mockReturnValue(true);
+    uploadChatMedia.mockResolvedValue("https://ik.imagekit.io/test/chat-voice.webm");
+
+    mockMessageSave.mockResolvedValue({
+      senderId: "user123",
+      receiverId: "user456",
+      audio: "https://ik.imagekit.io/test/chat-voice.webm",
+    });
+
+    const res = await request(testApp)
+      .post("/api/messages/send/user456")
+      .attach("media", Buffer.from("fake-audio-bytes"), {
+        filename: "voice.webm",
+        contentType: "audio/webm",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.audio).toBe("https://ik.imagekit.io/test/chat-voice.webm");
+  });
 });
 
 describe("Nickname routes (authenticated)", () => {

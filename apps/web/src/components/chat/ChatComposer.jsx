@@ -1,34 +1,88 @@
 import { Button, TextArea } from "@heroui/react";
-import { ImageIcon, LoaderIcon, SendHorizontalIcon } from "lucide-react";
-import { useRef } from "react";
+import {
+  ImageIcon,
+  LoaderIcon,
+  MicIcon,
+  SendHorizontalIcon,
+  Trash2Icon,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import useKeyboardSound from "../../hooks/useKeyboardSound";
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
+
+function formatDuration(secs) {
+  const mins = Math.floor(secs / 60);
+  const remainingSecs = secs % 60;
+  return `${mins}:${remainingSecs < 10 ? "0" : ""}${remainingSecs}`;
+}
 
 export function ChatComposer() {
   const composerText = useChatStore((state) => state.composerText);
   const isSoundEnabled = useChatStore((state) => state.isSoundEnabled);
   const sendMediaMessage = useChatStore((state) => state.sendMediaMessage);
+  const sendVoiceMessage = useChatStore((state) => state.sendVoiceMessage);
   const isSendingMedia = useChatStore((state) => state.isSendingMedia);
   const sendTextMessage = useChatStore((state) => state.sendTextMessage);
   const setComposerText = useChatStore((state) => state.setComposerText);
   const { activeConversationId } = useSelectedConversation();
   const { playRandomKeyStrokeSound } = useKeyboardSound();
-  const mediaInputRef = useRef(null);
 
+  const mediaInputRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // Typing indicator
   const sendTyping = useChatStore((state) => state.sendTyping);
   const sendStopTyping = useChatStore((state) => state.sendStopTyping);
   const typingTimeoutRef = useRef(null);
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+  const audioStreamRef = useRef(null);
 
   const playSoundIfEnabled = () => {
     if (isSoundEnabled) playRandomKeyStrokeSound();
   };
 
-  const handleSend = async () => {
+  // Helper to reliably keep focus on the composer input on mobile devices
+  const focusInput = () => {
+    if (!textareaRef.current) return;
+    const el =
+      textareaRef.current.tagName === "TEXTAREA"
+        ? textareaRef.current
+        : textareaRef.current.querySelector?.("textarea") || textareaRef.current;
+    if (el && typeof el.focus === "function") {
+      el.focus({ preventScroll: true });
+    }
+  };
+
+  const handleSend = async (e) => {
+    if (e) {
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+    }
+
+    // Keep focus synchronously during user interaction
+    focusInput();
+
+    const text = composerText.trim();
+    if (!text) return;
+
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     sendStopTyping(activeConversationId);
+
     const didSendMessage = await sendTextMessage(activeConversationId);
     if (didSendMessage) playSoundIfEnabled();
+
+    // Re-focus immediately and on next frame to guarantee mobile keyboard stays open
+    focusInput();
+    requestAnimationFrame(focusInput);
+    setTimeout(focusInput, 40);
   };
 
   const handleComposerTextChange = (event) => {
@@ -63,6 +117,136 @@ export function ChatComposer() {
     if (didSendMessage) playSoundIfEnabled();
   };
 
+  // Start voice recording
+  const startRecording = async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error("Audio recording is not supported in this browser");
+        return;
+      }
+
+      // Check supported MIME type across mobile browsers (Chrome, Safari, Firefox)
+      let mimeType = "";
+      if (typeof MediaRecorder !== "undefined") {
+        const types = [
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/mp4",
+          "audio/ogg",
+          "audio/wav",
+        ];
+        for (const t of types) {
+          if (MediaRecorder.isTypeSupported(t)) {
+            mimeType = t;
+            break;
+          }
+        }
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start(100);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        toast.error("Microphone permission denied. Please allow microphone access.");
+      } else {
+        toast.error("Could not access microphone");
+      }
+    }
+  };
+
+  // Discard and cancel voice recording
+  const cancelRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingDuration(0);
+  };
+
+  // Stop recording and send voice message
+  const stopAndSendRecording = async () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    recorder.onstop = async () => {
+      try {
+        const mimeType = recorder.mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+
+        if (audioBlob.size > 0 && activeConversationId) {
+          const didSend = await sendVoiceMessage({
+            conversationId: activeConversationId,
+            audioBlob,
+          });
+          if (didSend) playSoundIfEnabled();
+        }
+      } catch (err) {
+        console.error("Failed to send voice recording:", err);
+        toast.error("Failed to send voice recording");
+      } finally {
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach((track) => track.stop());
+          audioStreamRef.current = null;
+        }
+        audioChunksRef.current = [];
+        setIsRecording(false);
+        setRecordingDuration(0);
+      }
+    };
+
+    recorder.stop();
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const hasText = composerText.trim().length > 0;
+
   return (
     <footer className="shrink-0 border-t border-border bg-background/95 backdrop-blur-md px-2 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] sm:px-3">
       {isSendingMedia ? (
@@ -75,55 +259,133 @@ export function ChatComposer() {
           <span className="truncate">Uploading media...</span>
         </div>
       ) : null}
-      <div className="mx-auto flex w-full max-w-full items-end gap-1.5 px-0.5 sm:gap-2 sm:px-1">
-        <input
-          ref={mediaInputRef}
-          type="file"
-          accept="image/*,video/*"
-          className="sr-only"
-          disabled={isSendingMedia}
-          tabIndex={-1}
-          aria-hidden
-          onChange={handleMediaPick}
-        />
-        <Button
-          variant="ghost"
-          isIconOnly
-          isDisabled={isSendingMedia}
-          className="size-10 shrink-0 touch-manipulation self-end text-accent"
-          onPress={() => mediaInputRef.current?.click()}
-          aria-label="Attach media"
-        >
-          <ImageIcon className="size-5 sm:size-6" strokeWidth={2} />
-        </Button>
-        <TextArea
-          fullWidth
-          variant="secondary"
-          placeholder="iMessage"
-          rows={1}
-          value={composerText}
-          onChange={handleComposerTextChange}
-          onFocus={handleFocus}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              handleSend();
-            }
-          }}
-          className="flex-1 rounded-full text-base"
-        />
 
-        <Button
-          variant="primary"
-          isIconOnly
-          className="size-10 shrink-0"
-          isDisabled={!composerText.trim()}
-          onPress={handleSend}
-          aria-label="Send message"
-        >
-          <SendHorizontalIcon className="size-5" />
-        </Button>
-      </div>
+      {isRecording ? (
+        /* Native-style Voice Recording Bar */
+        <div className="mx-auto flex w-full max-w-full items-center justify-between gap-2 rounded-full border border-red-500/40 bg-surface/90 px-3 py-1.5 shadow-sm backdrop-blur-sm sm:gap-3 sm:px-4">
+          {/* Pulsing red dot and recording timer */}
+          <div className="flex items-center gap-2">
+            <span className="relative flex size-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex size-3 rounded-full bg-red-500" />
+            </span>
+            <span className="text-xs font-semibold text-red-500 tabular-nums">
+              {formatDuration(recordingDuration)}
+            </span>
+          </div>
+
+          {/* Animated sound wave bars */}
+          <div className="flex items-center gap-1">
+            <span className="h-3 w-1 animate-pulse rounded-full bg-red-500/60" />
+            <span className="h-5 w-1 animate-pulse rounded-full bg-red-500 delay-75" />
+            <span className="h-2 w-1 animate-pulse rounded-full bg-red-500/70 delay-150" />
+            <span className="h-6 w-1 animate-pulse rounded-full bg-red-500 delay-100" />
+            <span className="h-4 w-1 animate-pulse rounded-full bg-red-500/80 delay-200" />
+            <span className="h-7 w-1 animate-pulse rounded-full bg-red-500 delay-300" />
+            <span className="h-3 w-1 animate-pulse rounded-full bg-red-500/60 delay-100" />
+          </div>
+
+          {/* Recording actions: Discard & Send */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-red-500/10 hover:text-red-500 active:scale-95 transition-all"
+              title="Discard recording"
+              aria-label="Discard recording"
+            >
+              <Trash2Icon className="size-4.5" />
+            </button>
+            <button
+              type="button"
+              onClick={stopAndSendRecording}
+              className="flex size-9 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all"
+              title="Send voice message"
+              aria-label="Send voice message"
+            >
+              <SendHorizontalIcon className="size-4.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Regular Message Composer */
+        <div className="mx-auto flex w-full max-w-full items-end gap-1.5 px-0.5 sm:gap-2 sm:px-1">
+          <input
+            ref={mediaInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*"
+            className="sr-only"
+            disabled={isSendingMedia}
+            tabIndex={-1}
+            aria-hidden
+            onChange={handleMediaPick}
+          />
+          <Button
+            variant="ghost"
+            isIconOnly
+            isDisabled={isSendingMedia}
+            className="size-10 shrink-0 touch-manipulation self-end text-accent"
+            onPress={() => mediaInputRef.current?.click()}
+            aria-label="Attach media"
+          >
+            <ImageIcon className="size-5 sm:size-6" strokeWidth={2} />
+          </Button>
+
+          <TextArea
+            ref={textareaRef}
+            fullWidth
+            variant="secondary"
+            placeholder="iMessage"
+            rows={1}
+            value={composerText}
+            onChange={handleComposerTextChange}
+            onFocus={handleFocus}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handleSend(event);
+              }
+            }}
+            className="flex-1 rounded-full text-base"
+          />
+
+          {hasText ? (
+            /* Send Button — with pointer/touch preventDefault to preserve mobile keyboard focus */
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                focusInput();
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                focusInput();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                focusInput();
+              }}
+              onClick={handleSend}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm hover:brightness-105 active:scale-95 transition-transform"
+              aria-label="Send message"
+            >
+              <SendHorizontalIcon className="size-5" />
+            </button>
+          ) : (
+            /* Mic Button — tap to start recording voice message */
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={isSendingMedia}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-accent hover:bg-accent hover:text-accent-foreground active:scale-95 transition-all shadow-sm"
+              aria-label="Record voice message"
+              title="Record voice message"
+            >
+              <MicIcon className="size-5" />
+            </button>
+          )}
+        </div>
+      )}
     </footer>
   );
 }
