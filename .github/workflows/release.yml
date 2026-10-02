@@ -96,7 +96,7 @@ jobs:
           path: api-dist.tar.gz
           retention-days: 14
 
-  # ── 4. Android APK (no EAS — expo prebuild + Gradle) ──────────────────────
+  # ── 4. Android APK — Gradle direct build (no EAS, no expo prebuild) ────────
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
@@ -114,30 +114,49 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Accept Android SDK licenses & install packages
+      # ── Android SDK: accept all licenses + install required packages ──────
+      - name: Setup Android SDK components
         run: |
-          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          yes | $SDKMANAGER --licenses > /dev/null 2>&1 || true
-          yes | $SDKMANAGER "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null 2>&1
+          SDK="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          # Accept all licenses non-interactively
+          yes | $SDK --licenses > /dev/null 2>&1 || true
+          # Install what the build needs (SDK 35, build-tools 35, NDK for RN 0.76)
+          $SDK "platforms;android-35" "build-tools;35.0.0" "ndk;26.1.10909125"
 
-      - name: Install mobile dependencies
+      # ── Install JS dependencies so Gradle scripts can require() them ──────
+      - name: Install mobile JS dependencies
         run: npm install
         working-directory: apps/mobile
 
-      - name: Install NDK (required by React Native 0.76)
-        run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" > /dev/null 2>&1
-
-      - name: Write local.properties
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > apps/mobile/android/local.properties
-
-      - name: Override gradle.properties for CI (arm64 only, SDK 35)
+      # ── KEY FIX: Gradle's settings.gradle spawns `node` child processes
+      #    from the android/ directory to find expo packages via require.resolve().
+      #    Symlinking node_modules directly into android/ means node finds
+      #    packages in cwd immediately (no directory-walking required).  ──────
+      - name: Symlink node_modules into android/ for Gradle script resolution
         run: |
-          printf '\nreactNativeArchitectures=arm64-v8a\nandroid.buildToolsVersion=35.0.0\nandroid.compileSdkVersion=35\nandroid.targetSdkVersion=35\n' >> apps/mobile/android/gradle.properties
+          ln -sf "${{ github.workspace }}/apps/mobile/node_modules" \
+                 "${{ github.workspace }}/apps/mobile/android/node_modules"
+
+      # ── Configure SDK path + fast CI build options ───────────────────────
+      - name: Configure local.properties & gradle.properties
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > apps/mobile/android/local.properties
+          cat >> apps/mobile/android/gradle.properties << 'PROPS'
+
+          # CI overrides
+          reactNativeArchitectures=arm64-v8a
+          android.buildToolsVersion=35.0.0
+          android.compileSdkVersion=35
+          android.targetSdkVersion=35
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+          org.gradle.daemon=false
+          org.gradle.parallel=true
+          PROPS
 
       - name: Make gradlew executable
         run: chmod +x apps/mobile/android/gradlew
 
-      - name: Cache Gradle
+      - name: Cache Gradle caches
         uses: actions/cache@v4
         with:
           path: |
@@ -147,10 +166,9 @@ jobs:
           restore-keys: gradle-
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --warning-mode=all
         working-directory: apps/mobile/android
         env:
-          GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=512m"
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Upload APK artifact
@@ -159,6 +177,7 @@ jobs:
           name: app-debug
           path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
 
   # ── 5. Create & Publish GitHub Release ─────────────────────────────────────
   release:
