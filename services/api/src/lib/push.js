@@ -103,13 +103,13 @@ export async function sendPush({ tokens, title, body, data = {} }) {
           })
           .catch((err) => {
             console.warn(
-              "[push] Web Push delivery failed for endpoint:",
-              sub.endpoint,
-              err.message,
+              `[push] Web Push delivery failed for endpoint: ${sub.endpoint} (${err.statusCode || "ERR"}: ${err.body ? err.body.trim() : err.message})`,
             );
-            if (err.statusCode === 410 || err.statusCode === 404) {
-              const tokenStr = typeof sub === "string" ? sub : JSON.stringify(sub);
-              DeviceToken.deleteOne({ token: tokenStr }).catch(() => {});
+            if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 400) {
+              if (sub.endpoint) {
+                const escaped = sub.endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                DeviceToken.deleteMany({ token: { $regex: escaped } }).catch(() => {});
+              }
             }
           }),
       ),

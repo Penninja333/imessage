@@ -45,7 +45,7 @@ export async function requestNotificationPermission() {
   return false;
 }
 
-export async function subscribeToWebPush() {
+export async function subscribeToWebPush(forceRefresh = false) {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     return false;
   }
@@ -64,11 +64,35 @@ export async function subscribeToWebPush() {
 
     let subscription = await registration.pushManager.getSubscription();
 
+    // If forceRefresh is requested, remove stale/dead subscription
+    if (subscription && forceRefresh) {
+      try {
+        await subscription.unsubscribe();
+        subscription = null;
+      } catch (unsubErr) {
+        console.warn("[notifications] Unsubscribe error:", unsubErr);
+      }
+    }
+
     if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      });
+      try {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      } catch (subErr) {
+        console.warn("[notifications] Initial subscribe failed, retrying...", subErr.message);
+        const existing = await registration.pushManager.getSubscription();
+        if (existing) {
+          try {
+            await existing.unsubscribe();
+          } catch {}
+        }
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
     }
 
     if (subscription) {

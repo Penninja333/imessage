@@ -75,7 +75,7 @@ export default function PermissionsModal() {
 
       if (permission === "granted") {
         toast.success("Notifications allowed! Registering banner alerts...");
-        const subscribed = await subscribeToWebPush();
+        const subscribed = await subscribeToWebPush(true);
         if (subscribed) {
           toast.success("Notification banners active!");
         }
