@@ -36,12 +36,7 @@ export async function requestNotificationPermission() {
   if (Notification.permission !== "denied") {
     try {
       const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        subscribeToWebPush().catch((e) =>
-          console.warn("[notifications] subscribeToWebPush after prompt error:", e.message),
-        );
-        return true;
-      }
+      return permission === "granted";
     } catch (e) {
       console.warn("[notifications] Permission request error:", e.message);
     }
@@ -56,19 +51,20 @@ export async function subscribeToWebPush() {
   }
 
   try {
-    const hasPermission = await requestNotificationPermission();
-    if (!hasPermission) return false;
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      return false;
+    }
 
     const registration = await navigator.serviceWorker.ready;
     if (!registration) return false;
 
+    const res = await axiosInstance.get("/devices/vapid-public-key");
+    const publicKey = res.data?.publicKey;
+    if (!publicKey) return false;
+
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
-      const res = await axiosInstance.get("/devices/vapid-public-key");
-      const publicKey = res.data?.publicKey;
-      if (!publicKey) return false;
-
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),

@@ -27,6 +27,9 @@ export async function registerDevice(req, res) {
 
     const tokenStr = typeof token === "object" ? JSON.stringify(token) : String(token);
 
+    // Remove any previous associations of this device token with other users
+    await DeviceToken.deleteMany({ token: tokenStr, userId: { $ne: userId } });
+
     await DeviceToken.findOneAndUpdate(
       { userId, token: tokenStr },
       {

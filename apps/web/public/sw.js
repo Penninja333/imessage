@@ -100,14 +100,27 @@ self.addEventListener("push", (event) => {
   try {
     const data = event.data.json();
     const title = data.title || "iMessage";
+    const body = data.body || "New message received";
+
+    // Use unique tag per message so Android displays a fresh heads-up pop-down banner over other apps
+    const tag = (data.data && data.data.messageId)
+      ? `msg-${data.data.messageId}`
+      : `imessage-${Date.now()}`;
+
     const options = {
-      body: data.body || "New message received",
+      body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       data: data.data || {},
-      vibrate: [100, 50, 100],
-      tag: "imessage-notification",
+      vibrate: [200, 100, 200, 100, 200],
+      tag,
       renotify: true,
+      silent: false,
+      requireInteraction: false,
+      timestamp: Date.now(),
+      actions: [
+        { action: "open", title: "Open" }
+      ],
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
@@ -118,6 +131,10 @@ self.addEventListener("push", (event) => {
         body: text,
         icon: "/icon-192.png",
         badge: "/icon-192.png",
+        vibrate: [200, 100, 200],
+        tag: `imessage-${Date.now()}`,
+        renotify: true,
+        silent: false,
       })
     );
   }
@@ -132,6 +149,12 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin) && "focus" in client) {
+          if (event.notification.data && event.notification.data.senderId) {
+            client.postMessage({
+              type: "SELECT_CONVERSATION",
+              conversationId: event.notification.data.senderId,
+            });
+          }
           return client.focus();
         }
       }

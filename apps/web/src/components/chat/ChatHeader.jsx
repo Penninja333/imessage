@@ -11,6 +11,7 @@ import {
   PaletteIcon,
   ArrowUpCircleIcon,
   RefreshCwIcon,
+  BellRingIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
@@ -25,6 +26,7 @@ import { useTheme } from "../../context/theme";
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
+import { usePermissionsStore } from "../../store/usePermissionsStore";
 
 export function ChatHeader() {
   const isSoundEnabled = useChatStore((state) => state.isSoundEnabled);
@@ -141,6 +143,17 @@ export function ChatHeader() {
           <WallpaperPicker />
           <ThemePresetPicker />
           <ThemeToggle />
+
+          <Button
+            variant="ghost"
+            isIconOnly
+            className="size-9"
+            aria-label="App Permissions"
+            title="App Permissions (Notifications & Mic)"
+            onPress={() => usePermissionsStore.getState().openModal()}
+          >
+            <BellRingIcon className="size-4.5" strokeWidth={2} />
+          </Button>
 
           <Button
             variant="ghost"
@@ -274,6 +287,24 @@ export function ChatHeader() {
                 Message Sound
               </span>
               <span className="text-[10px] text-muted">{isSoundEnabled ? "On" : "Muted"}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowMobileOptions(false);
+                usePermissionsStore.getState().openModal();
+              }}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+            >
+              <span className="flex items-center gap-2">
+                <BellRingIcon className="size-4 text-accent" />
+                Permissions & Alerts
+              </span>
+              {typeof window !== "undefined" && "Notification" in window && Notification.permission !== "granted" ? (
+                <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+              ) : (
+                <span className="text-[10px] text-success font-medium">Active</span>
+              )}
             </button>
 
             {activeConversation ? (

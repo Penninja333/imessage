@@ -5,9 +5,10 @@ import { APP_NAME, AppLogo } from "../AppLogo";
 import { UserButton } from "@clerk/react";
 
 import { SearchField, Tabs } from "@heroui/react";
-import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon } from "lucide-react";
+import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon, BellRingIcon } from "lucide-react";
 import { ConversationRow } from "./ConversationRow";
 import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
+import { usePermissionsStore } from "../../store/usePermissionsStore";
 
 function mapUserForList(user, onlineUsers) {
   const displayName = user.nickname || user.fullName;
@@ -108,6 +109,19 @@ function ChatSidebar() {
               <RefreshCwIcon className={`size-4 ${isChecking ? "animate-spin text-accent" : ""}`} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => usePermissionsStore.getState().openModal()}
+            className="relative flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-foreground active:scale-95 transition"
+            title="App Permissions (Notifications & Mic)"
+            aria-label="App Permissions"
+          >
+            <BellRingIcon className="size-4" />
+            {typeof window !== "undefined" && "Notification" in window && Notification.permission !== "granted" ? (
+              <span className="absolute top-1 right-1 size-2 rounded-full bg-amber-500 animate-pulse" />
+            ) : null}
+          </button>
+
           <UserButton
             appearance={{
               elements: {

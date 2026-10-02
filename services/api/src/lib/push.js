@@ -1,5 +1,6 @@
 import admin from "firebase-admin";
 import webpush from "web-push";
+import DeviceToken from "../models/deviceToken.model.js";
 
 const VAPID_PUBLIC_KEY =
   process.env.VAPID_PUBLIC_KEY ||
@@ -92,9 +93,25 @@ export async function sendPush({ tokens, title, body, data = {} }) {
 
     await Promise.allSettled(
       webPushTokens.map((sub) =>
-        webpush.sendNotification(sub, webPayload).catch((err) => {
-          console.warn("[push] Web Push delivery failed for endpoint:", sub.endpoint, err.message);
-        }),
+        webpush
+          .sendNotification(sub, webPayload, {
+            urgency: "high",
+            TTL: 86400,
+            headers: {
+              Urgency: "high",
+            },
+          })
+          .catch((err) => {
+            console.warn(
+              "[push] Web Push delivery failed for endpoint:",
+              sub.endpoint,
+              err.message,
+            );
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              const tokenStr = typeof sub === "string" ? sub : JSON.stringify(sub);
+              DeviceToken.deleteOne({ token: tokenStr }).catch(() => {});
+            }
+          }),
       ),
     );
     console.log(`[push] Dispatched Web Push to ${webPushTokens.length} PWA client(s)`);
@@ -118,6 +135,15 @@ export async function sendPush({ tokens, title, body, data = {} }) {
         data: Object.fromEntries(
           Object.entries(data).map(([k, v]) => [k, String(v)]),
         ),
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "messages",
+            priority: "max",
+            defaultSound: true,
+            defaultVibrateTimings: true,
+          },
+        },
         tokens: fcmTokens,
       };
 

@@ -11,12 +11,14 @@ import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import {
   registerServiceWorker,
-  requestNotificationPermission,
   subscribeToWebPush,
 } from "./lib/notifications";
 import InstallPwaBanner from "./components/InstallPwaBanner";
 import UpdatePwaBanner from "./components/UpdatePwaBanner";
+import PermissionsModal from "./components/PermissionsModal";
 import { usePwaUpdateStore } from "./store/usePwaUpdateStore";
+import { usePermissionsStore } from "./store/usePermissionsStore";
+import { useChatStore } from "./store/useChatStore";
 
 function App() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -31,6 +33,19 @@ function App() {
         usePwaUpdateStore.getState().setRegistration(reg);
       }
     });
+
+    if ("serviceWorker" in navigator) {
+      const handleSwMessage = (event) => {
+        if (event.data && event.data.type === "SELECT_CONVERSATION" && event.data.conversationId) {
+          useChatStore.getState().setActiveConversationId(event.data.conversationId);
+        }
+      };
+
+      navigator.serviceWorker.addEventListener("message", handleSwMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+      };
+    }
   }, []);
 
   useEffect(() => {
@@ -38,9 +53,22 @@ function App() {
 
     if (isSignedIn) {
       checkAuth();
-      requestNotificationPermission().then((granted) => {
-        if (granted) subscribeToWebPush();
-      });
+
+      // Check notification permissions: if already granted, ensure token is registered
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        subscribeToWebPush();
+      } else {
+        // If not granted, prompt the user with the PermissionsModal on first start
+        const hasPrompted = sessionStorage.getItem("imessage_permissions_shown_session");
+        if (!hasPrompted) {
+          usePermissionsStore.getState().openModal();
+          sessionStorage.setItem("imessage_permissions_shown_session", "true");
+        }
+      }
     } else {
       clearAuth();
     }
@@ -58,6 +86,7 @@ function App() {
             element={!isSignedIn ? <AuthPage /> : <Navigate to={"/"} replace />}
           />
         </Routes>
+        <PermissionsModal />
         <InstallPwaBanner />
         <UpdatePwaBanner />
         <Toaster />
