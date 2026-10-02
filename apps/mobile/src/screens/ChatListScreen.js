@@ -1,221 +1,288 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
   Image,
+  TextInput,
+  StyleSheet,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
-import { useChatStore } from '../store/useChatStore';
+import { useClerk } from '@clerk/clerk-expo';
+import { useAppTheme } from '../context/ThemeContext';
 import { useAuthStore } from '../store/useAuthStore';
+import { useChatStore } from '../store/useChatStore';
 import ThemePickerModal from '../components/ThemePickerModal';
 
-function Avatar({ name, avatarUrl, isOnline, size = 46 }) {
-  const initials = name
-    ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-    : '?';
-
-  return (
-    <View style={{ position: 'relative', width: size, height: size }}>
-      <View style={[styles.avatarBase, { width: size, height: size, borderRadius: size / 2 }]}>
-        {avatarUrl
-          ? <Image source={{ uri: avatarUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} />
-          : <Text style={[styles.avatarInitials, { fontSize: size * 0.36 }]}>{initials}</Text>
-        }
-      </View>
-      {isOnline && (
-        <View style={[styles.onlineDot, { width: size * 0.26, height: size * 0.26, borderRadius: size * 0.13, bottom: 0, right: 0 }]} />
-      )}
-    </View>
-  );
-}
-
 export default function ChatListScreen({ navigation }) {
-  const { theme, accent } = useTheme();
-  const insets = useSafeAreaInsets();
-  const isDark = theme === 'dark';
-  const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('chats'); // 'chats' | 'people'
-  const [showThemePicker, setShowThemePicker] = useState(false);
+  const { colors, theme } = useAppTheme();
+  const { signOut } = useClerk();
 
-  const getUsers = useChatStore((s) => s.getUsers);
-  const getConversations = useChatStore((s) => s.getConversations);
-  const conversations = useChatStore((s) => s.conversations);
-  const users = useChatStore((s) => s.users);
-  const isConversationsLoading = useChatStore((s) => s.isConversationsLoading);
-  const isUsersLoading = useChatStore((s) => s.isUsersLoading);
+  const authUser = useAuthStore((state) => state.authUser);
+  const onlineUsers = useAuthStore((state) => state.onlineUsers);
+  const users = useChatStore((state) => state.users);
+  const isUsersLoading = useChatStore((state) => state.isUsersLoading);
+  const getUsers = useChatStore((state) => state.getUsers);
+  const setSelectedUser = useChatStore((state) => state.setSelectedUser);
+  const typingUsers = useChatStore((state) => state.typingUsers);
 
-  const authUser = useAuthStore((s) => s.authUser);
-  const onlineUsers = useAuthStore((s) => s.onlineUsers);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
 
   useEffect(() => {
     getUsers();
-    getConversations();
   }, []);
 
-  const bg = isDark ? '#000' : '#f2f2f7';
-  const cardBg = isDark ? '#1c1c1e' : '#fff';
-  const fg = isDark ? '#fff' : '#000';
-  const mutedFg = isDark ? '#8e8e93' : '#6e6e73';
-  const borderColor = isDark ? '#2c2c2e' : '#e5e5ea';
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    const q = searchQuery.toLowerCase();
+    return users.filter(
+      (u) =>
+        (u.nickname && u.nickname.toLowerCase().includes(q)) ||
+        (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+        (u.username && u.username.toLowerCase().includes(q))
+    );
+  }, [users, searchQuery]);
 
-  const listSource = activeTab === 'chats' ? conversations : users;
-  const filtered = listSource.filter((u) => {
-    const name = u.nickname || u.myNickname || u.fullName || '';
-    return name.toLowerCase().includes(search.toLowerCase());
-  });
-
-  const loading = activeTab === 'chats' ? isConversationsLoading : isUsersLoading;
-
-  const renderItem = useCallback(({ item }) => {
-    const displayName = item.nickname || item.myNickname || item.fullName || 'Unknown';
+  const renderUserItem = ({ item }) => {
     const isOnline = onlineUsers.includes(item._id);
-    const hasNickname = !!item.nickname;
+    const isTyping = !!typingUsers[item._id];
+    const displayName = item.nickname || item.fullName || item.username || 'Contact';
 
     return (
       <TouchableOpacity
-        style={[styles.row, { backgroundColor: cardBg, borderBottomColor: borderColor }]}
+        style={[styles.userRow, { borderBottomColor: colors.border }]}
         activeOpacity={0.7}
-        onPress={() => navigation.navigate('Chat', {
-          userId: item._id,
-          name: displayName,
-          avatarUrl: item.profilePic,
-          nickname: item.nickname || null,
-          myNickname: item.myNickname || null,
-          fullName: item.fullName,
-        })}
+        onPress={() => {
+          setSelectedUser(item);
+          navigation.navigate('Chat');
+        }}
       >
-        <Avatar name={displayName} avatarUrl={item.profilePic} isOnline={isOnline} />
-        <View style={styles.rowContent}>
-          <View style={styles.rowNameRow}>
-            <Text style={[styles.rowName, { color: fg }]} numberOfLines={1}>{displayName}</Text>
-            {hasNickname && (
-              <View style={[styles.nickBadge, { backgroundColor: accent + '22' }]}>
-                <Text style={[styles.nickBadgeText, { color: accent }]}>nick</Text>
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{
+              uri:
+                item.profilePic ||
+                `https://api.dicebear.com/7.x/bottts/png?seed=${item._id || item.username}`,
+            }}
+            style={[styles.avatar, { backgroundColor: colors.surface }]}
+          />
+          {isOnline ? <View style={styles.onlineDot} /> : null}
+        </View>
+
+        <View style={styles.userInfo}>
+          <View style={styles.userNameRow}>
+            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {item.nickname ? (
+              <View style={[styles.tagBadge, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.tagText, { color: colors.primary }]}>Nickname</Text>
               </View>
-            )}
+            ) : null}
           </View>
-          {isOnline
-            ? <Text style={[styles.onlineLabel, { color: accent }]}>Online</Text>
-            : <Text style={[styles.offlineLabel, { color: mutedFg }]}>Offline</Text>
-          }
+
+          <Text style={[styles.lastMessage, { color: isTyping ? colors.primary : colors.textMuted }]} numberOfLines={1}>
+            {isTyping ? 'typing…' : item.theirNicknameForMe ? `Calls you "${item.theirNicknameForMe}"` : `@${item.username || 'user'}`}
+          </Text>
         </View>
       </TouchableOpacity>
     );
-  }, [onlineUsers, isDark, accent, fg, mutedFg, cardBg, borderColor]);
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: fg }]}>iMessage</Text>
-        <TouchableOpacity onPress={() => setShowThemePicker(true)} style={styles.headerBtn}>
-          <Text style={{ fontSize: 20 }}>🎨</Text>
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} />
 
-      {/* Search */}
-      <View style={[styles.searchContainer, { backgroundColor: cardBg }]}>
-        <TextInput
-          style={[styles.searchInput, { color: fg }]}
-          placeholder="Search"
-          placeholderTextColor={mutedFg}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search ? (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Text style={{ color: mutedFg, fontSize: 18 }}>✕</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+      {/* Top Header */}
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Messages</Text>
+        </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabs, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
-        {['chats', 'people'].map((tab) => (
+        <View style={styles.headerRight}>
           <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && [styles.tabActive, { borderBottomColor: accent }]]}
-            onPress={() => setActiveTab(tab)}
+            style={[styles.iconBtn, { backgroundColor: colors.surface }]}
+            onPress={() => setThemeModalVisible(true)}
           >
-            <Text style={[styles.tabLabel, { color: activeTab === tab ? accent : mutedFg }]}>
-              {tab === 'chats' ? '💬 Chats' : '👥 People'}
-            </Text>
+            <Text style={{ fontSize: 16 }}>🎨</Text>
           </TouchableOpacity>
-        ))}
+
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.surface }]}
+            onPress={() => signOut()}
+          >
+            <Text style={{ fontSize: 16 }}>🚪</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {loading ? (
-        <ActivityIndicator style={{ flex: 1 }} color={accent} />
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          style={{ backgroundColor: cardBg }}
-          ListEmptyComponent={
-            <Text style={[styles.empty, { color: mutedFg }]}>
-              {search ? 'No results.' : activeTab === 'chats' ? 'No conversations yet.' : 'No users found.'}
-            </Text>
-          }
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: colors.inputBg,
+              color: colors.text,
+              borderColor: colors.border,
+            },
+          ]}
+          placeholder="Search contacts or nicknames..."
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          clearButtonMode="while-editing"
         />
-      )}
+      </View>
 
-      <ThemePickerModal visible={showThemePicker} onClose={() => setShowThemePicker(false)} />
-    </View>
+      {/* Conversation List */}
+      <FlatList
+        data={filteredUsers}
+        keyExtractor={(item) => item._id}
+        renderItem={renderUserItem}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isUsersLoading}
+            onRefresh={getUsers}
+            tintColor={colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          !isUsersLoading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={{ fontSize: 40, marginBottom: 12 }}>💬</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Conversations Yet</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+                {searchQuery ? 'No contacts match your search' : 'Your contacts will appear here'}
+              </Text>
+            </View>
+          ) : null
+        }
+      />
+
+      <ThemePickerModal
+        visible={themeModalVisible}
+        onClose={() => setThemeModalVisible(false)}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  headerBtn: { padding: 6 },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  searchInput: {
+    height: 40,
     borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    fontSize: 14,
   },
-  searchInput: { flex: 1, fontSize: 16 },
-  tabs: {
-    flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  listContent: {
+    flexGrow: 1,
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabActive: {},
-  tabLabel: { fontSize: 14, fontWeight: '600' },
-  row: {
+  userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
   },
-  avatarBase: { backgroundColor: '#555', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  avatarInitials: { color: '#fff', fontWeight: '700' },
-  onlineDot: { position: 'absolute', backgroundColor: '#34C759', borderWidth: 2, borderColor: '#fff' },
-  rowContent: { flex: 1 },
-  rowNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  rowName: { fontSize: 16, fontWeight: '600', flex: 1 },
-  nickBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  nickBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  onlineLabel: { fontSize: 13, fontWeight: '600' },
-  offlineLabel: { fontSize: 13 },
-  empty: { textAlign: 'center', marginTop: 60, fontSize: 15 },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 14,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
+    backgroundColor: '#34C759',
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  tagBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tagText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  lastMessage: {
+    fontSize: 13,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 80,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
+  },
 });

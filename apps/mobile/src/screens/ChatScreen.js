@@ -1,270 +1,611 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
-  TouchableOpacity,
   TextInput,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Image,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
-import { useChatStore } from '../store/useChatStore';
+import { useAppTheme } from '../context/ThemeContext';
 import { useAuthStore } from '../store/useAuthStore';
-import { axiosInstance } from '../lib/axios';
+import { useChatStore } from '../store/useChatStore';
 import NicknameModal from '../components/NicknameModal';
 
-function formatTime(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-}
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
-export default function ChatScreen({ route, navigation }) {
-  const { userId, name, avatarUrl, nickname, myNickname, fullName } = route.params;
-  const { theme, accent } = useTheme();
-  const insets = useSafeAreaInsets();
-  const isDark = theme === 'dark';
+export default function ChatScreen({ navigation }) {
+  const { colors } = useAppTheme();
 
-  const [text, setText] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [showNickname, setShowNickname] = useState(false);
-  const flatRef = useRef(null);
+  const authUser = useAuthStore((state) => state.authUser);
+  const onlineUsers = useAuthStore((state) => state.onlineUsers);
+  const selectedUser = useChatStore((state) => state.selectedUser);
+  const messages = useChatStore((state) => state.messages);
+  const isMessagesLoading = useChatStore((state) => state.isMessagesLoading);
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const reactToMessage = useChatStore((state) => state.reactToMessage);
+  const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const sendTyping = useChatStore((state) => state.sendTyping);
+  const typingUsers = useChatStore((state) => state.typingUsers);
 
-  const authUser = useAuthStore((s) => s.authUser);
-  const onlineUsers = useAuthStore((s) => s.onlineUsers);
-  const getMessages = useChatStore((s) => s.getMessages);
-  const subscribeToMessages = useChatStore((s) => s.subscribeToMessages);
-  const unsubscribeFromMessages = useChatStore((s) => s.unsubscribeFromMessages);
-  const setActiveConversationId = useChatStore((s) => s.setActiveConversationId);
-  const setComposerText = useChatStore((s) => s.setComposerText);
-  const sendTextMessage = useChatStore((s) => s.sendTextMessage);
-  const messages = useChatStore((s) => s.messages);
-  const isMessagesLoading = useChatStore((s) => s.isMessagesLoading);
+  const [inputText, setInputText] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+  const [nicknameModalVisible, setNicknameModalVisible] = useState(false);
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null); // Message for reaction popover
 
-  const isOnline = onlineUsers.includes(userId);
+  const flatListRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
-  // The name visible to me: nickname I set for them (from myNickname) or the name passed in
-  const displayName = name;
+  const isOnline = selectedUser && onlineUsers.includes(selectedUser._id);
+  const isRecipientTyping = selectedUser && !!typingUsers[selectedUser._id];
+  const displayName =
+    selectedUser?.nickname || selectedUser?.fullName || selectedUser?.username || 'Chat';
 
   useEffect(() => {
-    setActiveConversationId(userId);
-    getMessages(userId);
-    subscribeToMessages(userId);
     return () => {
-      unsubscribeFromMessages();
-      setActiveConversationId(null);
+      sendTyping(false);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [userId]);
+  }, []);
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+  const handleTextChange = (text) => {
+    setInputText(text);
+
+    if (text.trim().length > 0) {
+      sendTyping(true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTyping(false);
+      }, 2000);
+    } else {
+      sendTyping(false);
     }
-  }, [messages.length]);
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+      setSelectedImage(`data:image/jpeg;base64,${asset.base64}`);
+    }
+  };
 
   const handleSend = async () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    setComposerText(trimmed);
-    await sendTextMessage();
-    setText('');
-  };
+    if (!inputText.trim() && !selectedImage) return;
+    setIsSending(true);
 
-  const handlePickMedia = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.length) return;
-
-    const asset = result.assets[0];
-    const formData = new FormData();
-    formData.append('media', {
-      uri: asset.uri,
-      type: asset.mimeType || 'image/jpeg',
-      name: asset.fileName || 'media.jpg',
-    });
-
-    setUploading(true);
     try {
-      await axiosInstance.post(`/messages/send/${userId}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      await sendMessage({
+        text: inputText.trim(),
+        image: selectedImage || undefined,
       });
-      getMessages(userId);
-    } catch (e) {
-      console.error('Media upload failed', e);
+
+      setInputText('');
+      setSelectedImage(null);
+      sendTyping(false);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to send message.');
     } finally {
-      setUploading(false);
+      setIsSending(false);
     }
   };
 
-  const bg = isDark ? '#000' : '#f2f2f7';
-  const cardBg = isDark ? '#1c1c1e' : '#fff';
-  const fg = isDark ? '#fff' : '#000';
-  const mutedFg = isDark ? '#8e8e93' : '#6e6e73';
-  const inputBg = isDark ? '#2c2c2e' : '#f0f0f5';
+  const renderMessageItem = ({ item }) => {
+    // System messages (e.g. nickname changes)
+    if (item.isSystem || item.type === 'system') {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <Text style={[styles.systemMessageText, { color: colors.textMuted }]}>
+            {item.text}
+          </Text>
+        </View>
+      );
+    }
 
-  const renderMessage = useCallback(({ item }) => {
-    const isMe = String(item.senderId) === String(authUser?._id);
+    const isMine = item.senderId === authUser?._id;
+    const isDeleted = !!item.isDeleted;
+
+    // Aggregate reactions
+    const reactionCounts = {};
+    if (item.reactions && item.reactions.length > 0) {
+      item.reactions.forEach((r) => {
+        reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+      });
+    }
+
     return (
-      <View style={[styles.msgRow, isMe ? styles.msgRowRight : styles.msgRowLeft]}>
-        {item.image ? (
-          <Image source={{ uri: item.image }} style={[styles.msgImage, isMe ? { borderBottomRightRadius: 4 } : { borderBottomLeftRadius: 4 }]} />
-        ) : null}
-        {item.text ? (
-          <View style={[
+      <View style={[styles.messageRow, isMine ? styles.myRow : styles.theirRow]}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onLongPress={() => {
+            if (!isDeleted) {
+              setActiveMessageMenu(item);
+            }
+          }}
+          style={[
             styles.bubble,
-            isMe ? [styles.bubbleMe, { backgroundColor: accent }] : [styles.bubbleThem, { backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea' }]
-          ]}>
-            <Text style={[styles.bubbleText, { color: isMe ? '#fff' : fg }]}>{item.text}</Text>
-          </View>
-        ) : null}
-        <Text style={[styles.msgTime, { color: mutedFg }, isMe ? { alignSelf: 'flex-end' } : {}]}>
-          {formatTime(item.createdAt)}
-        </Text>
+            isMine
+              ? [styles.myBubble, { backgroundColor: colors.bubbleSent }]
+              : [styles.theirBubble, { backgroundColor: colors.bubbleReceived }],
+          ]}
+        >
+          {item.image && !isDeleted ? (
+            <Image source={{ uri: item.image }} style={styles.messageImage} />
+          ) : null}
+
+          <Text
+            style={[
+              styles.messageText,
+              isMine
+                ? { color: colors.bubbleSentText }
+                : { color: colors.bubbleReceivedText },
+              isDeleted ? styles.deletedText : null,
+            ]}
+          >
+            {isDeleted ? 'This message was deleted' : item.text}
+          </Text>
+
+          <Text
+            style={[
+              styles.timestamp,
+              {
+                color: isMine ? 'rgba(255,255,255,0.7)' : colors.textMuted,
+                alignSelf: isMine ? 'flex-end' : 'flex-start',
+              },
+            ]}
+          >
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : ''}
+          </Text>
+
+          {/* Reactions badge */}
+          {Object.keys(reactionCounts).length > 0 && !isDeleted ? (
+            <View
+              style={[
+                styles.reactionsBadge,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  alignSelf: isMine ? 'flex-end' : 'flex-start',
+                },
+              ]}
+            >
+              {Object.entries(reactionCounts).map(([emoji, count]) => (
+                <Text key={emoji} style={styles.reactionText}>
+                  {emoji} {count > 1 ? count : ''}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </TouchableOpacity>
       </View>
     );
-  }, [authUser, accent, isDark, fg, mutedFg]);
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: cardBg, paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={{ color: accent, fontSize: 16 }}>‹ Back</Text>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={{ color: colors.primary, fontSize: 17, fontWeight: '500' }}>‹ Back</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.headerCenter} onPress={() => setShowNickname(true)}>
-          <Text style={[styles.headerName, { color: fg }]} numberOfLines={1}>{displayName}</Text>
-          <Text style={[styles.headerStatus, { color: isOnline ? accent : mutedFg }]}>
-            {isOnline ? 'Online' : 'Offline'} · tap to set nickname
+        <TouchableOpacity
+          style={styles.headerTitleContainer}
+          activeOpacity={0.7}
+          onPress={() => setNicknameModalVisible(true)}
+        >
+          <View style={styles.headerAvatarContainer}>
+            <Image
+              source={{
+                uri:
+                  selectedUser?.profilePic ||
+                  `https://api.dicebear.com/7.x/bottts/png?seed=${selectedUser?._id}`,
+              }}
+              style={styles.headerAvatar}
+            />
+            {isOnline ? <View style={styles.onlineDot} /> : null}
+          </View>
+          <Text style={[styles.headerName, { color: colors.text }]} numberOfLines={1}>
+            {displayName}
+          </Text>
+          <Text style={[styles.headerSub, { color: colors.textMuted }]} numberOfLines={1}>
+            {isRecipientTyping
+              ? 'typing…'
+              : selectedUser?.theirNicknameForMe
+              ? `Calls you "${selectedUser.theirNicknameForMe}"`
+              : isOnline
+              ? 'Online'
+              : 'Tap for details'}
           </Text>
         </TouchableOpacity>
 
-        <View style={{ width: 64 }} />
+        <TouchableOpacity
+          style={[styles.infoBtn, { backgroundColor: colors.surface }]}
+          onPress={() => setNicknameModalVisible(true)}
+        >
+          <Text style={{ fontSize: 16 }}>ℹ️</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Messages */}
+      {/* Message List */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={styles.chatArea}
       >
         {isMessagesLoading ? (
-          <ActivityIndicator style={{ flex: 1 }} color={accent} />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
         ) : (
           <FlatList
-            ref={flatRef}
+            ref={flatListRef}
             data={messages}
-            keyExtractor={(item) => item._id}
-            renderItem={renderMessage}
-            contentContainerStyle={styles.msgList}
+            keyExtractor={(item, index) => item._id || String(index)}
+            renderItem={renderMessageItem}
+            contentContainerStyle={styles.messagesList}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
         )}
 
-        {/* Input bar */}
-        <View style={[styles.inputBar, { backgroundColor: cardBg, paddingBottom: insets.bottom || 12 }]}>
-          <TouchableOpacity style={styles.mediaBtn} onPress={handlePickMedia} disabled={uploading}>
-            <Text style={{ color: accent, fontSize: 22 }}>{uploading ? '⏳' : '📎'}</Text>
+        {/* Typing indicator bubble */}
+        {isRecipientTyping ? (
+          <View style={[styles.typingBubble, { backgroundColor: colors.bubbleReceived }]}>
+            <Text style={{ color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }}>
+              {selectedUser?.nickname || selectedUser?.fullName || 'Contact'} is typing...
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Image Attachment Preview */}
+        {selectedImage ? (
+          <View style={[styles.previewBar, { backgroundColor: colors.surface }]}>
+            <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+            <TouchableOpacity
+              style={[styles.removeImageBtn, { backgroundColor: colors.danger }]}
+              onPress={() => setSelectedImage(null)}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* Input Bar */}
+        <View style={[styles.inputBar, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
+          <TouchableOpacity style={styles.attachBtn} onPress={pickImage}>
+            <Text style={{ fontSize: 22 }}>📷</Text>
           </TouchableOpacity>
 
           <TextInput
-            style={[styles.input, { color: fg, backgroundColor: inputBg }]}
-            value={text}
-            onChangeText={setText}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.inputBg,
+                color: colors.text,
+                borderColor: colors.border,
+              },
+            ]}
             placeholder="iMessage"
-            placeholderTextColor={mutedFg}
+            placeholderTextColor={colors.textMuted}
+            value={inputText}
+            onChangeText={handleTextChange}
             multiline
-            maxLength={2000}
-            returnKeyType="default"
+            maxLength={1000}
           />
 
           <TouchableOpacity
-            style={[styles.sendBtn, { backgroundColor: text.trim() ? accent : (isDark ? '#333' : '#ddd') }]}
+            style={[
+              styles.sendBtn,
+              {
+                backgroundColor:
+                  inputText.trim().length > 0 || selectedImage
+                    ? colors.primary
+                    : colors.surface,
+              },
+            ]}
             onPress={handleSend}
-            disabled={!text.trim()}
+            disabled={(!inputText.trim() && !selectedImage) || isSending}
           >
-            <Text style={styles.sendBtnText}>↑</Text>
+            {isSending ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>↑</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 
-      {/* Nickname modal */}
+      {/* Reaction & Action Popover Modal */}
+      {activeMessageMenu ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setActiveMessageMenu(null)}>
+          <TouchableOpacity
+            style={styles.popoverOverlay}
+            activeOpacity={1}
+            onPress={() => setActiveMessageMenu(null)}
+          >
+            <View style={[styles.popoverCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.emojiRow}>
+                {REACTION_EMOJIS.map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={styles.emojiBtn}
+                    onPress={() => {
+                      reactToMessage(activeMessageMenu._id, emoji);
+                      setActiveMessageMenu(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 26 }}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {activeMessageMenu.senderId === authUser?._id && !activeMessageMenu.isDeleted ? (
+                <TouchableOpacity
+                  style={[styles.deleteMenuBtn, { borderTopColor: colors.border }]}
+                  onPress={() => {
+                    deleteMessage(activeMessageMenu._id);
+                    setActiveMessageMenu(null);
+                  }}
+                >
+                  <Text style={{ color: colors.danger, fontWeight: '600', fontSize: 15 }}>
+                    Delete Message
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      ) : null}
+
       <NicknameModal
-        visible={showNickname}
-        onClose={() => setShowNickname(false)}
-        userId={userId}
-        currentNickname={myNickname || null}
-        peerNicknameForMe={nickname || null}
-        peerName={fullName || name}
-        theme={theme}
-        accent={accent}
+        visible={nicknameModalVisible}
+        onClose={() => setNicknameModalVisible(false)}
+        user={selectedUser}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingBottom: 10,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333',
-    gap: 8,
   },
-  backBtn: { width: 64, paddingVertical: 4 },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerName: { fontSize: 17, fontWeight: '700' },
-  headerStatus: { fontSize: 12, marginTop: 2 },
-  msgList: { padding: 12, gap: 4 },
-  msgRow: { marginBottom: 6 },
-  msgRowRight: { alignItems: 'flex-end' },
-  msgRowLeft: { alignItems: 'flex-start' },
+  backBtn: {
+    padding: 6,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  headerAvatarContainer: {
+    position: 'relative',
+    marginBottom: 2,
+  },
+  headerAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#34C759',
+    borderWidth: 1.5,
+    borderColor: '#000',
+  },
+  headerName: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  headerSub: {
+    fontSize: 11,
+  },
+  infoBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chatArea: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messagesList: {
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+  },
+  messageRow: {
+    marginBottom: 8,
+    flexDirection: 'row',
+  },
+  myRow: {
+    justifyContent: 'flex-end',
+  },
+  theirRow: {
+    justifyContent: 'flex-start',
+  },
   bubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    maxWidth: '78%',
     borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    position: 'relative',
   },
-  bubbleMe: { borderBottomRightRadius: 4 },
-  bubbleThem: { borderBottomLeftRadius: 4 },
-  bubbleText: { fontSize: 15, lineHeight: 20 },
-  msgImage: { width: 220, height: 160, borderRadius: 14, marginBottom: 4 },
-  msgTime: { fontSize: 11, marginTop: 3, marginHorizontal: 4 },
+  myBubble: {
+    borderBottomRightRadius: 4,
+  },
+  theirBubble: {
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  deletedText: {
+    fontStyle: 'italic',
+    opacity: 0.7,
+  },
+  messageImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  timestamp: {
+    fontSize: 10,
+    marginTop: 4,
+  },
+  reactionsBadge: {
+    position: 'absolute',
+    bottom: -10,
+    flexDirection: 'row',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 2,
+  },
+  reactionText: {
+    fontSize: 11,
+  },
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+    paddingHorizontal: 16,
+  },
+  systemMessageText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  typingBubble: {
+    alignSelf: 'flex-start',
+    marginLeft: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  previewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    marginHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  previewImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  removeImageBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 8,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#333',
   },
-  mediaBtn: { padding: 8, alignSelf: 'flex-end', marginBottom: 2 },
-  input: {
-    flex: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    fontSize: 15,
-    maxHeight: 120,
-  },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
+  attachBtn: {
+    padding: 6,
     marginBottom: 2,
   },
-  sendBtnText: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  input: {
+    flex: 1,
+    minHeight: 38,
+    maxHeight: 100,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
+    marginHorizontal: 8,
+    fontSize: 15,
+  },
+  sendBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  popoverCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  emojiRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  emojiBtn: {
+    padding: 4,
+  },
+  deleteMenuBtn: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
 });

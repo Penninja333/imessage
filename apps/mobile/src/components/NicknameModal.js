@@ -1,89 +1,134 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
   Text,
   TextInput,
-  StyleSheet,
   TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useAppTheme } from '../context/ThemeContext';
 import { useChatStore } from '../store/useChatStore';
 
-export default function NicknameModal({ visible, onClose, userId, currentNickname, peerNicknameForMe, peerName, theme, accent }) {
-  const [value, setValue] = useState(currentNickname || '');
-  const setNickname = useChatStore((s) => s.setNickname);
+export default function NicknameModal({ visible, onClose, user }) {
+  const { colors } = useAppTheme();
+  const [nicknameInput, setNicknameInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const setNickname = useChatStore((state) => state.setNickname);
+
+  useEffect(() => {
+    if (user) {
+      setNicknameInput(user.nickname || '');
+    }
+  }, [user, visible]);
+
+  if (!user) return null;
 
   const handleSave = async () => {
-    await setNickname(userId, value.trim());
-    onClose();
+    setIsLoading(true);
+    try {
+      await setNickname(user._id, nicknameInput.trim());
+      onClose();
+    } catch (err) {
+      console.warn('Failed to save nickname', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClear = async () => {
-    await setNickname(userId, '');
-    setValue('');
-    onClose();
+    setIsLoading(true);
+    try {
+      await setNickname(user._id, '');
+      setNicknameInput('');
+      onClose();
+    } catch (err) {
+      console.warn('Failed to clear nickname', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const isDark = theme === 'dark';
-  const bg = isDark ? '#1c1c1e' : '#fff';
-  const fg = isDark ? '#fff' : '#000';
-  const border = isDark ? '#333' : '#ddd';
-  const cardBg = isDark ? '#2c2c2e' : '#f2f2f7';
-
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={[styles.sheet, { backgroundColor: bg }]}>
-          <View style={styles.handle} />
-          <Text style={[styles.title, { color: fg }]}>Chat Nicknames</Text>
-          <Text style={[styles.subtitle, { color: isDark ? '#888' : '#555' }]}>
-            Shared nicknames between you and {peerName}.
+        <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Chat Nicknames</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            Personalize contact names for both sides of the conversation
           </Text>
 
-          {/* Section: What they call you */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}>
-            <Text style={[styles.cardLabel, { color: isDark ? '#aaa' : '#666' }]}>
-              WHAT {peerName.toUpperCase()} CALLS YOU
-            </Text>
-            <Text style={[styles.cardValue, { color: fg }]}>
-              {peerNicknameForMe ? `"${peerNicknameForMe}"` : '(No nickname set for you yet)'}
-            </Text>
-          </View>
-
-          {/* Section: Your nickname for them */}
-          <View style={{ marginTop: 12 }}>
-            <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>
-              YOUR NICKNAME FOR {peerName.toUpperCase()}
+          {/* Section 1: Nickname for them */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+              Your nickname for {user.fullName || user.username || 'this user'}:
             </Text>
             <TextInput
-              style={[styles.input, { color: fg, borderColor: border, backgroundColor: cardBg }]}
-              value={value}
-              onChangeText={setValue}
-              placeholder={`Nickname for ${peerName}…`}
-              placeholderTextColor="#888"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.surface,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
+              placeholder="Enter custom nickname..."
+              placeholderTextColor={colors.textMuted}
+              value={nicknameInput}
+              onChangeText={setNicknameInput}
               maxLength={32}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleSave}
+              autoCapitalize="words"
             />
           </View>
 
-          <View style={styles.actions}>
-            {currentNickname ? (
-              <TouchableOpacity style={[styles.btn, styles.clearBtn]} onPress={handleClear}>
-                <Text style={styles.clearBtnText}>Clear</Text>
+          {/* Section 2: Their nickname for me */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+              Their nickname for you:
+            </Text>
+            <View style={[styles.readOnlyBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={{ color: user.theirNicknameForMe ? colors.text : colors.textMuted, fontStyle: user.theirNicknameForMe ? 'normal' : 'italic' }}>
+                {user.theirNicknameForMe ? `"${user.theirNicknameForMe}"` : 'No nickname set for you'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Actions */}
+          <View style={styles.buttonRow}>
+            {user.nickname ? (
+              <TouchableOpacity
+                style={[styles.btn, styles.clearBtn, { borderColor: colors.danger }]}
+                onPress={handleClear}
+                disabled={isLoading}
+              >
+                <Text style={{ color: colors.danger, fontWeight: '600' }}>Reset</Text>
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity style={[styles.btn, styles.cancelBtn, { borderColor: border }]} onPress={onClose}>
-              <Text style={[styles.cancelBtnText, { color: fg }]}>Cancel</Text>
+
+            <TouchableOpacity
+              style={[styles.btn, styles.cancelBtn, { borderColor: colors.border }]}
+              onPress={onClose}
+              disabled={isLoading}
+            >
+              <Text style={{ color: colors.text, fontWeight: '500' }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: accent }]} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Save</Text>
+
+            <TouchableOpacity
+              style={[styles.btn, styles.saveBtn, { backgroundColor: colors.primary }]}
+              onPress={handleSave}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -95,76 +140,75 @@ export default function NicknameModal({ visible, onClose, userId, currentNicknam
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 20,
+    borderWidth: 1,
     padding: 24,
-    paddingBottom: 40,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#555',
-    alignSelf: 'center',
-    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  card: {
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 4,
-  },
-  cardLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  cardValue: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  inputLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
     marginBottom: 20,
   },
-  actions: {
+  section: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  input: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 15,
+  },
+  readOnlyBox: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  buttonRow: {
     flexDirection: 'row',
-    gap: 8,
     justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
   },
   btn: {
-    paddingHorizontal: 18,
-    paddingVertical: 11,
+    height: 40,
+    paddingHorizontal: 16,
     borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  clearBtn: { backgroundColor: '#ff3b30' },
-  clearBtnText: { color: '#fff', fontWeight: '600' },
-  cancelBtn: { borderWidth: 1 },
-  cancelBtnText: { fontWeight: '600' },
-  saveBtnText: { color: '#fff', fontWeight: '700' },
+  saveBtn: {
+    minWidth: 70,
+  },
+  cancelBtn: {
+    borderWidth: 1,
+  },
+  clearBtn: {
+    borderWidth: 1,
+    marginRight: 'auto',
+  },
 });

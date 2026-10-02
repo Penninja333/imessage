@@ -1,9 +1,10 @@
+import React from 'react';
 import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/context/ThemeContext';
-import * as SecureStore from 'expo-secure-store';
 
 const tokenCache = {
   async getToken(key) {
@@ -19,11 +20,13 @@ const tokenCache = {
     } catch (err) {
       return;
     }
-  }
+  },
 };
 
 export default function App() {
-  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "pk_test_YmFsYW5jZWQtYnVnLTMzLmNsZXJrLmFjY291bnRzLmRldiQ";
+  const publishableKey =
+    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+    'pk_test_YmFsYW5jZWQtYnVnLTMzLmNsZXJrLmFjY291bnRzLmRldiQ';
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>

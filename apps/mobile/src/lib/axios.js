@@ -1,21 +1,19 @@
-import axios from "axios";
-import { useAuthStore } from "../store/useAuthStore";
+import axios from 'axios';
+import { Platform } from 'react-native';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://imessage-fwxv.onrender.com/api";
+const baseURL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (Platform.OS === 'android' ? 'http://10.0.2.2:3000/api' : 'http://localhost:3000/api');
 
 export const axiosInstance = axios.create({
-  baseURL: API_URL,
+  baseURL,
+  withCredentials: true,
 });
 
-axiosInstance.interceptors.request.use(
-  async (config) => {
-    const token = useAuthStore.getState().sessionToken;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+export const setAuthToken = (token) => {
+  if (token) {
+    axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete axiosInstance.defaults.headers.common['Authorization'];
   }
-);
+};
