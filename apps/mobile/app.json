@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "iMessage",
+    "slug": "imessage",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "imessage",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.imessage.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "iMessage needs camera access to send photos."
+      }
+    },
+    "android": {
+      "package": "com.imessage.app"
+    },
+    "plugins": [
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Allow iMessage to access your Face ID for quick sign-in."
+        }
+      ]
+    ],
+    "extra": {
+      "clerkPublishableKey": ""
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npm:*)",
+      "Shell(ls:*)",
+      "Shell(git add backend/src/index.js frontend/index.html frontend/src/main.jsx backend/package-lock.json frontend/package-lock.json && git commit -F - <<'EOF' fix: wire Clerk publishable key, strip FRONTEND_URL trailing slash, fallback PORT - frontend/src/main.jsx: pass publishableKey prop to ClerkProvider from import.meta.env.VITE_CLERK_PUBLISHABLE_KEY. Without this, Clerk has no key to sign requests with, every visitor is signed-out, and App.jsx hangs on <PageLoader /> — resulting in a blank page. - backend/src/index.js: FRONTEND_URL was \"https://imessage.../\" with a trailing slash, which doesn't match the request origin and silently breaks CORS. Strip trailing slash before passing to cors({origin}). Also add PORT fallback so local dev (npm start) doesn't crash when PORT env var isn't exported. - frontend/index.html: change <title> from the Vite scaffold default \"frontend\" to \"imessage\". Co-authored-by: CommandCodeBot <noreply@commandcode.ai> EOF git push origin master 2>&1 | tail -10)",
+      "Shell(node build.mjs)",
+      "Shell( mkdir:*)",
+      "Shell( git:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  },
+  "tasteLearning": false
+}

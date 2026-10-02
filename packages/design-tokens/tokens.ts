@@ -1,0 +1,113 @@
+// AUTO-GENERATED from tokens.json. Do not edit — run `npm run build` in packages/design-tokens.
+
+export const lightColors = {
+  snow: "oklch(0.9911 0 0)",
+  eclipse: "oklch(0.2103 0.0059 285.89)",
+  background: "oklch(0.9702 0 0)",
+  foreground: "oklch(0.2103 0.0059 285.89)",
+  accent: "oklch(0.6204 0.195 253.83)",
+  accentForeground: "oklch(0.9911 0 0)",
+  border: "oklch(0.9 0.004 286.32)",
+  success: "oklch(0.72 0.19 149)",
+  warning: "oklch(0.82 0.18 85)",
+  danger: "oklch(0.59 0.22 27)",
+  muted: "oklch(0.55 0.015 285)",
+  mutedForeground: "oklch(0.45 0.02 285)",
+} as const;
+
+export const darkColors = {
+  snow: "oklch(0.9911 0 0)",
+  eclipse: "oklch(0.2103 0.0059 285.89)",
+  background: "oklch(0.12 0.005 285.823)",
+  foreground: "oklch(0.9911 0 0)",
+  accent: "oklch(0.6204 0.195 253.83)",
+  accentForeground: "oklch(0.9911 0 0)",
+  border: "oklch(0.28 0.006 286.033)",
+  success: "oklch(0.72 0.19 149)",
+  warning: "oklch(0.82 0.18 85)",
+  danger: "oklch(0.59 0.22 27)",
+  muted: "oklch(0.32 0.02 285)",
+  mutedForeground: "oklch(0.6 0.02 285)",
+} as const;
+
+export const accentPresets = {
+  default: {
+    light: { accent: "oklch(0.6204 0.195 253.83)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.6204 0.195 253.83)", accentForeground: "oklch(0.9911 0 0)" },
+  },
+  sky: {
+    light: { accent: "oklch(0.58 0.16 230)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.78 0.1 225)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+  },
+  lavender: {
+    light: { accent: "oklch(0.58 0.18 285)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.78 0.11 285)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+  },
+  mint: {
+    light: { accent: "oklch(0.58 0.16 160)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+    dark: { accent: "oklch(0.78 0.12 158)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+  },
+  netflix: {
+    light: { accent: "oklch(0.52 0.22 25)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.62 0.2 25)", accentForeground: "oklch(0.9911 0 0)" },
+  },
+  uber: {
+    light: { accent: "oklch(0.28 0.02 265)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.82 0.02 265)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+  },
+  spotify: {
+    light: { accent: "oklch(0.58 0.2 145)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.72 0.18 145)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+  },
+  coinbase: {
+    light: { accent: "oklch(0.5 0.2 265)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.68 0.14 265)", accentForeground: "oklch(0.9911 0 0)" },
+  },
+  airbnb: {
+    light: { accent: "oklch(0.58 0.2 18)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.68 0.16 20)", accentForeground: "oklch(0.9911 0 0)" },
+  },
+  discord: {
+    light: { accent: "oklch(0.52 0.18 275)", accentForeground: "oklch(0.9911 0 0)" },
+    dark: { accent: "oklch(0.68 0.14 275)", accentForeground: "oklch(0.9911 0 0)" },
+  },
+  rabbit: {
+    light: { accent: "oklch(0.72 0.16 65)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+    dark: { accent: "oklch(0.82 0.14 62)", accentForeground: "oklch(0.2103 0.0059 285.89)" },
+  },
+} as const;
+
+export const spacing = {
+  xs: "0.25rem",
+  sm: "0.5rem",
+  md: "1rem",
+  lg: "1.5rem",
+  xl: "2.5rem",
+  2xl: "4rem",
+} as const;
+
+export const radius = {
+  sm: "0.5rem",
+  md: "0.75rem",
+  lg: "1rem",
+  xl: "1.5rem",
+  2xl: "2rem",
+  full: "9999px",
+} as const;
+
+export const breakpoints = {
+  mobile: 320px,
+  tablet: 768px,
+  desktop: 1440px,
+} as const;
+
+export const fontSizes = {
+  xs: "0.75rem",
+  sm: "0.875rem",
+  md: "1rem",
+  lg: "1.125rem",
+  xl: "1.25rem",
+  2xl: "1.5rem",
+  3xl: "2rem",
+  4xl: "2.5rem",
+} as const;

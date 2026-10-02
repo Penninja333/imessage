@@ -1,0 +1,15 @@
+{
+  "name": "@imessage/design-tokens",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./tokens.ts",
+  "exports": {
+    "./css": "./tokens.css",
+    "./ts": "./tokens.ts",
+    "./json": "./tokens.json"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}
