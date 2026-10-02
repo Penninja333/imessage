@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Avatar, Button } from "@heroui/react";
 import {
   CheckIcon,
@@ -51,13 +52,13 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Backdrop tap to dismiss */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
       {/* iOS Style Sheet / Dialog */}
-      <div className="relative z-10 flex w-full flex-col overflow-hidden border-border bg-background shadow-2xl transition-all sm:max-w-md sm:rounded-3xl sm:border max-h-[92dvh] rounded-t-3xl border-t pb-[max(1.2rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom duration-250">
+      <div className="relative z-10 flex w-full flex-col overflow-hidden border-border bg-background text-foreground shadow-2xl transition-all sm:max-w-md sm:rounded-3xl sm:border max-h-[90dvh] rounded-t-3xl border-t pb-[max(1.2rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom duration-250">
         {/* Mobile drag handle bar */}
         <div className="flex w-full justify-center pt-3 pb-1 sm:hidden">
           <div className="h-1.5 w-12 rounded-full bg-muted/30" />
@@ -207,6 +208,7 @@ export function NicknameDetailsModal({ isOpen, onClose, peer }) {
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
