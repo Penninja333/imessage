@@ -2,8 +2,11 @@ import { useState, useRef, useEffect, memo } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
-import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon } from "lucide-react";
+import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2 } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
+import { useAuthStore } from "../../store/useAuthStore";
+import { useMediaViewerStore } from "../../store/useMediaViewerStore";
+import { formatMessageTime } from "../../lib/utils";
 import toast from "react-hot-toast";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -17,6 +20,7 @@ function MessageBubbleComponent({ message, showTime = true }) {
 
   const [showTapback, setShowTapback] = useState(false);
   const longPressTimerRef = useRef(null);
+  const isLongPressRef = useRef(false);
   const bubbleRef = useRef(null);
 
   // Close tapback menu when tapping outside
@@ -59,7 +63,9 @@ function MessageBubbleComponent({ message, showTime = true }) {
   // Long press detection for mobile
   const handleTouchStart = () => {
     if (isDeleted) return;
+    isLongPressRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
       setShowTapback(true);
       if (navigator.vibrate) navigator.vibrate(30);
     }, 400);
@@ -70,6 +76,48 @@ function MessageBubbleComponent({ message, showTime = true }) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+  };
+
+  const handleOpenMedia = (mediaType) => {
+    if (isLongPressRef.current) return;
+
+    const chatState = useChatStore.getState();
+    const rawMessages = chatState.messages || [];
+    const authUser = useAuthStore.getState().authUser;
+    const myId = authUser?._id ? String(authUser._id) : "";
+
+    const activePartner =
+      chatState.users.find((u) => String(u._id) === String(chatState.activeConversationId)) ||
+      chatState.conversations.find((c) => String(c._id) === String(chatState.activeConversationId));
+    const peerName = activePartner?.nickname || activePartner?.fullName || "Friend";
+
+    const mediaList = rawMessages
+      .filter((m) => !m.deleted && (m.image || m.video))
+      .map((m) => {
+        const isMine = String(m.senderId) === String(myId);
+        return {
+          id: String(m._id),
+          type: m.image ? "image" : "video",
+          url: m.image || m.video,
+          text: m.text || "",
+          time: formatMessageTime(m.createdAt),
+          senderName: isMine ? "You" : peerName,
+        };
+      });
+
+    const currentItem = {
+      id: String(message.id),
+      type: mediaType || (hasImage ? "image" : "video"),
+      url: mediaType === "video" ? message.videoUrl : message.imageUrl,
+      text: message.text || "",
+      time: message.time || "",
+      senderName: isOwnMessage ? "You" : peerName,
+    };
+
+    useMediaViewerStore.getState().openMedia({
+      media: currentItem,
+      mediaList,
+    });
   };
 
   const handleCopy = async () => {
@@ -121,6 +169,20 @@ function MessageBubbleComponent({ message, showTime = true }) {
 
           <div className="h-4 w-px bg-border/80 mx-0.5" />
 
+          {hasImage || hasVideo ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowTapback(false);
+                handleOpenMedia(hasImage ? "image" : "video");
+              }}
+              className="flex size-7 items-center justify-center rounded-full text-muted hover:text-foreground hover:bg-surface transition"
+              title="View Fullscreen"
+            >
+              <Maximize2 className="size-3.5" />
+            </button>
+          ) : null}
+
           {message.text ? (
             <button
               type="button"
@@ -163,15 +225,32 @@ function MessageBubbleComponent({ message, showTime = true }) {
         } ${showTapback ? "ring-2 ring-accent" : ""}`}
       >
         {hasImage ? (
-          <img
-            src={withTransform(message.imageUrl, IMAGE_TRANSFORM)}
-            alt=""
-            loading="lazy"
-            className="mb-1.5 max-h-48 max-w-full rounded-lg object-cover sm:max-h-56 sm:rounded-xl"
-          />
+          <div
+            className="group/img relative mb-1.5 cursor-pointer overflow-hidden rounded-lg sm:rounded-xl active:scale-[0.99] transition-transform"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenMedia("image");
+            }}
+          >
+            <img
+              src={withTransform(message.imageUrl, IMAGE_TRANSFORM)}
+              alt={message.text || "Photo"}
+              loading="lazy"
+              className="max-h-48 max-w-full rounded-lg object-cover sm:max-h-56 sm:rounded-xl"
+            />
+            <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/15 pointer-events-none" />
+            <div className="absolute top-2 right-2 hidden sm:flex size-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs opacity-0 transition-opacity group-hover/img:opacity-100 pointer-events-none shadow-sm">
+              <Maximize2 className="size-3.5" />
+            </div>
+          </div>
         ) : null}
 
-        {hasVideo ? <MessageVideo src={message.videoUrl} /> : null}
+        {hasVideo ? (
+          <MessageVideo
+            src={message.videoUrl}
+            onOpenFullscreen={() => handleOpenMedia("video")}
+          />
+        ) : null}
         {hasAudio ? <MessageAudio src={message.audioUrl} isOwnMessage={isOwnMessage} /> : null}
 
         {message.text ? (

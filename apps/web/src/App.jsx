@@ -16,6 +16,7 @@ import {
 import InstallPwaBanner from "./components/InstallPwaBanner";
 import UpdatePwaBanner from "./components/UpdatePwaBanner";
 import PermissionsModal from "./components/PermissionsModal";
+import MediaLightboxModal from "./components/chat/MediaLightboxModal";
 import { usePwaUpdateStore } from "./store/usePwaUpdateStore";
 import { usePermissionsStore } from "./store/usePermissionsStore";
 import { useChatStore } from "./store/useChatStore";
@@ -103,6 +104,7 @@ function App() {
           />
         </Routes>
         <PermissionsModal />
+        <MediaLightboxModal />
         <InstallPwaBanner />
         <UpdatePwaBanner />
         <Toaster />
