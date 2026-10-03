@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
@@ -11,7 +11,7 @@ const IMAGE_TRANSFORM = "q-auto,w-640,f-auto";
 
 const TAPBACK_EMOJIS = ["❤️", "👍", "👎", "😂", "‼️", "❓"];
 
-export function MessageBubble({ message, showTime = true }) {
+function MessageBubbleComponent({ message, showTime = true }) {
   const toggleReaction = useChatStore((state) => state.toggleReaction);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
 
@@ -239,3 +239,34 @@ export function MessageBubble({ message, showTime = true }) {
     </div>
   );
 }
+
+function arePropsEqual(prevProps, nextProps) {
+  if (prevProps.showTime !== nextProps.showTime) return false;
+  const pm = prevProps.message;
+  const nm = nextProps.message;
+  if (pm === nm) return true;
+  if (!pm || !nm) return false;
+
+  return (
+    pm.id === nm.id &&
+    pm.text === nm.text &&
+    pm.time === nm.time &&
+    pm.seen === nm.seen &&
+    pm.deleted === nm.deleted &&
+    pm.imageUrl === nm.imageUrl &&
+    pm.videoUrl === nm.videoUrl &&
+    pm.audioUrl === nm.audioUrl &&
+    pm.role === nm.role &&
+    (pm.reactions === nm.reactions ||
+      (Array.isArray(pm.reactions) &&
+        Array.isArray(nm.reactions) &&
+        pm.reactions.length === nm.reactions.length &&
+        pm.reactions.every(
+          (r, i) =>
+            r.emoji === nm.reactions[i]?.emoji &&
+            String(r.userId) === String(nm.reactions[i]?.userId),
+        )))
+  );
+}
+
+export const MessageBubble = memo(MessageBubbleComponent, arePropsEqual);

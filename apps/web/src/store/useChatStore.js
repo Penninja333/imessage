@@ -113,24 +113,32 @@ export const useChatStore = create(
       },
 
       sendMessage: async (messageData) => {
-        const { selectedUser, messages } = get();
+        const selectedUser = get().selectedUser;
         if (!selectedUser) return false;
 
         try {
           const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-          set({
-            messages: [...messages, res.data],
-            composerText: "",
+          const sentMessage = res.data;
+
+          // Functional update: never overwrite concurrent messages from socket or other requests
+          set((state) => {
+            const alreadyExists = state.messages.some(
+              (m) => String(m._id) === String(sentMessage._id),
+            );
+            if (alreadyExists) return state;
+            return {
+              messages: [...state.messages, sentMessage],
+            };
           });
 
           // Update conversations list with our newly sent message at top
           const previewText =
-            res.data.text ||
-            (res.data.image
+            sentMessage.text ||
+            (sentMessage.image
               ? "📷 Photo"
-              : res.data.video
+              : sentMessage.video
                 ? "🎥 Video"
-                : res.data.audio
+                : sentMessage.audio
                   ? "🎤 Voice message"
                   : "New message");
 
@@ -145,7 +153,7 @@ export const useChatStore = create(
               const updated = {
                 ...existing,
                 lastMessage: previewText,
-                lastMessageAt: res.data.createdAt || new Date().toISOString(),
+                lastMessageAt: sentMessage.createdAt || new Date().toISOString(),
               };
               const rest = state.conversations.filter((_, idx) => idx !== existingIndex);
               return { conversations: [updated, ...rest] };
@@ -454,7 +462,17 @@ export const useChatStore = create(
         const messageText = get().composerText.trim();
         if (!conversationId || !messageText) return false;
 
-        return get().sendMessage({ text: messageText });
+        // Clear composer immediately so user can type next message without wiping/lag
+        set({ composerText: "" });
+
+        const success = await get().sendMessage({ text: messageText });
+        if (!success) {
+          // If sending failed, restore text if composer is still empty
+          set((state) => ({
+            composerText: state.composerText ? state.composerText : messageText,
+          }));
+        }
+        return success;
       },
 
       sendMediaMessage: async ({ conversationId, file }) => {
@@ -496,7 +514,7 @@ export const useChatStore = create(
           const updatedReactions = res.data?.reactions || [];
           set((state) => ({
             messages: state.messages.map((m) =>
-              m._id === messageId ? { ...m, reactions: updatedReactions } : m,
+              String(m._id) === String(messageId) ? { ...m, reactions: updatedReactions } : m,
             ),
           }));
           return true;
@@ -513,7 +531,7 @@ export const useChatStore = create(
           await axiosInstance.delete(`/messages/${messageId}`);
           set((state) => ({
             messages: state.messages.map((m) =>
-              m._id === messageId
+              String(m._id) === String(messageId)
                 ? {
                     ...m,
                     deleted: true,

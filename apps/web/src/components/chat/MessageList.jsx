@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import useScrollToBottom from "../../hooks/useScrollToBottom";
 import { MessageBubble } from "./MessageBubble";
 import { NoConversationPlaceholder } from "./NoConversationPlaceholder";
@@ -37,6 +37,13 @@ export function MessageList() {
   const { activeConversation, activeConversationId } = useSelectedConversation();
   const typingUser = useChatStore((state) => state.typingUser);
 
+  const [visibleCount, setVisibleCount] = useState(80);
+
+  // Reset windowing limit when switching conversations
+  useEffect(() => {
+    setVisibleCount(80);
+  }, [activeConversationId]);
+
   const isPartnerTyping =
     Boolean(typingUser && String(typingUser) === String(activeConversationId));
 
@@ -59,7 +66,14 @@ export function MessageList() {
     }
   }, [isPartnerTyping, messagesScrollRef]);
 
-  const messages = activeConversation?.messages || [];
+  const allMessages = activeConversation?.messages || [];
+  const hasOlderMessages = allMessages.length > visibleCount;
+  const messages = hasOlderMessages ? allMessages.slice(-visibleCount) : allMessages;
+  const hiddenCount = allMessages.length - visibleCount;
+
+  const handleLoadMore = () => {
+    setVisibleCount((prev) => prev + 60);
+  };
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
@@ -68,6 +82,18 @@ export function MessageList() {
           ref={messagesScrollRef}
           className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 pt-3 pb-6 sm:px-4 sm:pt-4 sm:pb-8"
         >
+          {hasOlderMessages ? (
+            <div className="my-2.5 flex justify-center">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                className="flex items-center gap-1.5 rounded-full border border-border/80 bg-surface/80 px-3.5 py-1 text-xs font-semibold text-muted hover:bg-surface hover:text-foreground active:scale-95 transition shadow-xs"
+              >
+                <span>↑ Load earlier messages ({hiddenCount} older)</span>
+              </button>
+            </div>
+          ) : null}
+
           {messages.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center py-12 text-center text-muted">
               <p className="text-sm font-medium">No messages yet</p>
@@ -103,7 +129,14 @@ export function MessageList() {
             const showTime = !(isNextSameSender && isNextCloseInTime);
 
             return (
-              <div key={message.id || index} className="flex flex-col">
+              <div
+                key={message.id || index}
+                className="flex flex-col"
+                style={{
+                  contentVisibility: "auto",
+                  containIntrinsicSize: "0 60px",
+                }}
+              >
                 {showDateHeader ? (
                   <div className="my-3 flex justify-center">
                     <span className="rounded-full bg-surface/80 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-muted shadow-xs">

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMediaQuery } from "./useMediaQuery";
 import { formatMessageTime } from "../lib/utils";
 import { useChatStore } from "../store/useChatStore";
@@ -14,21 +15,36 @@ export function getInitials(name) {
     .toUpperCase();
 }
 
+const messageCache = new WeakMap();
+
+function getCachedMappedMessage(message, myId) {
+  let cached = messageCache.get(message);
+  if (!cached || cached.myId !== myId) {
+    cached = {
+      myId,
+      mapped: {
+        id: message._id,
+        role: String(message.senderId) === String(myId) ? "me" : "them",
+        text: message.text || "",
+        time: formatMessageTime(message.createdAt),
+        imageUrl: message.image,
+        videoUrl: message.video,
+        audioUrl: message.audio,
+        isSystem: Boolean(message.isSystem),
+        reactions: message.reactions || [],
+        deleted: Boolean(message.deleted),
+        seen: Boolean(message.seen),
+        createdAt: message.createdAt,
+      },
+    };
+    messageCache.set(message, cached);
+  }
+  return cached.mapped;
+}
+
 function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
-  const mappedMessages = messages.map((message) => ({
-    id: message._id,
-    role: String(message.senderId) === String(authUser?._id) ? "me" : "them",
-    text: message.text || "",
-    time: formatMessageTime(message.createdAt),
-    imageUrl: message.image,
-    videoUrl: message.video,
-    audioUrl: message.audio,
-    isSystem: Boolean(message.isSystem),
-    reactions: message.reactions || [],
-    deleted: Boolean(message.deleted),
-    seen: Boolean(message.seen),
-    createdAt: message.createdAt,
-  }));
+  const myId = authUser?._id ? String(authUser._id) : "";
+  const mappedMessages = messages.map((m) => getCachedMappedMessage(m, myId));
 
   const displayName = user.nickname || user.fullName;
 
@@ -61,14 +77,19 @@ export function useSelectedConversation() {
 
   const isLargeScreen = useMediaQuery("(min-width: 1440px)");
 
-  const selectedUser = activeConversationId
-    ? users.find((user) => String(user._id) === String(activeConversationId)) ||
-      conversations.find((user) => String(user._id) === String(activeConversationId))
-    : null;
+  const selectedUser = useMemo(() => {
+    if (!activeConversationId) return null;
+    return (
+      users.find((user) => String(user._id) === String(activeConversationId)) ||
+      conversations.find((user) => String(user._id) === String(activeConversationId)) ||
+      null
+    );
+  }, [activeConversationId, users, conversations]);
 
-  const activeConversation = selectedUser
-    ? mapUserToConversation({ user: selectedUser, messages, authUser, onlineUsers })
-    : null;
+  const activeConversation = useMemo(() => {
+    if (!selectedUser) return null;
+    return mapUserToConversation({ user: selectedUser, messages, authUser, onlineUsers });
+  }, [selectedUser, messages, authUser, onlineUsers]);
 
   return {
     activeConversation,
