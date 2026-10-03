@@ -53,29 +53,6 @@ function getCachedMappedMessage(message, myId) {
   return cached.mapped;
 }
 
-function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
-  const myId = authUser?._id ? String(authUser._id) : "";
-  const mappedMessages = messages.map((m) => getCachedMappedMessage(m, myId));
-
-  const displayName = user.nickname || user.fullName;
-
-  return {
-    id: String(user._id),
-    peer: {
-      id: String(user._id),
-      name: displayName,
-      fullName: user.fullName,
-      nickname: user.nickname || null,
-      myNickname: user.myNickname || null,
-      theirNicknameForMe: user.myNickname || null,
-      subtitle: user.email,
-      isOnline: onlineUsers.some((id) => String(id) === String(user._id)),
-      avatarUrl: user.profilePic,
-      initials: getInitials(displayName),
-    },
-    messages: mappedMessages,
-  };
-}
 
 export function useSelectedConversation() {
   const activeConversationId = useChatStore((state) => state.activeConversationId);
@@ -88,6 +65,7 @@ export function useSelectedConversation() {
 
   const isLargeScreen = useMediaQuery("(min-width: 1440px)");
 
+  // Resolved user — changes only when activeConversationId, users, or conversations list changes
   const selectedUser = useMemo(() => {
     if (!activeConversationId) return null;
     return (
@@ -97,10 +75,35 @@ export function useSelectedConversation() {
     );
   }, [activeConversationId, users, conversations]);
 
+  // Map raw messages — only re-runs when the messages array or authUser changes.
+  // Online status is kept separate to avoid re-mapping messages on every socket ping.
+  const myId = authUser?._id ? String(authUser._id) : "";
+  const mappedMessages = useMemo(
+    () => messages.map((m) => getCachedMappedMessage(m, myId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [messages, myId],
+  );
+
   const activeConversation = useMemo(() => {
     if (!selectedUser) return null;
-    return mapUserToConversation({ user: selectedUser, messages, authUser, onlineUsers });
-  }, [selectedUser, messages, authUser, onlineUsers]);
+    const displayName = selectedUser.nickname || selectedUser.fullName;
+    return {
+      id: String(selectedUser._id),
+      peer: {
+        id: String(selectedUser._id),
+        name: displayName,
+        fullName: selectedUser.fullName,
+        nickname: selectedUser.nickname || null,
+        myNickname: selectedUser.myNickname || null,
+        theirNicknameForMe: selectedUser.myNickname || null,
+        subtitle: selectedUser.email,
+        isOnline: onlineUsers.some((id) => String(id) === String(selectedUser._id)),
+        avatarUrl: selectedUser.profilePic,
+        initials: getInitials(displayName),
+      },
+      messages: mappedMessages,
+    };
+  }, [selectedUser, mappedMessages, onlineUsers]);
 
   return {
     activeConversation,

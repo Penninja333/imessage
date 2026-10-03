@@ -388,7 +388,7 @@ export const useChatStore = create(
             state.users.find((user) => String(user._id) === String(activeConversationId)) ||
             state.conversations.find((user) => String(user._id) === String(activeConversationId)) ||
             null,
-          messages: activeConversationId ? state.messages : [],
+          messages: [], // always clear immediately — never show stale messages from previous convo
           typingUser: null,
           replyingTo: null,
         }));
