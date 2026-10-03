@@ -35,6 +35,17 @@ function getCachedMappedMessage(message, myId) {
         deleted: Boolean(message.deleted),
         seen: Boolean(message.seen),
         createdAt: message.createdAt,
+        replyTo: message.replyTo
+          ? {
+              messageId: String(message.replyTo.messageId),
+              senderId: String(message.replyTo.senderId),
+              isOwnSender: String(message.replyTo.senderId) === String(myId),
+              text: message.replyTo.text || "",
+              imageUrl: message.replyTo.image || null,
+              videoUrl: message.replyTo.video || null,
+              audioUrl: message.replyTo.audio || null,
+            }
+          : null,
       },
     };
     messageCache.set(message, cached);

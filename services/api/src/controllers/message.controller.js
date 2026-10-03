@@ -199,7 +199,7 @@ export async function markMessagesAsSeen(req, res) {
 
 export async function sendMessage(req, res) {
   try {
-    const { text } = req.body;
+    const { text, replyToId } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
     const senderName = req.user.fullName;
@@ -223,6 +223,26 @@ export async function sendMessage(req, res) {
       else imageUrl = url;
     }
 
+    // Build an inline snapshot of the replied-to message (if any)
+    let replyTo;
+    if (replyToId) {
+      try {
+        const replySource = await Message.findById(replyToId).lean();
+        if (replySource) {
+          replyTo = {
+            messageId: replySource._id,
+            senderId: replySource.senderId,
+            text: replySource.deleted ? "This message was deleted" : (replySource.text || ""),
+            image: replySource.deleted ? null : (replySource.image || null),
+            video: replySource.deleted ? null : (replySource.video || null),
+            audio: replySource.deleted ? null : (replySource.audio || null),
+          };
+        }
+      } catch (replyErr) {
+        console.warn("[sendMessage] Could not load replyTo message:", replyErr.message);
+      }
+    }
+
     const newMessage = new Message({
       senderId,
       receiverId,
@@ -231,6 +251,7 @@ export async function sendMessage(req, res) {
       video: videoUrl,
       audio: audioUrl,
       seen: false,
+      ...(replyTo ? { replyTo } : {}),
     });
 
     await newMessage.save();

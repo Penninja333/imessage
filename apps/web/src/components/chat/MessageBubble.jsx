@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, memo } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
-import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2 } from "lucide-react";
+import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2, Reply } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useMediaViewerStore } from "../../store/useMediaViewerStore";
@@ -14,14 +14,26 @@ const IMAGE_TRANSFORM = "q-auto,w-640,f-auto";
 
 const TAPBACK_EMOJIS = ["❤️", "👍", "👎", "😂", "‼️", "❓"];
 
+// Swipe thresholds (px)
+const SWIPE_TRIGGER = 72; // how far user must swipe to trigger reply
+const SWIPE_MAX = 80;     // clamp the visual translateX
+
 function MessageBubbleComponent({ message, showTime = true }) {
   const toggleReaction = useChatStore((state) => state.toggleReaction);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const setReplyingTo = useChatStore((state) => state.setReplyingTo);
 
   const [showTapback, setShowTapback] = useState(false);
+  const [swipeX, setSwipeX] = useState(0);
+  const [isSwipeTriggered, setIsSwipeTriggered] = useState(false);
   const longPressTimerRef = useRef(null);
   const isLongPressRef = useRef(false);
   const bubbleRef = useRef(null);
+
+  // Touch swipe tracking refs
+  const swipeTouchStartRef = useRef(null);
+  const swipeActiveRef = useRef(false);
+  const swipeTriggeredRef = useRef(false);
 
   // Close tapback menu when tapping outside
   useEffect(() => {
@@ -58,12 +70,20 @@ function MessageBubbleComponent({ message, showTime = true }) {
   const reactionCounts = (message.reactions || []).reduce((acc, r) => {
     acc[r.emoji] = (acc[r.emoji] || 0) + 1;
     return acc;
+
   }, {});
 
-  // Long press detection for mobile
-  const handleTouchStart = () => {
+  // Combined long-press + swipe-to-reply touch handlers
+  const handleTouchStart = (e) => {
     if (isDeleted) return;
     isLongPressRef.current = false;
+    swipeTriggeredRef.current = false;
+    swipeActiveRef.current = false;
+
+    if (e.touches.length === 1) {
+      swipeTouchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
       setShowTapback(true);
@@ -71,11 +91,80 @@ function MessageBubbleComponent({ message, showTime = true }) {
     }, 400);
   };
 
+  const handleTouchMove = (e) => {
+    if (!swipeTouchStartRef.current || e.touches.length !== 1) return;
+
+    const dx = e.touches[0].clientX - swipeTouchStartRef.current.x;
+    const dy = e.touches[0].clientY - swipeTouchStartRef.current.y;
+
+    // Only track horizontal swipes (must be more horizontal than vertical)
+    if (!swipeActiveRef.current && Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+
+    if (!swipeActiveRef.current) {
+      // Determine: is this more horizontal than vertical?
+      if (Math.abs(dx) > Math.abs(dy) * 1.3) {
+        swipeActiveRef.current = true;
+        // Cancel long press — swipe and long-press are mutually exclusive
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      } else {
+        // Vertical scroll — don't interfere
+        swipeTouchStartRef.current = null;
+        return;
+      }
+    }
+
+    if (!swipeActiveRef.current) return;
+
+    // Swipe direction: right for both sides (iMessage-style — always right to reply)
+    const clampedDx = Math.max(0, Math.min(dx, SWIPE_MAX));
+    setSwipeX(clampedDx);
+
+    if (clampedDx >= SWIPE_TRIGGER && !swipeTriggeredRef.current) {
+      swipeTriggeredRef.current = true;
+      if (navigator.vibrate) navigator.vibrate(18);
+      setIsSwipeTriggered(true);
+    } else if (clampedDx < SWIPE_TRIGGER && swipeTriggeredRef.current) {
+      swipeTriggeredRef.current = false;
+      setIsSwipeTriggered(false);
+    }
+  };
+
   const handleTouchEnd = () => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+
+    if (swipeActiveRef.current && swipeTriggeredRef.current) {
+      // Trigger reply
+      const chatState = useChatStore.getState();
+      const authUser = useAuthStore.getState().authUser;
+      const myId = authUser?._id ? String(authUser._id) : "";
+      const activePartner =
+        chatState.users.find((u) => String(u._id) === String(chatState.activeConversationId)) ||
+        chatState.conversations.find((c) => String(c._id) === String(chatState.activeConversationId));
+      const peerName = activePartner?.nickname || activePartner?.fullName || "Friend";
+
+      setReplyingTo({
+        id: String(message.id),
+        text: message.text || "",
+        imageUrl: message.imageUrl || null,
+        videoUrl: message.videoUrl || null,
+        audioUrl: message.audioUrl || null,
+        senderName: isOwnMessage ? "You" : peerName,
+        isOwnMessage,
+      });
+    }
+
+    // Animate snap back
+    setSwipeX(0);
+    setIsSwipeTriggered(false);
+    swipeTouchStartRef.current = null;
+    swipeActiveRef.current = false;
+    swipeTriggeredRef.current = false;
   };
 
   const handleOpenMedia = (mediaType) => {
@@ -207,61 +296,103 @@ function MessageBubbleComponent({ message, showTime = true }) {
         </div>
       )}
 
-      {/* Message Bubble Container */}
+      {/* Message Bubble Container — swipe-animated wrapper */}
       <div
+        style={{
+          transform: `translateX(${swipeX}px)`,
+          transition: swipeX === 0 ? "transform 0.25s cubic-bezier(0.25,0.8,0.5,1)" : "none",
+          willChange: "transform",
+        }}
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchEnd}
         onContextMenu={(e) => {
           if (!isDeleted) {
             e.preventDefault();
             setShowTapback(true);
           }
         }}
-        className={`relative max-w-[min(90%,28rem)] rounded-2xl px-3.5 py-2 text-[15px] leading-snug sm:max-w-[min(75%,28rem)] transition-shadow ${
+        className={`relative max-w-[min(90%,28rem)] rounded-2xl text-[15px] leading-snug sm:max-w-[min(75%,28rem)] transition-shadow ${
           isOwnMessage
             ? "rounded-br-sm bg-accent text-accent-foreground"
             : "rounded-bl-sm bg-surface text-foreground"
         } ${showTapback ? "ring-2 ring-accent" : ""}`}
       >
-        {hasImage ? (
+        {/* Reply quoted preview — shown inside the bubble above the content */}
+        {message.replyTo ? (
           <div
-            className="group/img relative mb-1.5 cursor-pointer overflow-hidden rounded-lg sm:rounded-xl active:scale-[0.99] transition-transform"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenMedia("image");
-            }}
+            className={`mx-1 mt-1.5 mb-1 rounded-lg border-l-[3px] px-2 py-1.5 text-[12px] leading-snug opacity-80 ${
+              isOwnMessage
+                ? "border-white/60 bg-white/15 text-accent-foreground/85"
+                : "border-accent bg-accent/10 text-foreground/80"
+            }`}
           >
-            <img
-              src={withTransform(message.imageUrl, IMAGE_TRANSFORM)}
-              alt={message.text || "Photo"}
-              loading="lazy"
-              className="max-h-48 max-w-full rounded-lg object-cover sm:max-h-56 sm:rounded-xl"
-            />
-            <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/15 pointer-events-none" />
-            <div className="absolute top-2 right-2 hidden sm:flex size-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs opacity-0 transition-opacity group-hover/img:opacity-100 pointer-events-none shadow-sm">
-              <Maximize2 className="size-3.5" />
-            </div>
+            <p className="font-semibold text-[11px] mb-0.5 opacity-90">
+              {message.replyTo.isOwnSender ? "You" : (message.replyTo.senderName || "Friend")}
+            </p>
+            {message.replyTo.imageUrl ? (
+              <div className="flex items-center gap-1.5">
+                <img
+                  src={withTransform(message.replyTo.imageUrl, "q-auto,w-120,f-auto")}
+                  alt="Replied photo"
+                  className="h-8 w-8 rounded object-cover shrink-0"
+                />
+                {message.replyTo.text ? (
+                  <span className="truncate">{message.replyTo.text}</span>
+                ) : (
+                  <span className="opacity-70">📷 Photo</span>
+                )}
+              </div>
+            ) : message.replyTo.videoUrl ? (
+              <span className="opacity-80">🎥 Video</span>
+            ) : message.replyTo.audioUrl ? (
+              <span className="opacity-80">🎤 Voice message</span>
+            ) : (
+              <p className="line-clamp-2 break-words">{message.replyTo.text || "Message"}</p>
+            )}
           </div>
         ) : null}
 
-        {hasVideo ? (
-          <MessageVideo
-            src={message.videoUrl}
-            onOpenFullscreen={() => handleOpenMedia("video")}
-          />
-        ) : null}
-        {hasAudio ? <MessageAudio src={message.audioUrl} isOwnMessage={isOwnMessage} /> : null}
+        <div className="px-3.5 py-2">
+          {hasImage ? (
+            <div
+              className="group/img relative mb-1.5 cursor-pointer overflow-hidden rounded-lg sm:rounded-xl active:scale-[0.99] transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenMedia("image");
+              }}
+            >
+              <img
+                src={withTransform(message.imageUrl, IMAGE_TRANSFORM)}
+                alt={message.text || "Photo"}
+                loading="lazy"
+                className="max-h-48 max-w-full rounded-lg object-cover sm:max-h-56 sm:rounded-xl"
+              />
+              <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/15 pointer-events-none" />
+              <div className="absolute top-2 right-2 hidden sm:flex size-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs opacity-0 transition-opacity group-hover/img:opacity-100 pointer-events-none shadow-sm">
+                <Maximize2 className="size-3.5" />
+              </div>
+            </div>
+          ) : null}
 
-        {message.text ? (
-          <p
-            className={`whitespace-pre-wrap wrap-break-word ${
-              isDeleted ? "italic opacity-60 text-xs" : ""
-            }`}
-          >
-            {message.text}
-          </p>
-        ) : null}
+          {hasVideo ? (
+            <MessageVideo
+              src={message.videoUrl}
+              onOpenFullscreen={() => handleOpenMedia("video")}
+            />
+          ) : null}
+          {hasAudio ? <MessageAudio src={message.audioUrl} isOwnMessage={isOwnMessage} /> : null}
+
+          {message.text ? (
+            <p
+              className={`whitespace-pre-wrap wrap-break-word ${
+                isDeleted ? "italic opacity-60 text-xs" : ""
+              }`}
+            >
+              {message.text}
+            </p>
+          ) : null}
+        </div>
 
         {/* Small desktop quick-react trigger button on hover */}
         {!isDeleted && (
@@ -296,6 +427,23 @@ function MessageBubbleComponent({ message, showTime = true }) {
           </div>
         ) : null}
       </div>
+
+      {/* Swipe Reply Icon — appears to the left of the bubble as user swipes */}
+      {swipeX > 8 ? (
+        <div
+          className={`pointer-events-none absolute top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full transition-all ${
+            isSwipeTriggered ? "bg-accent text-accent-foreground scale-110" : "bg-border/80 text-muted scale-100"
+          }`}
+          style={{
+            left: `${Math.min(swipeX - 32, 8)}px`,
+            width: "28px",
+            height: "28px",
+            opacity: Math.min(swipeX / SWIPE_TRIGGER, 1),
+          }}
+        >
+          <Reply className="size-3.5" />
+        </div>
+      ) : null}
 
       {/* Timestamp & Delivery/Seen Status */}
       {showTime ? (
@@ -336,6 +484,10 @@ function arePropsEqual(prevProps, nextProps) {
     pm.videoUrl === nm.videoUrl &&
     pm.audioUrl === nm.audioUrl &&
     pm.role === nm.role &&
+    // replyTo: shallow compare – if both null/undefined it's fine; if one differs, re-render
+    (pm.replyTo === nm.replyTo ||
+      (pm.replyTo?.messageId === nm.replyTo?.messageId &&
+        pm.replyTo?.text === nm.replyTo?.text)) &&
     (pm.reactions === nm.reactions ||
       (Array.isArray(pm.reactions) &&
         Array.isArray(nm.reactions) &&

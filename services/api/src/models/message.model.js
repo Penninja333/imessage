@@ -42,6 +42,15 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    replyTo: {
+      // Snapshot of the replied-to message (stored inline so it survives deletion)
+      messageId: { type: mongoose.Schema.Types.ObjectId, ref: "Message" },
+      senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      text: { type: String },
+      image: { type: String },
+      video: { type: String },
+      audio: { type: String },
+    },
   },
   { timestamps: true },
 );

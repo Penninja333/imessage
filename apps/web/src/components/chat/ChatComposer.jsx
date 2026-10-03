@@ -5,12 +5,15 @@ import {
   MicIcon,
   SendHorizontalIcon,
   Trash2Icon,
+  Reply,
+  X as XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import useKeyboardSound from "../../hooks/useKeyboardSound";
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
+import { withTransform } from "../../lib/imagekit";
 
 function formatDuration(secs) {
   const mins = Math.floor(secs / 60);
@@ -26,6 +29,8 @@ export function ChatComposer() {
   const isSendingMedia = useChatStore((state) => state.isSendingMedia);
   const sendTextMessage = useChatStore((state) => state.sendTextMessage);
   const setComposerText = useChatStore((state) => state.setComposerText);
+  const replyingTo = useChatStore((state) => state.replyingTo);
+  const clearReplyingTo = useChatStore((state) => state.clearReplyingTo);
   const { activeConversationId } = useSelectedConversation();
   const { playRandomKeyStrokeSound } = useKeyboardSound();
 
@@ -257,6 +262,44 @@ export function ChatComposer() {
             aria-hidden
           />
           <span className="truncate">Uploading media...</span>
+        </div>
+      ) : null}
+
+      {/* Reply Preview Banner */}
+      {replyingTo ? (
+        <div className="mx-auto mb-1.5 flex w-full max-w-full items-center gap-2 rounded-xl border border-accent/30 bg-accent/8 px-3 py-2 animate-in slide-in-from-bottom-1 duration-200">
+          <Reply className="size-4 shrink-0 text-accent" />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-[11px] font-semibold text-accent leading-none">
+              Replying to {replyingTo.senderName}
+            </span>
+            {replyingTo.imageUrl ? (
+              <div className="flex items-center gap-1.5">
+                <img
+                  src={withTransform(replyingTo.imageUrl, "q-auto,w-80,f-auto")}
+                  alt="Replied photo"
+                  className="h-6 w-6 rounded object-cover shrink-0"
+                />
+                <span className="truncate text-[12px] text-muted">
+                  {replyingTo.text || "📷 Photo"}
+                </span>
+              </div>
+            ) : replyingTo.videoUrl ? (
+              <span className="text-[12px] text-muted truncate">🎥 Video</span>
+            ) : replyingTo.audioUrl ? (
+              <span className="text-[12px] text-muted truncate">🎤 Voice message</span>
+            ) : (
+              <span className="text-[12px] text-muted truncate">{replyingTo.text}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={clearReplyingTo}
+            className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-border/80 hover:text-foreground transition"
+            aria-label="Cancel reply"
+          >
+            <XIcon className="size-3.5" />
+          </button>
         </div>
       ) : null}
 

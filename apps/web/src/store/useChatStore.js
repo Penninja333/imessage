@@ -33,6 +33,7 @@ export const useChatStore = create(
       isSoundEnabled: true,
       isSendingMedia: false,
       typingUser: null,
+      replyingTo: null, // { id, text, imageUrl, videoUrl, audioUrl, senderName, isOwnMessage }
 
       syncBadge: () => {
         const total = get().conversations.reduce(
@@ -389,6 +390,7 @@ export const useChatStore = create(
             null,
           messages: activeConversationId ? state.messages : [],
           typingUser: null,
+          replyingTo: null,
         }));
 
         if (activeConversationId) {
@@ -408,6 +410,8 @@ export const useChatStore = create(
       setSidebarTab: (sidebarTab) => set({ sidebarTab }),
       setComposerText: (composerText) => set({ composerText }),
       setSoundEnabled: (isSoundEnabled) => set({ isSoundEnabled }),
+      setReplyingTo: (message) => set({ replyingTo: message }),
+      clearReplyingTo: () => set({ replyingTo: null }),
 
       setNickname: async (targetUserId, nickname) => {
         if (!targetUserId || targetUserId === "undefined" || targetUserId === "null") {
@@ -462,14 +466,20 @@ export const useChatStore = create(
         const messageText = get().composerText.trim();
         if (!conversationId || !messageText) return false;
 
-        // Clear composer immediately so user can type next message without wiping/lag
-        set({ composerText: "" });
+        const replyingTo = get().replyingTo;
 
-        const success = await get().sendMessage({ text: messageText });
+        // Clear composer and reply state immediately
+        set({ composerText: "", replyingTo: null });
+
+        const payload = { text: messageText };
+        if (replyingTo?.id) payload.replyToId = replyingTo.id;
+
+        const success = await get().sendMessage(payload);
         if (!success) {
           // If sending failed, restore text if composer is still empty
           set((state) => ({
             composerText: state.composerText ? state.composerText : messageText,
+            replyingTo: state.replyingTo || replyingTo,
           }));
         }
         return success;
