@@ -7,6 +7,7 @@ import ChatSidebar from "../components/chat/ChatSidebar";
 import { ChatHeader } from "../components/chat/ChatHeader";
 import { MessageList } from "../components/chat/MessageList";
 import { ChatComposer } from "../components/chat/ChatComposer";
+import { EmojiParticleCanvas } from "../components/common/EmojiParticleCanvas";
 
 function ChatPage() {
   const { frameStyle } = useWallpaper();
@@ -90,6 +91,7 @@ function ChatPage() {
           {activeConversation ? <ChatComposer /> : null}
         </div>
       </div>
+      <EmojiParticleCanvas />
     </div>
   );
 }

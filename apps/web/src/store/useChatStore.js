@@ -34,6 +34,10 @@ export const useChatStore = create(
       isSendingMedia: false,
       typingUser: null,
       replyingTo: null, // { id, text, imageUrl, videoUrl, audioUrl, senderName, isOwnMessage }
+      editingMessage: null, // { id, text }
+      isInChatSearchOpen: false,
+      inChatSearchQuery: "",
+      activeMatchId: null,
       conversationThemes: {}, // { [partnerId]: themeId } — shared per-conversation, synced via socket
 
       syncBadge: () => {
@@ -181,6 +185,8 @@ export const useChatStore = create(
         socket.off("nicknameUpdated");
         socket.off("messageReaction");
         socket.off("messageDeleted");
+        socket.off("messageEdited");
+        socket.off("emojiBurst");
         socket.off("userTyping");
         socket.off("userStopTyping");
 
@@ -307,6 +313,30 @@ export const useChatStore = create(
           }));
         });
 
+        socket.on("messageEdited", ({ messageId, text, isEdited, editedAt }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              String(m._id) === String(messageId)
+                ? { ...m, text, isEdited: true, editedAt }
+                : m,
+            ),
+          }));
+        });
+
+        socket.on("emojiBurst", ({ senderId, emoji, x, y }) => {
+          const activeId = get().activeConversationId;
+          if (activeId && String(senderId) === String(activeId)) {
+            if (typeof window !== "undefined" && window.__triggerEmojiBurst) {
+              window.__triggerEmojiBurst({
+                emoji,
+                x: typeof x === "number" && x <= 1 ? x * window.innerWidth : x,
+                y: typeof y === "number" && y <= 1 ? y * window.innerHeight : y,
+                isRemote: true,
+              });
+            }
+          }
+        });
+
         socket.on("userTyping", ({ senderId }) => {
           const authUser = useAuthStore.getState().authUser;
           const activeId = get().activeConversationId;
@@ -368,6 +398,8 @@ export const useChatStore = create(
         socket?.off("nicknameUpdated");
         socket?.off("messageReaction");
         socket?.off("messageDeleted");
+        socket?.off("messageEdited");
+        socket?.off("emojiBurst");
         socket?.off("userTyping");
         socket?.off("userStopTyping");
         socket?.off("chatThemeChanged");
@@ -399,6 +431,10 @@ export const useChatStore = create(
           messages: [], // always clear immediately — never show stale messages from previous convo
           typingUser: null,
           replyingTo: null,
+          editingMessage: null,
+          isInChatSearchOpen: false,
+          inChatSearchQuery: "",
+          activeMatchId: null,
         }));
 
         if (activeConversationId) {
@@ -615,6 +651,43 @@ export const useChatStore = create(
           return false;
         }
       },
+
+      setEditingMessage: (editingMessage) => set({ editingMessage }),
+      cancelEditingMessage: () => set({ editingMessage: null }),
+
+      editMessage: async (messageId, text) => {
+        if (!messageId || !text?.trim()) return false;
+        try {
+          const res = await axiosInstance.put(`/messages/${messageId}/edit`, {
+            text: text.trim(),
+          });
+          const updated = res.data;
+          set((state) => ({
+            editingMessage: null,
+            messages: state.messages.map((m) =>
+              String(m._id) === String(messageId)
+                ? { ...m, text: updated.text, isEdited: true, editedAt: updated.editedAt }
+                : m,
+            ),
+          }));
+          toast.success("Message edited");
+          return true;
+        } catch (error) {
+          console.error("editMessage error:", error);
+          toast.error(error.response?.data?.message || "Failed to edit message");
+          return false;
+        }
+      },
+
+      toggleInChatSearch: (open) =>
+        set((state) => ({
+          isInChatSearchOpen: typeof open === "boolean" ? open : !state.isInChatSearchOpen,
+          inChatSearchQuery: "",
+          activeMatchId: null,
+        })),
+
+      setInChatSearchQuery: (query) => set({ inChatSearchQuery: query }),
+      setActiveMatchId: (activeMatchId) => set({ activeMatchId }),
     }),
     {
       name: "imessage-storage",

@@ -7,6 +7,8 @@ import {
   Trash2Icon,
   Reply,
   X as XIcon,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -32,11 +34,30 @@ export function ChatComposer() {
   const setComposerText = useChatStore((state) => state.setComposerText);
   const replyingTo = useChatStore((state) => state.replyingTo);
   const clearReplyingTo = useChatStore((state) => state.clearReplyingTo);
+  const editingMessage = useChatStore((state) => state.editingMessage);
+  const cancelEditingMessage = useChatStore((state) => state.cancelEditingMessage);
+  const editMessage = useChatStore((state) => state.editMessage);
   const { activeConversationId } = useSelectedConversation();
   const { playRandomKeyStrokeSound } = useKeyboardSound();
 
   const mediaInputRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Sync composer input when editingMessage is selected
+  useEffect(() => {
+    if (editingMessage) {
+      setComposerText(editingMessage.text || "");
+      if (textareaRef.current) {
+        const el =
+          textareaRef.current.tagName === "TEXTAREA"
+            ? textareaRef.current
+            : textareaRef.current.querySelector?.("textarea") || textareaRef.current;
+        if (el && typeof el.focus === "function") {
+          el.focus();
+        }
+      }
+    }
+  }, [editingMessage, setComposerText]);
 
   // Typing indicator
   const sendTyping = useChatStore((state) => state.sendTyping);
@@ -83,6 +104,19 @@ export function ChatComposer() {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     lastTypingSentRef.current = 0;
     sendStopTyping(activeConversationId);
+
+    if (editingMessage) {
+      const didEdit = await editMessage(editingMessage.id, text);
+      if (didEdit) {
+        setComposerText("");
+        cancelEditingMessage();
+        playSoundIfEnabled();
+      }
+      focusInput();
+      requestAnimationFrame(focusInput);
+      setTimeout(focusInput, 40);
+      return;
+    }
 
     const didSendMessage = await sendTextMessage(activeConversationId);
     if (didSendMessage) playSoundIfEnabled();
@@ -273,6 +307,35 @@ export function ChatComposer() {
         </div>
       ) : null}
 
+      {/* Edit Message Banner */}
+      {editingMessage ? (
+        <div className="mx-auto mb-1.5 flex w-full max-w-full items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 animate-in slide-in-from-bottom-1 duration-200">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Pencil className="size-4 shrink-0 text-accent" />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="text-[11px] font-semibold text-accent leading-none">
+                Editing Message
+              </span>
+              <span className="truncate text-[12px] text-muted-foreground/90 mt-0.5">
+                <AppleEmojiText text={editingMessage.text} disableBigEmoji />
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              cancelEditingMessage();
+              setComposerText("");
+            }}
+            className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-border/80 hover:text-foreground transition"
+            aria-label="Cancel editing"
+            title="Cancel editing"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+      ) : null}
+
       {/* Reply Preview Banner */}
       {replyingTo ? (
         <div className="mx-auto mb-1.5 flex w-full max-w-full items-center gap-2 rounded-xl border border-accent/30 bg-accent/8 px-3 py-2 animate-in slide-in-from-bottom-1 duration-200">
@@ -406,7 +469,30 @@ export function ChatComposer() {
             className="flex-1 rounded-full text-base"
           />
 
-          {hasText ? (
+          {editingMessage ? (
+            /* Save Edit Button */
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                focusInput();
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                focusInput();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                focusInput();
+              }}
+              onClick={handleSend}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm hover:brightness-105 active:scale-95 transition-transform"
+              aria-label="Save edited message"
+              title="Save edit"
+            >
+              <Check className="size-5" strokeWidth={2.5} />
+            </button>
+          ) : hasText ? (
             /* Send Button — with pointer/touch preventDefault to preserve mobile keyboard focus */
             <button
               type="button"

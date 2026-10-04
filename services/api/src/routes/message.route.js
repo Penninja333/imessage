@@ -1,6 +1,7 @@
 import express from "express";
 import {
   deleteMessage,
+  editMessage,
   getConversationsForSidebar,
   getMessages,
   getNicknames,
@@ -30,5 +31,6 @@ router.post("/:id/seen", markMessagesAsSeen);
 router.post("/send/:id", upload.single("media"), sendMessage);
 router.post("/:id/react", toggleReaction);
 router.delete("/:id", deleteMessage);
+router.put("/:id/edit", editMessage);
 
 export default router;

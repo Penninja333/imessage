@@ -35,6 +35,8 @@ function getCachedMappedMessage(message, myId) {
         deleted: Boolean(message.deleted),
         seen: Boolean(message.seen),
         createdAt: message.createdAt,
+        isEdited: Boolean(message.isEdited),
+        editedAt: message.editedAt || null,
         replyTo: message.replyTo
           ? {
               messageId: String(message.replyTo.messageId),

@@ -540,6 +540,68 @@ export async function deleteMessage(req, res) {
   }
 }
 
+export async function editMessage(req, res) {
+  try {
+    const { id: messageId } = req.params;
+    const { text } = req.body;
+    const userId = req.user._id;
+
+    if (!messageId || messageId === "undefined" || messageId === "null") {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+
+    if (typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ message: "Message text cannot be empty" });
+    }
+
+    if (text.trim().length > 10000) {
+      return res.status(400).json({ message: "Message exceeds maximum character length" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (String(message.senderId) !== String(userId)) {
+      return res.status(403).json({ message: "Cannot edit someone else's message" });
+    }
+
+    if (message.deleted) {
+      return res.status(400).json({ message: "Cannot edit a deleted message" });
+    }
+
+    const fifteenMinutesMs = 15 * 60 * 1000;
+    const messageAge = Date.now() - new Date(message.createdAt).getTime();
+    if (messageAge > fifteenMinutesMs) {
+      return res.status(400).json({ message: "Messages can only be edited within 15 minutes of sending" });
+    }
+
+    message.text = text.trim();
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    const partnerSocketId = getReceiverSocketId(message.receiverId);
+    const mySocketId = getReceiverSocketId(userId);
+
+    const payload = {
+      messageId: message._id,
+      text: message.text,
+      isEdited: message.isEdited,
+      editedAt: message.editedAt,
+    };
+
+    if (partnerSocketId) io.to(partnerSocketId).emit("messageEdited", payload);
+    if (mySocketId) io.to(mySocketId).emit("messageEdited", payload);
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.error("Error in editMessage:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
 // ─── Chat Theme (shared per-conversation) ────────────────────────────────────
 
 // Theme label lookup — mirrors the frontend chatThemes.js catalog

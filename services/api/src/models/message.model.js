@@ -42,6 +42,14 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+    editedAt: {
+      type: Date,
+      default: null,
+    },
     replyTo: {
       // Snapshot of the replied-to message (stored inline so it survives deletion)
       messageId: { type: mongoose.Schema.Types.ObjectId, ref: "Message" },

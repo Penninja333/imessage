@@ -13,12 +13,14 @@ import {
   RefreshCwIcon,
   BellRingIcon,
   Droplets as DropletsIcon,
+  SearchIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { NicknameDetailsModal } from "./NicknameDetailsModal";
 import { ChatThemePicker } from "./ChatThemePicker";
+import { InChatSearch } from "./InChatSearch";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 
 import { ThemePresetPicker } from "../ThemePresetPicker";
@@ -37,6 +39,8 @@ export function ChatHeader() {
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
   const setSoundEnabled = useChatStore((state) => state.setSoundEnabled);
   const typingUser = useChatStore((state) => state.typingUser);
+  const isInChatSearchOpen = useChatStore((state) => state.isInChatSearchOpen);
+  const toggleInChatSearch = useChatStore((state) => state.toggleInChatSearch);
 
   const needRefresh = usePwaUpdateStore((state) => state.needRefresh);
   const isChecking = usePwaUpdateStore((state) => state.isChecking);
@@ -62,7 +66,8 @@ export function ChatHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-md px-2 py-2 sm:px-3 sm:py-2.5">
+    <div className="sticky top-0 z-20 flex shrink-0 flex-col">
+      <header className="flex shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-md px-2 py-2 sm:px-3 sm:py-2.5">
       {/* Left side: Back button (mobile) + Contact info */}
       <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
         {activeConversation && !isLargeScreen ? (
@@ -215,6 +220,19 @@ export function ChatHeader() {
             <Button
               variant="ghost"
               isIconOnly
+              className={`size-9 ${isInChatSearchOpen ? "text-accent bg-accent/15" : "text-muted hover:text-foreground"}`}
+              aria-label="Search conversation"
+              title="Search in conversation"
+              onPress={() => toggleInChatSearch()}
+            >
+              <SearchIcon className="size-4.5" strokeWidth={2} />
+            </Button>
+          ) : null}
+
+          {activeConversation ? (
+            <Button
+              variant="ghost"
+              isIconOnly
               className="size-9 text-accent hover:bg-accent/10"
               aria-label="Chat Theme"
               title={`Chat Theme: ${currentChatTheme.label}`}
@@ -239,6 +257,22 @@ export function ChatHeader() {
 
         {/* Mobile Controls: clean & spacious */}
         <div className="flex md:hidden items-center gap-1">
+          {activeConversation ? (
+            <button
+              type="button"
+              onClick={() => toggleInChatSearch()}
+              className={`flex size-9 items-center justify-center rounded-full active:scale-95 transition ${
+                isInChatSearchOpen
+                  ? "bg-accent/15 text-accent"
+                  : "text-foreground/80 hover:bg-surface"
+              }`}
+              aria-label="Search conversation"
+              title="Search conversation"
+            >
+              <SearchIcon className="size-5" />
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={() => setShowMobileOptions(!showMobileOptions)}
@@ -364,13 +398,26 @@ export function ChatHeader() {
             {activeConversation ? (
               <button
                 onClick={() => {
+                  toggleInChatSearch(true);
+                  setShowMobileOptions(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+              >
+                <SearchIcon className="size-4 text-accent" />
+                Search in Chat
+              </button>
+            ) : null}
+
+            {activeConversation ? (
+              <button
+                onClick={() => {
                   setShowNicknameModal(true);
                   setShowMobileOptions(false);
                 }}
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-accent hover:bg-accent/10 transition"
               >
                 <SparklesIcon className="size-4" />
-                Chat Nicknames
+                Contact & Shared Media
               </button>
             ) : null}
           </div>
@@ -384,8 +431,12 @@ export function ChatHeader() {
           onClick={() => setShowMobileOptions(false)}
         />
       ) : null}
+      </header>
 
-      {/* Nicknames modal */}
+      {/* In-Chat Message Search Bar */}
+      {isInChatSearchOpen && activeConversation ? <InChatSearch /> : null}
+
+      {/* Nicknames & Contact details modal */}
       {activeConversation ? (
         <NicknameDetailsModal
           isOpen={showNicknameModal}
@@ -403,6 +454,6 @@ export function ChatHeader() {
           partnerName={activeConversation.peer.name}
         />
       ) : null}
-    </header>
+    </div>
   );
 }

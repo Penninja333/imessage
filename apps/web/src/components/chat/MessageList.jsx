@@ -51,6 +51,7 @@ export function MessageList() {
   const { activeConversation, activeConversationId } = useSelectedConversation();
   const typingUser = useChatStore((state) => state.typingUser);
   const isMessagesLoading = useChatStore((state) => state.isMessagesLoading);
+  const activeMatchId = useChatStore((state) => state.activeMatchId);
   const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_WINDOW);
@@ -90,6 +91,29 @@ export function MessageList() {
       bottomAnchorRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [isPartnerTyping, messagesScrollRef]);
+
+  // Jump to and focus active search match
+  useEffect(() => {
+    if (!activeMatchId) return;
+
+    // Check if match is beyond current visible window
+    const matchIdx = allMessages.findIndex((m) => String(m.id) === String(activeMatchId));
+    if (matchIdx !== -1) {
+      const neededVisible = allMessages.length - matchIdx + 10;
+      if (neededVisible > visibleCount) {
+        setVisibleCount(neededVisible);
+      }
+    }
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`msg-${activeMatchId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 70);
+
+    return () => clearTimeout(timer);
+  }, [activeMatchId, allMessages, visibleCount]);
 
   // Load more when user scrolls to the top sentinel
   const handleLoadMore = useCallback(() => {
@@ -202,9 +226,18 @@ export function MessageList() {
 
             // Only show timestamp at the end of a cluster
             const showTime = !(isNextSameSender && isNextCloseInTime);
+            const isMatch = Boolean(activeMatchId && String(message.id) === String(activeMatchId));
 
             return (
-              <div key={message.id || index} className="flex flex-col">
+              <div
+                key={message.id || index}
+                id={`msg-${message.id}`}
+                className={`flex flex-col transition-all duration-300 rounded-2xl ${
+                  isMatch
+                    ? "ring-2 ring-accent/80 bg-accent/15 scale-[1.01] p-1.5 -m-1.5 shadow-md"
+                    : ""
+                }`}
+              >
                 {showDateHeader ? (
                   <div className="my-3 flex justify-center">
                     <span className="rounded-full bg-surface/80 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-muted shadow-xs">

@@ -47,6 +47,7 @@ vi.mock("../src/models/message.model.js", () => ({
 }));
 
 // vi.mock hoists — Message needs static methods too
+const mockMessageFindById = vi.fn();
 vi.mock("../src/models/message.model.js", () => {
   function MockMessage(data) {
     Object.assign(this, data);
@@ -56,6 +57,7 @@ vi.mock("../src/models/message.model.js", () => {
   MockMessage.find = mockMessageFind;
   MockMessage.aggregate = mockMessageAggregate;
   MockMessage.updateMany = vi.fn().mockResolvedValue({ modifiedCount: 0 });
+  MockMessage.findById = mockMessageFindById;
   return { default: MockMessage };
 });
 
@@ -151,6 +153,11 @@ describe("Messages routes (unauthenticated)", () => {
     const res = await request(testApp).post("/api/messages/send/507f1f77bcf86cd799439011");
     expect(res.status).toBe(401);
   });
+
+  it("PUT /api/messages/:id/edit returns 401", async () => {
+    const res = await request(testApp).put("/api/messages/507f1f77bcf86cd799439011/edit").send({ text: "edited" });
+    expect(res.status).toBe(401);
+  });
 });
 
 describe("Messages routes (authenticated)", () => {
@@ -221,6 +228,48 @@ describe("Messages routes (authenticated)", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.audio).toBe("https://ik.imagekit.io/test/chat-voice.webm");
+  });
+
+  it("PUT /api/messages/:id/edit edits own recent message", async () => {
+    const messageDoc = {
+      _id: "msg123",
+      senderId: "user123",
+      receiverId: "user456",
+      text: "original",
+      createdAt: new Date(),
+      deleted: false,
+      save: vi.fn().mockResolvedValue(true),
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+
+    const res = await request(testApp)
+      .put("/api/messages/msg123/edit")
+      .send({ text: "updated text" });
+
+    expect(res.status).toBe(200);
+    expect(messageDoc.text).toBe("updated text");
+    expect(messageDoc.isEdited).toBe(true);
+    expect(messageDoc.save).toHaveBeenCalled();
+  });
+
+  it("PUT /api/messages/:id/edit rejects edits past 15 minutes", async () => {
+    const messageDoc = {
+      _id: "msg123",
+      senderId: "user123",
+      receiverId: "user456",
+      text: "original",
+      createdAt: new Date(Date.now() - 20 * 60 * 1000),
+      deleted: false,
+      save: vi.fn(),
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+
+    const res = await request(testApp)
+      .put("/api/messages/msg123/edit")
+      .send({ text: "updated text" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("15 minutes");
   });
 });
 

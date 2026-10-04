@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, memo } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
-import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2, Reply } from "lucide-react";
+import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2, Reply, Pencil } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useMediaViewerStore } from "../../store/useMediaViewerStore";
@@ -234,10 +234,20 @@ function MessageBubbleComponent({
     await deleteMessage(message.id);
   };
 
-  const handleSelectReaction = async (emoji) => {
+  const handleEdit = () => {
     setShowTapback(false);
-    await toggleReaction(message.id, emoji);
+    useChatStore.getState().setEditingMessage({
+      id: String(message.id),
+      text: message.text || "",
+    });
   };
+
+  const canEdit =
+    isOwnMessage &&
+    !isDeleted &&
+    Boolean(message.text) &&
+    message.createdAt &&
+    Date.now() - new Date(message.createdAt).getTime() < 15 * 60 * 1000;
 
   return (
     <div
@@ -277,6 +287,17 @@ function MessageBubbleComponent({
               title="View Fullscreen"
             >
               <Maximize2 className="size-3.5" />
+            </button>
+          ) : null}
+
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="flex size-7 items-center justify-center rounded-full text-muted hover:text-foreground hover:bg-surface transition"
+              title="Edit message (within 15m)"
+            >
+              <Pencil className="size-3.5" />
             </button>
           ) : null}
 
@@ -464,10 +485,15 @@ function MessageBubbleComponent({
       {/* Timestamp & Delivery/Seen Status */}
       {showTime ? (
         <div
-          className={`mt-0.5 flex items-center gap-1 px-1 text-[10px] tabular-nums text-muted-foreground/60 ${
+          className={`mt-0.5 flex items-center gap-1.5 px-1 text-[10px] tabular-nums text-muted-foreground/60 ${
             isOwnMessage ? "justify-end text-right" : "justify-start text-left"
           }`}
         >
+          {message.isEdited ? (
+            <span className="text-[10px] italic text-muted-foreground/75 font-normal">
+              Edited
+            </span>
+          ) : null}
           <span>{message.time}</span>
           {isOwnMessage && !message.isSystem && (
             <span
@@ -498,6 +524,8 @@ function arePropsEqual(prevProps, nextProps) {
     pm.time === nm.time &&
     pm.seen === nm.seen &&
     pm.deleted === nm.deleted &&
+    pm.isEdited === nm.isEdited &&
+    pm.editedAt === nm.editedAt &&
     pm.imageUrl === nm.imageUrl &&
     pm.videoUrl === nm.videoUrl &&
     pm.audioUrl === nm.audioUrl &&

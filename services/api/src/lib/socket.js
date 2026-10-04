@@ -77,6 +77,18 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Real-time animated emoji burst broadcast
+  socket.on("emojiBurst", ({ receiverId, emoji, x, y }) => {
+    if (userId && receiverId && mongoose.Types.ObjectId.isValid(String(receiverId))) {
+      io.to(String(receiverId)).emit("emojiBurst", {
+        senderId: userId,
+        emoji,
+        x,
+        y,
+      });
+    }
+  });
+
   socket.on("disconnect", () => {
     if (userId) {
       const idStr = String(userId);
