@@ -575,15 +575,26 @@ export const useChatStore = create(
         return success;
       },
 
-      sendMediaMessage: async ({ conversationId, file }) => {
+      sendMediaMessage: async ({ conversationId, file, caption }) => {
         if (!conversationId || !file) return false;
 
         const formData = new FormData();
         formData.append("media", file);
+        if (caption && caption.trim()) {
+          formData.append("text", caption.trim());
+        }
+        const replyingTo = get().replyingTo;
+        if (replyingTo?.id) {
+          formData.append("replyToId", replyingTo.id);
+        }
 
         set({ isSendingMedia: true });
         try {
-          return await get().sendMessage(formData);
+          const success = await get().sendMessage(formData);
+          if (success && replyingTo) {
+            set({ replyingTo: null });
+          }
+          return success;
         } finally {
           set({ isSendingMedia: false });
         }

@@ -17,6 +17,7 @@ import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { withTransform } from "../../lib/imagekit";
 import { AppleEmojiText } from "../common/AppleEmoji";
+import { MediaConfirmationModal } from "./MediaConfirmationModal";
 
 function formatDuration(secs) {
   const mins = Math.floor(secs / 60);
@@ -37,8 +38,9 @@ export function ChatComposer() {
   const editingMessage = useChatStore((state) => state.editingMessage);
   const cancelEditingMessage = useChatStore((state) => state.cancelEditingMessage);
   const editMessage = useChatStore((state) => state.editMessage);
-  const { activeConversationId } = useSelectedConversation();
+  const { activeConversation, activeConversationId } = useSelectedConversation();
   const { playRandomKeyStrokeSound } = useKeyboardSound();
+  const [pendingMediaFile, setPendingMediaFile] = useState(null);
 
   const mediaInputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -151,17 +153,64 @@ export function ChatComposer() {
     }, 100);
   };
 
-  const handleMediaPick = async (event) => {
+  const handleMediaPick = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
 
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("File exceeds 25MB limit");
+      return;
+    }
+
+    setPendingMediaFile(file);
+  };
+
+  const handlePaste = (event) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (
+        item.kind === "file" &&
+        (item.type.startsWith("image/") ||
+          item.type.startsWith("video/") ||
+          item.type.startsWith("audio/"))
+      ) {
+        const file = item.getAsFile();
+        if (file) {
+          event.preventDefault();
+          if (file.size > 25 * 1024 * 1024) {
+            toast.error("File exceeds 25MB limit");
+            return;
+          }
+          setPendingMediaFile(file);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleConfirmMediaSend = async ({ file, caption }) => {
+    if (!activeConversationId || !file) return false;
+
     const didSendMessage = await sendMediaMessage({
       conversationId: activeConversationId,
       file,
+      caption,
     });
 
-    if (didSendMessage) playSoundIfEnabled();
+    if (didSendMessage) {
+      playSoundIfEnabled();
+      if (caption && composerText.trim() === caption.trim()) {
+        setComposerText("");
+      }
+      return true;
+    }
+    return false;
+  };
+
+  const handleCloseMediaConfirm = () => {
+    setPendingMediaFile(null);
   };
 
   // Start voice recording
@@ -460,6 +509,7 @@ export function ChatComposer() {
             value={composerText}
             onChange={handleComposerTextChange}
             onFocus={handleFocus}
+            onPaste={handlePaste}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -529,6 +579,21 @@ export function ChatComposer() {
           )}
         </div>
       )}
+
+      {/* Media Confirmation & Preview Modal before sending */}
+      <MediaConfirmationModal
+        isOpen={Boolean(pendingMediaFile)}
+        file={pendingMediaFile}
+        recipientName={
+          activeConversation?.peer?.nickname ||
+          activeConversation?.peer?.fullName ||
+          ""
+        }
+        replyingTo={replyingTo}
+        initialCaption={composerText}
+        onClose={handleCloseMediaConfirm}
+        onSend={handleConfirmMediaSend}
+      />
     </footer>
   );
 }
