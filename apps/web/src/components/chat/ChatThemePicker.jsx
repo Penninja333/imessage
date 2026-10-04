@@ -4,6 +4,7 @@ import { Check, Palette, Sparkles, X } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useTheme } from "../../context/theme";
 import { CHAT_THEMES, getThemeById } from "../../data/chatThemes";
+import { AppleEmoji } from "../common/AppleEmoji";
 
 export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
   const currentThemeId = useChatStore(
@@ -132,8 +133,11 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
                         }
                   }
                 >
-                  <span className="font-medium">
-                    Looks great! Syncs to both phones {selectedTheme.emoji}
+                  <span className="font-medium inline-flex items-center gap-1">
+                    Looks great! Syncs to both phones
+                    {selectedTheme.emoji ? (
+                      <AppleEmoji char={selectedTheme.emoji} size={14} />
+                    ) : null}
                   </span>
                 </div>
               </div>
@@ -146,8 +150,11 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                 Choose a Theme
               </span>
-              <span className="text-[11px] text-muted">
-                {selectedTheme.label} {selectedTheme.emoji}
+              <span className="text-[11px] text-muted inline-flex items-center gap-1">
+                {selectedTheme.label}
+                {selectedTheme.emoji ? (
+                  <AppleEmoji char={selectedTheme.emoji} size={13} />
+                ) : null}
               </span>
             </div>
 
@@ -175,8 +182,8 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
 
                       {/* Accent Emoji Badge on Swatch */}
                       {t.emoji ? (
-                        <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-background/95 text-[11px] shadow-sm border border-border/80">
-                          {t.emoji}
+                        <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-background/95 shadow-sm border border-border/80">
+                          <AppleEmoji char={t.emoji} size={12} />
                         </span>
                       ) : null}
 

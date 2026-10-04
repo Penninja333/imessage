@@ -14,6 +14,7 @@ import useKeyboardSound from "../../hooks/useKeyboardSound";
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { withTransform } from "../../lib/imagekit";
+import { AppleEmojiText } from "../common/AppleEmoji";
 
 function formatDuration(secs) {
   const mins = Math.floor(secs / 60);
@@ -288,7 +289,11 @@ export function ChatComposer() {
                   className="h-6 w-6 rounded object-cover shrink-0"
                 />
                 <span className="truncate text-[12px] text-muted">
-                  {replyingTo.text || "📷 Photo"}
+                  {replyingTo.text ? (
+                    <AppleEmojiText text={replyingTo.text} disableBigEmoji />
+                  ) : (
+                    "📷 Photo"
+                  )}
                 </span>
               </div>
             ) : replyingTo.videoUrl ? (
@@ -296,7 +301,9 @@ export function ChatComposer() {
             ) : replyingTo.audioUrl ? (
               <span className="text-[12px] text-muted truncate">🎤 Voice message</span>
             ) : (
-              <span className="text-[12px] text-muted truncate">{replyingTo.text}</span>
+              <span className="text-[12px] text-muted truncate">
+                <AppleEmojiText text={replyingTo.text} disableBigEmoji />
+              </span>
             )}
           </div>
           <button

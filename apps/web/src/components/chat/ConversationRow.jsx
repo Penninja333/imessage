@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Avatar } from "@heroui/react";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { formatConversationTime } from "../../lib/utils";
+import { AppleEmojiText } from "../common/AppleEmoji";
 
 function ConversationRowComponent({ user, selected, onSelect }) {
   const hasUnread = Boolean(user.unreadCount && user.unreadCount > 0);
@@ -60,7 +61,11 @@ function ConversationRowComponent({ user, selected, onSelect }) {
                 : "text-muted"
             }`}
           >
-            {user.lastMessage || "Tap to chat"}
+            {user.lastMessage ? (
+              <AppleEmojiText text={user.lastMessage} disableBigEmoji />
+            ) : (
+              "Tap to chat"
+            )}
           </p>
 
           {hasUnread ? (

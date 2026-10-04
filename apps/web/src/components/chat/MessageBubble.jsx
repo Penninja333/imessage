@@ -7,6 +7,7 @@ import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useMediaViewerStore } from "../../store/useMediaViewerStore";
 import { formatMessageTime } from "../../lib/utils";
+import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 import toast from "react-hot-toast";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -58,7 +59,9 @@ function MessageBubbleComponent({
       <div className="my-2.5 flex w-full justify-center px-4">
         <div className="flex max-w-[85%] flex-wrap items-center justify-center gap-1.5 rounded-full border border-border/60 bg-surface/70 px-3.5 py-1.5 text-center text-xs text-muted shadow-xs backdrop-blur-md">
           <SparklesIcon className="size-3.5 shrink-0 text-accent" />
-          <span className="font-medium text-foreground/90">{message.text}</span>
+          <span className="font-medium text-foreground/90">
+            <AppleEmojiText text={message.text} disableBigEmoji />
+          </span>
           <span className="text-[10px] text-muted-foreground/60">· {message.time}</span>
         </div>
       </div>
@@ -257,7 +260,7 @@ function MessageBubbleComponent({
               onClick={() => handleSelectReaction(emoji)}
               className="flex size-8 items-center justify-center rounded-full text-base hover:scale-125 active:scale-95 transition-transform"
             >
-              {emoji}
+              <AppleEmoji char={emoji} size={22} />
             </button>
           ))}
 
@@ -347,7 +350,9 @@ function MessageBubbleComponent({
                   className="h-8 w-8 rounded object-cover shrink-0"
                 />
                 {message.replyTo.text ? (
-                  <span className="truncate">{message.replyTo.text}</span>
+                  <span className="truncate">
+                    <AppleEmojiText text={message.replyTo.text} disableBigEmoji />
+                  </span>
                 ) : (
                   <span className="opacity-70">📷 Photo</span>
                 )}
@@ -357,7 +362,9 @@ function MessageBubbleComponent({
             ) : message.replyTo.audioUrl ? (
               <span className="opacity-80">🎤 Voice message</span>
             ) : (
-              <p className="line-clamp-2 break-words">{message.replyTo.text || "Message"}</p>
+              <p className="line-clamp-2 break-words">
+                <AppleEmojiText text={message.replyTo.text || "Message"} disableBigEmoji />
+              </p>
             )}
           </div>
         ) : null}
@@ -393,13 +400,13 @@ function MessageBubbleComponent({
           {hasAudio ? <MessageAudio src={message.audioUrl} isOwnMessage={isOwnMessage} /> : null}
 
           {message.text ? (
-            <p
+            <div
               className={`whitespace-pre-wrap wrap-break-word ${
                 isDeleted ? "italic opacity-60 text-xs" : ""
               }`}
             >
-              {message.text}
-            </p>
+              <AppleEmojiText text={message.text} />
+            </div>
           ) : null}
         </div>
 
@@ -427,7 +434,7 @@ function MessageBubbleComponent({
           >
             {Object.entries(reactionCounts).map(([emoji, count]) => (
               <span key={emoji} className="flex items-center gap-0.5">
-                <span>{emoji}</span>
+                <AppleEmoji char={emoji} size={13} />
                 {count > 1 ? (
                   <span className="text-[10px] text-muted">{count}</span>
                 ) : null}

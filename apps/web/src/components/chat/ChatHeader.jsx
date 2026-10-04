@@ -18,6 +18,7 @@ import { AppLogo } from "../AppLogo";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { NicknameDetailsModal } from "./NicknameDetailsModal";
 import { ChatThemePicker } from "./ChatThemePicker";
+import { AppleEmoji } from "../common/AppleEmoji";
 
 import { ThemePresetPicker } from "../ThemePresetPicker";
 import { ThemeToggle } from "../ThemeToggle";
@@ -103,14 +104,14 @@ export function ChatHeader() {
                 </h2>
                 {currentChatTheme?.emoji ? (
                   <span
-                    className="text-xs shrink-0 select-none cursor-pointer hover:scale-125 transition-transform"
+                    className="shrink-0 select-none cursor-pointer hover:scale-125 transition-transform inline-flex items-center"
                     title={`Theme: ${currentChatTheme.label}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowThemePicker(true);
                     }}
                   >
-                    {currentChatTheme.emoji}
+                    <AppleEmoji char={currentChatTheme.emoji} size={15} />
                   </span>
                 ) : null}
                 {activeConversation.peer.nickname ? (
@@ -348,8 +349,11 @@ export function ChatHeader() {
                   <PaletteIcon className="size-4 text-accent" />
                   Chat Theme
                 </span>
-                <span className="text-[10px] text-muted font-medium">
-                  {currentChatTheme.label} {currentChatTheme.emoji}
+                <span className="flex items-center gap-1.5 text-[10px] text-muted font-medium">
+                  {currentChatTheme.label}
+                  {currentChatTheme.emoji ? (
+                    <AppleEmoji char={currentChatTheme.emoji} size={13} />
+                  ) : null}
                 </span>
               </button>
             ) : null}
