@@ -34,6 +34,7 @@ export const useChatStore = create(
       isSendingMedia: false,
       typingUser: null,
       replyingTo: null, // { id, text, imageUrl, videoUrl, audioUrl, senderName, isOwnMessage }
+      conversationThemes: {}, // { [partnerId]: themeId } — shared per-conversation, synced via socket
 
       syncBadge: () => {
         const total = get().conversations.reduce(
@@ -352,6 +353,18 @@ export const useChatStore = create(
           get().getConversations();
           get().getUsers();
         });
+
+        // ── Shared conversation theme — synced to both participants ──────────
+        socket.off("chatThemeChanged");
+        socket.on("chatThemeChanged", ({ partnerId, themeId }) => {
+          if (!partnerId || !themeId) return;
+          set((state) => ({
+            conversationThemes: {
+              ...state.conversationThemes,
+              [String(partnerId)]: themeId,
+            },
+          }));
+        });
       },
 
       cleanupSocketListeners: () => {
@@ -363,6 +376,7 @@ export const useChatStore = create(
         socket?.off("messageDeleted");
         socket?.off("userTyping");
         socket?.off("userStopTyping");
+        socket?.off("chatThemeChanged");
       },
 
       // Kept for backward compatibility
@@ -395,6 +409,7 @@ export const useChatStore = create(
 
         if (activeConversationId) {
           get().getMessages(activeConversationId);
+          get().getConversationTheme(activeConversationId);
           get().markMessagesAsSeen(activeConversationId);
 
           if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
@@ -412,6 +427,51 @@ export const useChatStore = create(
       setSoundEnabled: (isSoundEnabled) => set({ isSoundEnabled }),
       setReplyingTo: (message) => set({ replyingTo: message }),
       clearReplyingTo: () => set({ replyingTo: null }),
+
+      // ── Shared conversation theme ────────────────────────────────────────
+      getConversationTheme: async (partnerId) => {
+        if (!partnerId || partnerId === "undefined" || partnerId === "null") return;
+        try {
+          const res = await axiosInstance.get(`/messages/${partnerId}/theme`);
+          const themeId = res.data?.themeId ?? "default";
+          set((state) => ({
+            conversationThemes: {
+              ...state.conversationThemes,
+              [String(partnerId)]: themeId,
+            },
+          }));
+        } catch {
+          // silently fall back to default — non-critical
+        }
+      },
+
+      setConversationTheme: async (partnerId, themeId) => {
+        if (!partnerId) return;
+        // Optimistic update so our own UI changes instantly
+        set((state) => ({
+          conversationThemes: {
+            ...state.conversationThemes,
+            [String(partnerId)]: themeId,
+          },
+        }));
+        try {
+          const res = await axiosInstance.put(`/messages/${partnerId}/theme`, { themeId });
+          // Append the system message to the current chat if we're in it
+          if (res.data?.systemMessage) {
+            const activeId = get().activeConversationId;
+            if (String(activeId) === String(partnerId)) {
+              set((state) => {
+                if (state.messages.some((m) => m._id === res.data.systemMessage._id)) return state;
+                return { messages: [...state.messages, res.data.systemMessage] };
+              });
+            }
+          }
+        } catch {
+          toast.error("Could not change theme");
+          // Revert optimistic update
+          get().getConversationTheme(partnerId);
+        }
+      },
 
       setNickname: async (targetUserId, nickname) => {
         if (!targetUserId || targetUserId === "undefined" || targetUserId === "null") {

@@ -15,6 +15,7 @@ function ChatPage() {
   const getConversations = useChatStore((state) => state.getConversations);
   const getMessages = useChatStore((state) => state.getMessages);
   const getUsers = useChatStore((state) => state.getUsers);
+  const getConversationTheme = useChatStore((state) => state.getConversationTheme);
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
 
   const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
@@ -27,7 +28,8 @@ function ChatPage() {
   useEffect(() => {
     if (!activeConversationId) return;
     getMessages(activeConversationId);
-  }, [getMessages, activeConversationId]);
+    getConversationTheme(activeConversationId);
+  }, [getMessages, getConversationTheme, activeConversationId]);
 
   // ─── Back-button / back-gesture interception ───────────────────────────────
   // On mobile PWA, the OS back button fires a browser "popstate" event.

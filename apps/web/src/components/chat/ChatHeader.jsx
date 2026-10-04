@@ -17,6 +17,7 @@ import { useState } from "react";
 import { AppLogo } from "../AppLogo";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { NicknameDetailsModal } from "./NicknameDetailsModal";
+import { ChatThemePicker } from "./ChatThemePicker";
 
 import { ThemePresetPicker } from "../ThemePresetPicker";
 import { ThemeToggle } from "../ThemeToggle";
@@ -25,6 +26,7 @@ import { useTheme } from "../../context/theme";
 
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
+import { useChatTheme } from "../../hooks/useChatTheme";
 import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 import { usePermissionsStore } from "../../store/usePermissionsStore";
 
@@ -41,8 +43,10 @@ export function ChatHeader() {
 
   const { theme, setTheme } = useTheme();
   const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
+  const { theme: currentChatTheme } = useChatTheme(activeConversationId);
 
   const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const [showMobileOptions, setShowMobileOptions] = useState(false);
 
   const isPartnerTyping =
@@ -97,6 +101,18 @@ export function ChatHeader() {
                 <h2 className="truncate text-sm font-bold sm:text-base leading-tight">
                   {activeConversation.peer.name}
                 </h2>
+                {currentChatTheme?.emoji ? (
+                  <span
+                    className="text-xs shrink-0 select-none cursor-pointer hover:scale-125 transition-transform"
+                    title={`Theme: ${currentChatTheme.label}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowThemePicker(true);
+                    }}
+                  >
+                    {currentChatTheme.emoji}
+                  </span>
+                ) : null}
                 {activeConversation.peer.nickname ? (
                   <span className="hidden sm:inline truncate text-[11px] text-muted font-normal">
                     ({activeConversation.peer.fullName})
@@ -192,6 +208,19 @@ export function ChatHeader() {
               <RefreshCwIcon className={`size-4 ${isChecking ? "animate-spin text-accent" : ""}`} />
             </Button>
           )}
+
+          {activeConversation ? (
+            <Button
+              variant="ghost"
+              isIconOnly
+              className="size-9 text-accent hover:bg-accent/10"
+              aria-label="Chat Theme"
+              title={`Chat Theme: ${currentChatTheme.label}`}
+              onPress={() => setShowThemePicker(true)}
+            >
+              <PaletteIcon className="size-4.5" strokeWidth={2} />
+            </Button>
+          ) : null}
 
           {activeConversation ? (
             <Button
@@ -310,6 +339,24 @@ export function ChatHeader() {
             {activeConversation ? (
               <button
                 onClick={() => {
+                  setShowThemePicker(true);
+                  setShowMobileOptions(false);
+                }}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+              >
+                <span className="flex items-center gap-2">
+                  <PaletteIcon className="size-4 text-accent" />
+                  Chat Theme
+                </span>
+                <span className="text-[10px] text-muted font-medium">
+                  {currentChatTheme.label} {currentChatTheme.emoji}
+                </span>
+              </button>
+            ) : null}
+
+            {activeConversation ? (
+              <button
+                onClick={() => {
                   setShowNicknameModal(true);
                   setShowMobileOptions(false);
                 }}
@@ -337,6 +384,16 @@ export function ChatHeader() {
           isOpen={showNicknameModal}
           onClose={() => setShowNicknameModal(false)}
           peer={activeConversation.peer}
+        />
+      ) : null}
+
+      {/* Chat Theme modal */}
+      {activeConversation ? (
+        <ChatThemePicker
+          isOpen={showThemePicker}
+          onClose={() => setShowThemePicker(false)}
+          partnerId={activeConversation.peer.id}
+          partnerName={activeConversation.peer.name}
         />
       ) : null}
     </header>

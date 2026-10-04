@@ -3,9 +3,11 @@ import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Nickname from "../models/nickname.model.js";
 import DeviceToken from "../models/deviceToken.model.js";
+import ChatTheme, { sortedPair } from "../models/chatTheme.model.js";
 import { hasImageKitConfig, uploadChatMedia } from "../lib/imagekit.js";
 import { getReceiverSocketId, isUserOnline, io } from "../lib/socket.js";
 import { sendPush } from "../lib/push.js";
+
 
 export async function getUsersForSidebar(req, res) {
   try {
@@ -517,6 +519,105 @@ export async function deleteMessage(req, res) {
     res.status(200).json(message);
   } catch (error) {
     console.error("Error in deleteMessage:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// ─── Chat Theme (shared per-conversation) ────────────────────────────────────
+
+// Theme label lookup — mirrors the frontend chatThemes.js catalog
+const THEME_LABELS = {
+  default: "Default",
+  sunset: "Sunset 🌅",
+  ocean: "Ocean 🌊",
+  love: "Love ❤️",
+  forest: "Forest 🌿",
+  galaxy: "Galaxy 🌌",
+  unicorn: "Unicorn 🦄",
+  midnight: "Midnight 🌙",
+  candy: "Candy 🍭",
+  mint: "Mint 🍃",
+  citrus: "Citrus 🍋",
+  monochrome: "Mono 🖤",
+  "rose-gold": "Rose Gold 🌸",
+  tropical: "Tropical 🌴",
+  lava: "Lava 🔥",
+  aurora: "Aurora 🌈",
+};
+
+export async function getChatTheme(req, res) {
+  try {
+    const myId = req.user._id;
+    const partnerId = req.params.id;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(200).json({ themeId: "default" });
+    }
+
+    const [userA, userB] = sortedPair(myId, partnerId);
+    const doc = await ChatTheme.findOne({ userA, userB }).lean();
+    res.status(200).json({ themeId: doc?.themeId ?? "default" });
+  } catch (error) {
+    console.error("Error in getChatTheme:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function setChatTheme(req, res) {
+  try {
+    const myId = req.user._id;
+    const partnerId = req.params.id;
+    const { themeId } = req.body;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(400).json({ message: "Invalid partner ID" });
+    }
+
+    if (!themeId) {
+      return res.status(400).json({ message: "themeId is required" });
+    }
+
+    const [userA, userB] = sortedPair(myId, partnerId);
+
+    // Upsert the shared theme document
+    await ChatTheme.findOneAndUpdate(
+      { userA, userB },
+      { themeId, setBy: myId },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    // System message in chat — visible to both users
+    const themeLabel = THEME_LABELS[themeId] || themeId;
+    const systemText = `${req.user.fullName} changed the chat theme to ${themeLabel}`;
+    let systemMessage = null;
+    try {
+      systemMessage = new Message({
+        senderId: myId,
+        receiverId: partnerId,
+        text: systemText,
+        isSystem: true,
+      });
+      await systemMessage.save();
+    } catch (msgErr) {
+      console.warn("Failed to create theme system message:", msgErr.message);
+    }
+
+    // Broadcast theme change to BOTH users in real-time
+    // Each side receives `partnerId` = the other person's ID (their conversation key)
+    const toPartner = { partnerId: String(myId), themeId, setByName: req.user.fullName };
+    const toMe = { partnerId: String(partnerId), themeId, setByName: req.user.fullName };
+
+    io.to(String(partnerId)).emit("chatThemeChanged", toPartner);
+    io.to(String(myId)).emit("chatThemeChanged", toMe);
+
+    if (systemMessage) {
+      io.to(String(partnerId)).emit("newMessage", systemMessage);
+      io.to(String(myId)).emit("newMessage", systemMessage);
+    }
+
+    res.status(200).json({ themeId, systemMessage });
+  } catch (error) {
+    console.error("Error in setChatTheme:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 }

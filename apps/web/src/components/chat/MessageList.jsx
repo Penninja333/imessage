@@ -4,6 +4,7 @@ import { MessageBubble } from "./MessageBubble";
 import { NoConversationPlaceholder } from "./NoConversationPlaceholder";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { useChatStore } from "../../store/useChatStore";
+import { useChatTheme } from "../../hooks/useChatTheme";
 
 const INITIAL_WINDOW = 30; // messages rendered on first open
 const LOAD_MORE_STEP = 40; // how many more to prepend on scroll-up
@@ -50,6 +51,7 @@ export function MessageList() {
   const { activeConversation, activeConversationId } = useSelectedConversation();
   const typingUser = useChatStore((state) => state.typingUser);
   const isMessagesLoading = useChatStore((state) => state.isMessagesLoading);
+  const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_WINDOW);
   const scrollRef = useRef(null);
@@ -138,12 +140,15 @@ export function MessageList() {
   }, [handleLoadMore, messagesScrollRef, activeConversationId]);
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
+    <div
+      className="relative flex flex-1 flex-col overflow-hidden bg-background transition-colors duration-300"
+      style={resolvedBgStyle || undefined}
+    >
       {activeConversation ? (
         <div
           ref={messagesScrollRef}
-          className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 pt-3 pb-6 sm:px-4 sm:pt-4 sm:pb-8"
-          style={{ overflowAnchor: "none" }} // disable browser scroll anchoring — we handle it manually
+          className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 pt-3 pb-6 sm:px-4 sm:pt-4 sm:pb-8 transition-all duration-300"
+          style={{ overflowAnchor: "none", ...(resolvedBgStyle || {}) }}
         >
           {/* Top sentinel element — invisible, watched by IntersectionObserver */}
           <div ref={sentinelRef} className="shrink-0 pointer-events-none" style={{ height: "1px" }} />
@@ -207,7 +212,12 @@ export function MessageList() {
                     </span>
                   </div>
                 ) : null}
-                <MessageBubble message={message} showTime={showTime} />
+                <MessageBubble
+                  message={message}
+                  showTime={showTime}
+                  bubbleColor={theme.bubbleColor}
+                  bubbleTextColor={theme.bubbleText}
+                />
               </div>
             );
           })}

@@ -18,7 +18,12 @@ const TAPBACK_EMOJIS = ["❤️", "👍", "👎", "😂", "‼️", "❓"];
 const SWIPE_TRIGGER = 72; // how far user must swipe to trigger reply
 const SWIPE_MAX = 80;     // clamp the visual translateX
 
-function MessageBubbleComponent({ message, showTime = true }) {
+function MessageBubbleComponent({
+  message,
+  showTime = true,
+  bubbleColor = null,
+  bubbleTextColor = null,
+}) {
   const toggleReaction = useChatStore((state) => state.toggleReaction);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const setReplyingTo = useChatStore((state) => state.setReplyingTo);
@@ -302,6 +307,9 @@ function MessageBubbleComponent({ message, showTime = true }) {
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.25s cubic-bezier(0.25,0.8,0.5,1)" : "none",
           willChange: "transform",
+          ...(isOwnMessage && bubbleColor
+            ? { background: bubbleColor, color: bubbleTextColor || "#fff" }
+            : {}),
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -314,7 +322,7 @@ function MessageBubbleComponent({ message, showTime = true }) {
         }}
         className={`relative max-w-[min(90%,28rem)] rounded-2xl text-[15px] leading-snug sm:max-w-[min(75%,28rem)] transition-shadow ${
           isOwnMessage
-            ? "rounded-br-sm bg-accent text-accent-foreground"
+            ? `rounded-br-sm ${bubbleColor ? "" : "bg-accent text-accent-foreground"}`
             : "rounded-bl-sm bg-surface text-foreground"
         } ${showTapback ? "ring-2 ring-accent" : ""}`}
       >
@@ -323,9 +331,10 @@ function MessageBubbleComponent({ message, showTime = true }) {
           <div
             className={`mx-1 mt-1.5 mb-1 rounded-lg border-l-[3px] px-2 py-1.5 text-[12px] leading-snug opacity-80 ${
               isOwnMessage
-                ? "border-white/60 bg-white/15 text-accent-foreground/85"
+                ? "border-white/60 bg-white/15"
                 : "border-accent bg-accent/10 text-foreground/80"
             }`}
+            style={isOwnMessage ? { color: bubbleTextColor || "inherit" } : undefined}
           >
             <p className="font-semibold text-[11px] mb-0.5 opacity-90">
               {message.replyTo.isOwnSender ? "You" : (message.replyTo.senderName || "Friend")}
@@ -469,6 +478,8 @@ function MessageBubbleComponent({ message, showTime = true }) {
 
 function arePropsEqual(prevProps, nextProps) {
   if (prevProps.showTime !== nextProps.showTime) return false;
+  if (prevProps.bubbleColor !== nextProps.bubbleColor) return false;
+  if (prevProps.bubbleTextColor !== nextProps.bubbleTextColor) return false;
   const pm = prevProps.message;
   const nm = nextProps.message;
   if (pm === nm) return true;
