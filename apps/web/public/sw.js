@@ -9,6 +9,10 @@ const STATIC_ASSETS = [
   "/apple-touch-icon.png",
   "/favicon.svg",
   "/manifest.webmanifest",
+  "/fonts/SF-Pro-Text-Regular.woff2",
+  "/fonts/SF-Pro-Display-Medium.woff2",
+  "/fonts/SF-Pro-Text-Semibold.woff2",
+  "/fonts/SF-Pro-Display-Bold.woff2",
 ];
 
 // Install: Cache core static assets

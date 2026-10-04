@@ -1,0 +1,81 @@
+/**
+ * SF Pro — Apple San Francisco Typography
+ * Cross-platform font stack with local OS cache priority and offline WOFF2 webfont fallback.
+ */
+
+/* Regular (400) */
+@font-face {
+  font-family: "SF Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("SF Pro Text"),
+    local("SF Pro"),
+    local("-apple-system"),
+    url("/fonts/SF-Pro-Text-Regular.woff2") format("woff2");
+}
+
+/* Medium (500) */
+@font-face {
+  font-family: "SF Pro";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src:
+    local("SF Pro Text Medium"),
+    local("SF Pro Medium"),
+    local("-apple-system"),
+    url("/fonts/SF-Pro-Display-Medium.woff2") format("woff2");
+}
+
+/* Semibold (600) */
+@font-face {
+  font-family: "SF Pro";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src:
+    local("SF Pro Text Semibold"),
+    local("SF Pro Semibold"),
+    local("-apple-system"),
+    url("/fonts/SF-Pro-Text-Semibold.woff2") format("woff2");
+}
+
+/* Bold (700) */
+@font-face {
+  font-family: "SF Pro";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    local("SF Pro Display Bold"),
+    local("SF Pro Bold"),
+    local("-apple-system"),
+    url("/fonts/SF-Pro-Display-Bold.woff2") format("woff2");
+}
+
+/* Global Apple Typography Rules */
+:root {
+  --font-apple: "SF Pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  font-family: var(--font-apple);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
+}
+
+/* Headings with refined Apple display tracking */
+h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
+  letter-spacing: -0.022em;
+}
+
+/* Inputs, textareas, and buttons inherit Apple typography */
+input, textarea, button, select {
+  font-family: inherit;
+}

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+@import "./styles/fonts.css";
 @import "./styles/heroui-theme-presets.css";
 @import "./styles/liquid-glass.css";
 
@@ -74,6 +75,7 @@ body {
 }
 
 @theme {
+  --font-sans: "SF Pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --breakpoint-sm: 320px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1440px;
