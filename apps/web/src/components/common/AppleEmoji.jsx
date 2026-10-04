@@ -3,7 +3,6 @@ import { getAppleEmojiUrl, parseEmojiSegments, getBigEmojiInfo } from "../../lib
 import { triggerEmojiBurst } from "../../lib/emojiBurst";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useChatStore } from "../../store/useChatStore";
-import { AnimatedLoneEmoji } from "../chat/AnimatedLoneEmoji";
 
 /**
  * Single Apple-style emoji image with automatic graceful fallback to native emoji
@@ -127,20 +126,8 @@ function AppleEmojiTextComponent({
   if (!disableBigEmoji) {
     const bigEmojiInfo = getBigEmojiInfo(text);
     if (bigEmojiInfo.isBigEmoji) {
-      if (bigEmojiInfo.count === 1) {
-        return (
-          <div className={`inline-flex items-center justify-center ${className}`}>
-            <AnimatedLoneEmoji
-              emoji={bigEmojiInfo.emojis[0].value}
-              unified={bigEmojiInfo.emojis[0].unified}
-              size={64}
-            />
-          </div>
-        );
-      }
-
-      const sizeMap = { 2: 44, 3: 38 };
-      const emojiSize = sizeMap[bigEmojiInfo.count] || 40;
+      const sizeMap = { 1: 46, 2: 40, 3: 34 };
+      const emojiSize = sizeMap[bigEmojiInfo.count] || 38;
 
       return (
         <div className={`flex flex-wrap items-center gap-2 py-1.5 ${className}`}>

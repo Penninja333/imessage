@@ -8,7 +8,6 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useMediaViewerStore } from "../../store/useMediaViewerStore";
 import { formatMessageTime } from "../../lib/utils";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
-import { getBigEmojiInfo } from "../../lib/emoji";
 import toast from "react-hot-toast";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -74,14 +73,6 @@ function MessageBubbleComponent({
   const hasVideo = Boolean(message.videoUrl);
   const hasAudio = Boolean(message.audioUrl);
   const isDeleted = Boolean(message.deleted);
-  const isLoneEmoji =
-    !hasImage &&
-    !hasVideo &&
-    !hasAudio &&
-    !message.replyTo &&
-    !isDeleted &&
-    Boolean(message.text) &&
-    getBigEmojiInfo(message.text).isBigEmoji;
 
   // Group reactions by emoji: { "❤️": 2, "👍": 1 }
   const reactionCounts = (message.reactions || []).reduce((acc, r) => {
@@ -340,7 +331,7 @@ function MessageBubbleComponent({
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.25s cubic-bezier(0.25,0.8,0.5,1)" : "none",
           willChange: "transform",
-          ...(isOwnMessage && bubbleColor && !isLoneEmoji
+          ...(isOwnMessage && bubbleColor
             ? { background: bubbleColor, color: bubbleTextColor || "#fff" }
             : {}),
         }}
@@ -354,11 +345,9 @@ function MessageBubbleComponent({
           }
         }}
         className={`relative max-w-[min(90%,28rem)] rounded-2xl text-[15px] leading-snug sm:max-w-[min(75%,28rem)] transition-shadow ${
-          isLoneEmoji
-            ? "bg-transparent text-foreground shadow-none"
-            : isOwnMessage
-              ? `rounded-br-sm ${bubbleColor ? "" : "bg-accent text-accent-foreground"}`
-              : "rounded-bl-sm bg-surface text-foreground"
+          isOwnMessage
+            ? `rounded-br-sm ${bubbleColor ? "" : "bg-accent text-accent-foreground"}`
+            : "rounded-bl-sm bg-surface text-foreground"
         } ${showTapback ? "ring-2 ring-accent" : ""}`}
       >
         {/* Reply quoted preview — shown inside the bubble above the content */}
@@ -401,7 +390,7 @@ function MessageBubbleComponent({
           </div>
         ) : null}
 
-        <div className={isLoneEmoji ? "p-0.5" : "px-3.5 py-2"}>
+        <div className="px-3.5 py-2">
           {hasImage ? (
             <div
               className="group/img relative mb-1.5 cursor-pointer overflow-hidden rounded-lg sm:rounded-xl active:scale-[0.99] transition-transform"
