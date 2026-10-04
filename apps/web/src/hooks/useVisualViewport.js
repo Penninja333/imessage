@@ -14,18 +14,32 @@ export function useVisualViewport() {
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
 
+    let rafId = null;
+
     const handleResize = () => {
-      setViewportHeight(window.visualViewport.height);
-      // Prevent browser bounce-scroll when keyboard opens
-      window.scrollTo(0, 0);
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (!window.visualViewport) return;
+
+        const newHeight = Math.round(window.visualViewport.height);
+        setViewportHeight((prev) => {
+          if (prev !== null && Math.abs(prev - newHeight) < 1) return prev;
+          return newHeight;
+        });
+
+        // Only reset outer window scroll if it actually drifted
+        if (window.scrollY !== 0 || window.scrollX !== 0) {
+          window.scrollTo(0, 0);
+        }
+      });
     };
 
-    window.visualViewport.addEventListener("resize", handleResize);
-    window.visualViewport.addEventListener("scroll", handleResize);
+    window.visualViewport.addEventListener("resize", handleResize, { passive: true });
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.visualViewport.removeEventListener("resize", handleResize);
-      window.visualViewport.removeEventListener("scroll", handleResize);
     };
   }, []);
 

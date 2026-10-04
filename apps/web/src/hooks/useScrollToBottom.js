@@ -26,24 +26,23 @@ function useScrollToBottom(threadKey, lastItemId, isTyping) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
 
-    const handleViewportChange = () => {
+    const handleViewportResize = () => {
       const el = scrollRef.current;
       if (!el) return;
-      // When keyboard opens or viewport shrinks, keep user pinned to latest messages & typing
-      setTimeout(() => {
-        el.scrollTop = el.scrollHeight;
-      }, 50);
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
+
+      // Only auto-scroll to bottom if user is already near bottom (within 200px)
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom < 200) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
     };
 
-    window.visualViewport.addEventListener("resize", handleViewportChange);
-    window.visualViewport.addEventListener("scroll", handleViewportChange);
+    window.visualViewport.addEventListener("resize", handleViewportResize, { passive: true });
 
     return () => {
-      window.visualViewport.removeEventListener("resize", handleViewportChange);
-      window.visualViewport.removeEventListener("scroll", handleViewportChange);
+      window.visualViewport.removeEventListener("resize", handleViewportResize);
     };
   }, []);
 

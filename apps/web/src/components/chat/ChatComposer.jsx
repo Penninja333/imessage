@@ -41,6 +41,7 @@ export function ChatComposer() {
   const sendTyping = useChatStore((state) => state.sendTyping);
   const sendStopTyping = useChatStore((state) => state.sendStopTyping);
   const typingTimeoutRef = useRef(null);
+  const lastTypingSentRef = useRef(0);
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -79,6 +80,7 @@ export function ChatComposer() {
     if (!text) return;
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    lastTypingSentRef.current = 0;
     sendStopTyping(activeConversationId);
 
     const didSendMessage = await sendTextMessage(activeConversationId);
@@ -94,10 +96,15 @@ export function ChatComposer() {
     setComposerText(event.target.value);
 
     if (activeConversationId) {
-      sendTyping(activeConversationId);
+      const now = Date.now();
+      if (now - lastTypingSentRef.current > 1500) {
+        lastTypingSentRef.current = now;
+        sendTyping(activeConversationId);
+      }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         sendStopTyping(activeConversationId);
+        lastTypingSentRef.current = 0;
       }, 2000);
     }
   };

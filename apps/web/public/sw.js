@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v1";
+const CACHE_NAME = "imessage-v2";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

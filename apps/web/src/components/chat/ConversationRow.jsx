@@ -1,8 +1,9 @@
+import { memo } from "react";
 import { Avatar } from "@heroui/react";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { formatConversationTime } from "../../lib/utils";
 
-export function ConversationRow({ user, selected, onSelect }) {
+function ConversationRowComponent({ user, selected, onSelect }) {
   const hasUnread = Boolean(user.unreadCount && user.unreadCount > 0);
   const formattedTime = formatConversationTime(user.lastMessageAt);
 
@@ -72,3 +73,17 @@ export function ConversationRow({ user, selected, onSelect }) {
     </button>
   );
 }
+
+export const ConversationRow = memo(ConversationRowComponent, (prev, next) => {
+  return (
+    prev.selected === next.selected &&
+    prev.user.id === next.user.id &&
+    prev.user.name === next.user.name &&
+    prev.user.avatarUrl === next.user.avatarUrl &&
+    prev.user.isOnline === next.user.isOnline &&
+    prev.user.unreadCount === next.user.unreadCount &&
+    prev.user.lastMessage === next.user.lastMessage &&
+    prev.user.lastMessageAt === next.user.lastMessageAt &&
+    prev.user.hasNickname === next.user.hasNickname
+  );
+});

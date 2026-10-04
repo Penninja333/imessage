@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { getInitials, useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useChatStore } from "../../store/useChatStore";
@@ -57,23 +58,31 @@ function ChatSidebar() {
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
-  const conversationUsers = conversations.map((user) => mapUserForList(user, onlineUsers));
-  const allUsers = users.map((user) => mapUserForList(user, onlineUsers));
+  const conversationUsers = useMemo(() => {
+    return conversations.map((user) => mapUserForList(user, onlineUsers));
+  }, [conversations, onlineUsers]);
 
-  const filteredConversations = normalizedSearchQuery
-    ? conversationUsers.filter((conversation) =>
-        conversation.peer.name.toLowerCase().includes(normalizedSearchQuery),
-      )
-    : conversationUsers;
+  const allUsers = useMemo(() => {
+    return users.map((user) => mapUserForList(user, onlineUsers));
+  }, [users, onlineUsers]);
 
-  const filteredUsers = normalizedSearchQuery
-    ? allUsers.filter((user) => user.name.toLowerCase().includes(normalizedSearchQuery))
-    : allUsers;
+  const filteredConversations = useMemo(() => {
+    if (!normalizedSearchQuery) return conversationUsers;
+    return conversationUsers.filter((conversation) =>
+      conversation.peer.name.toLowerCase().includes(normalizedSearchQuery),
+    );
+  }, [conversationUsers, normalizedSearchQuery]);
 
-  const totalUnread = conversations.reduce(
-    (sum, c) => sum + (c.unreadCount || 0),
-    0,
-  );
+  const filteredUsers = useMemo(() => {
+    if (!normalizedSearchQuery) return allUsers;
+    return allUsers.filter((user) =>
+      user.name.toLowerCase().includes(normalizedSearchQuery),
+    );
+  }, [allUsers, normalizedSearchQuery]);
+
+  const totalUnread = useMemo(() => {
+    return conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  }, [conversations]);
 
   return (
     <aside

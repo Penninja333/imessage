@@ -210,6 +210,14 @@ export async function sendMessage(req, res) {
       return res.status(400).json({ message: "Invalid recipient ID" });
     }
 
+    const cleanText = typeof text === "string" ? text : "";
+    if (!cleanText.trim() && !req.file) {
+      return res.status(400).json({ message: "Message cannot be empty" });
+    }
+    if (cleanText.length > 10000) {
+      return res.status(400).json({ message: "Message exceeds maximum length" });
+    }
+
     let imageUrl;
     let videoUrl;
     let audioUrl;
@@ -437,8 +445,9 @@ export async function toggleReaction(req, res) {
       return res.status(400).json({ message: "Invalid message ID" });
     }
 
-    if (!emoji) {
-      return res.status(400).json({ message: "Emoji is required" });
+    const cleanEmoji = typeof emoji === "string" ? emoji.trim() : "";
+    if (!cleanEmoji || cleanEmoji.length > 8) {
+      return res.status(400).json({ message: "Invalid emoji" });
     }
 
     const message = await Message.findById(messageId);
@@ -446,8 +455,16 @@ export async function toggleReaction(req, res) {
       return res.status(404).json({ message: "Message not found" });
     }
 
+    // IDOR protection: only participants of the message can react
+    if (
+      String(message.senderId) !== String(userId) &&
+      String(message.receiverId) !== String(userId)
+    ) {
+      return res.status(403).json({ message: "Not authorized to react to this message" });
+    }
+
     const existingIndex = message.reactions.findIndex(
-      (r) => String(r.userId) === String(userId) && r.emoji === emoji,
+      (r) => String(r.userId) === String(userId) && r.emoji === cleanEmoji,
     );
 
     if (existingIndex > -1) {
@@ -455,7 +472,7 @@ export async function toggleReaction(req, res) {
       message.reactions.splice(existingIndex, 1);
     } else {
       // Toggle on
-      message.reactions.push({ userId, emoji });
+      message.reactions.push({ userId, emoji: cleanEmoji });
     }
 
     await message.save();
@@ -573,8 +590,8 @@ export async function setChatTheme(req, res) {
       return res.status(400).json({ message: "Invalid partner ID" });
     }
 
-    if (!themeId) {
-      return res.status(400).json({ message: "themeId is required" });
+    if (!themeId || typeof themeId !== "string" || !THEME_LABELS[themeId]) {
+      return res.status(400).json({ message: "Invalid or unsupported theme ID" });
     }
 
     const [userA, userB] = sortedPair(myId, partnerId);

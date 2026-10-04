@@ -1,6 +1,7 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import mongoose from "mongoose";
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +22,7 @@ const io = new Server(server, {
 const userSocketMap = new Map();
 
 function isUserOnline(userId) {
+  if (!userId) return false;
   const sockets = userSocketMap.get(String(userId));
   return Boolean(sockets && sockets.size > 0);
 }
@@ -34,7 +36,12 @@ function getReceiverSocketId(userId) {
 }
 
 io.on("connection", (socket) => {
-  const userId = socket.handshake.query.userId;
+  const rawUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
+  // Strictly validate that userId is a valid MongoDB ObjectId format
+  const userId =
+    rawUserId && mongoose.Types.ObjectId.isValid(String(rawUserId))
+      ? String(rawUserId)
+      : null;
 
   if (userId) {
     const idStr = String(userId);
@@ -52,20 +59,20 @@ io.on("connection", (socket) => {
 
   // Typing indicators
   socket.on("typing", ({ receiverId }) => {
-    if (receiverId) {
+    if (userId && receiverId && mongoose.Types.ObjectId.isValid(String(receiverId))) {
       io.to(String(receiverId)).emit("userTyping", { senderId: userId });
     }
   });
 
   socket.on("stopTyping", ({ receiverId }) => {
-    if (receiverId) {
+    if (userId && receiverId && mongoose.Types.ObjectId.isValid(String(receiverId))) {
       io.to(String(receiverId)).emit("userStopTyping", { senderId: userId });
     }
   });
 
   // Mark messages as seen in real-time
   socket.on("markSeen", ({ senderId }) => {
-    if (senderId) {
+    if (userId && senderId && mongoose.Types.ObjectId.isValid(String(senderId))) {
       io.to(String(senderId)).emit("messagesSeen", { byUserId: userId });
     }
   });
