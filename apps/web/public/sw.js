@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v3";
+const CACHE_NAME = "imessage-v4";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -109,18 +109,18 @@ self.addEventListener("push", (event) => {
   if (!event.data) return;
 
   const showNotificationAsync = async () => {
-    // 1. Don't send/show banner notification if the PWA is currently open and visible in the foreground
+    // 1. Only suppress OS banner if user is currently active AND FOCUSED in the PWA.
+    // If user is in YouTube, another app, home screen, or phone locked (client.focused === false),
+    // we MUST show the high-priority heads-up banner notification!
     const windowClients = await self.clients.matchAll({
       type: "window",
       includeUncontrolled: true,
     });
 
-    const isPwaActive = windowClients.some(
-      (client) => client.visibilityState === "visible"
-    );
+    const isPwaFocused = windowClients.some((client) => client.focused);
 
-    if (isPwaActive) {
-      // PWA is active in foreground — user sees messages in real time, suppress notification banner
+    if (isPwaFocused) {
+      // PWA is currently focused — user is actively chatting, suppress banner
       return;
     }
 
@@ -153,6 +153,18 @@ self.addEventListener("push", (event) => {
       count = 2;
     }
 
+    // 3. CRITICAL FOR ANDROID HEADS-UP / PEEKING BANNER OVER APPS (e.g. YouTube):
+    // When a notification with this tag already exists in the Android drawer,
+    // Android NotificationManager suppresses heads-up popups for updates (even with renotify: true).
+    // By explicitly closing the stale drawer notification right before showing the new one,
+    // Android treats this as a brand-new high-priority alert and forces the heads-up banner
+    // to pop down from the top of the screen!
+    if (existingNotifications.length > 0) {
+      for (const notif of existingNotifications) {
+        notif.close();
+      }
+    }
+
     // Privacy rule: Only show sender name/ID and notification count — NEVER the message content
     const finalTitle = count > 1 ? `${senderName} (${count} notifications)` : senderName;
     const finalBody =
@@ -170,7 +182,7 @@ self.addEventListener("push", (event) => {
         count,
         timestamp: Date.now(),
       },
-      vibrate: [200, 100, 200, 100, 200],
+      vibrate: [300, 150, 300, 150, 300],
       tag, // Groups into a single banner per sender
       renotify: true, // Re-triggers heads-up banner on each notification arrival
       silent: false,

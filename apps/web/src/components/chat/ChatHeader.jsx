@@ -19,7 +19,7 @@ import { AppLogo } from "../AppLogo";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { NicknameDetailsModal } from "./NicknameDetailsModal";
 import { ChatThemePicker } from "./ChatThemePicker";
-import { AppleEmoji } from "../common/AppleEmoji";
+import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 
 import { ThemePresetPicker } from "../ThemePresetPicker";
 import { ThemeToggle } from "../ThemeToggle";
@@ -100,8 +100,8 @@ export function ChatHeader() {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <h2 className="truncate text-sm font-bold sm:text-base leading-tight">
-                  {activeConversation.peer.name}
+                <h2 className="truncate text-[15px] sm:text-base font-bold leading-tight">
+                  <AppleEmojiText text={activeConversation.peer.name} disableBigEmoji />
                 </h2>
                 {currentChatTheme?.emoji ? (
                   <span
@@ -112,17 +112,17 @@ export function ChatHeader() {
                       setShowThemePicker(true);
                     }}
                   >
-                    <AppleEmoji char={currentChatTheme.emoji} size={15} />
+                    <AppleEmoji char={currentChatTheme.emoji} size={14} />
                   </span>
                 ) : null}
                 {activeConversation.peer.nickname ? (
-                  <span className="hidden sm:inline truncate text-[11px] text-muted font-normal">
+                  <span className="hidden lg:inline truncate text-[11px] text-muted font-normal">
                     ({activeConversation.peer.fullName})
                   </span>
                 ) : null}
               </div>
 
-              <div className="flex items-center gap-1 text-xs">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs">
                 {isPartnerTyping ? (
                   <span className="text-accent font-medium animate-pulse">typing…</span>
                 ) : activeConversation.peer.isOnline ? (
@@ -132,7 +132,7 @@ export function ChatHeader() {
                 )}
 
                 {activeConversation.peer.theirNicknameForMe ? (
-                  <span className="hidden sm:inline text-muted text-[11px] truncate">
+                  <span className="hidden lg:inline text-muted text-[11px] truncate">
                     • Calls you "{activeConversation.peer.theirNicknameForMe}"
                   </span>
                 ) : null}
@@ -239,17 +239,6 @@ export function ChatHeader() {
 
         {/* Mobile Controls: clean & spacious */}
         <div className="flex md:hidden items-center gap-1">
-          {activeConversation ? (
-            <button
-              type="button"
-              onClick={() => setShowNicknameModal(true)}
-              className="flex size-9 items-center justify-center rounded-full text-accent hover:bg-accent/10 active:scale-95 transition"
-              aria-label="Nicknames"
-            >
-              <SparklesIcon className="size-4.5" />
-            </button>
-          ) : null}
-
           <button
             type="button"
             onClick={() => setShowMobileOptions(!showMobileOptions)}

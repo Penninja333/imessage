@@ -135,8 +135,8 @@ export function showWebNotification(title, options = {}) {
     return;
   }
 
-  // Only show if document is hidden / tab is in background
-  if (document.visibilityState === "visible") {
+  // Only suppress if document is actively focused by the user
+  if (document.visibilityState === "visible" && document.hasFocus()) {
     return;
   }
 
