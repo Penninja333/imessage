@@ -12,6 +12,7 @@ import {
   ArrowUpCircleIcon,
   RefreshCwIcon,
   BellRingIcon,
+  Droplets as DropletsIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
@@ -293,16 +294,29 @@ export function ChatHeader() {
             </button>
             <button
               onClick={() => {
-                setTheme(theme === "dark" ? "light" : "dark");
+                const nextTheme = theme === "light" ? "dark" : theme === "dark" ? "glass" : "light";
+                setTheme(nextTheme);
                 setShowMobileOptions(false);
               }}
               className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
             >
               <span className="flex items-center gap-2">
-                {theme === "dark" ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
-                {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                {theme === "glass" ? (
+                  <DropletsIcon className="size-4 text-accent" />
+                ) : theme === "dark" ? (
+                  <MoonIcon className="size-4" />
+                ) : (
+                  <SunIcon className="size-4" />
+                )}
+                {theme === "glass"
+                  ? "Liquid Glass Mode"
+                  : theme === "dark"
+                    ? "Dark Mode"
+                    : "Light Mode"}
               </span>
-              <span className="text-[10px] text-muted capitalize">{theme}</span>
+              <span className="text-[10px] text-muted capitalize">
+                {theme === "glass" ? "Glass" : theme}
+              </span>
             </button>
 
             <button

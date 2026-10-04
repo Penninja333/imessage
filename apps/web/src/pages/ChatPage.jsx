@@ -76,7 +76,7 @@ function ChatPage() {
         overscrollBehavior: "none",
       }}
     >
-      <div className="mx-auto flex h-full w-full max-w-6xl flex-1 overflow-hidden rounded-none border-0 bg-background text-foreground shadow-2xl md:rounded-2xl md:border md:border-border">
+      <div className="chat-app-frame mx-auto flex h-full w-full max-w-6xl flex-1 overflow-hidden rounded-none border-0 bg-background text-foreground shadow-2xl md:rounded-2xl md:border md:border-border transition-all duration-300">
         <ChatSidebar />
 
         <div

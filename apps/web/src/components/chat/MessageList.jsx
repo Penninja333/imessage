@@ -141,7 +141,7 @@ export function MessageList() {
 
   return (
     <div
-      className="relative flex flex-1 flex-col overflow-hidden bg-background transition-colors duration-300"
+      className="message-list-container relative flex flex-1 flex-col overflow-hidden bg-background transition-colors duration-300"
       style={resolvedBgStyle || undefined}
     >
       {activeConversation ? (

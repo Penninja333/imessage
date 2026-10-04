@@ -14,9 +14,10 @@ export function useChatTheme(partnerId) {
 
   const theme = getThemeById(themeId);
 
-  // Pick dark or light background depending on current colour mode
+  // Pick dark or light background depending on current colour mode (glass uses dark styling)
+  const isDarkish = colorMode === "dark" || colorMode === "glass";
   const resolvedBgStyle =
-    colorMode === "dark" && theme.darkBgStyle ? theme.darkBgStyle : (theme.bgStyle ?? null);
+    isDarkish && theme.darkBgStyle ? theme.darkBgStyle : (theme.bgStyle ?? null);
 
   return { theme, resolvedBgStyle, themeId };
 }

@@ -1,0 +1,143 @@
+/**
+ * Liquid Glass Theme (Dark Obsidian Glassmorphism)
+ * VisionOS-inspired translucent dark glass aesthetic with physical specular highlights,
+ * deep caustic ambient glows, and hardware-accelerated blur materials.
+ */
+
+:root[data-theme="glass"],
+html.theme-glass {
+  color-scheme: dark;
+
+  /* Deep pitch-black obsidian foundation */
+  --background: #07070a;
+  --foreground: #f3f4f6;
+
+  /* Translucent dark glass surfaces */
+  --surface: rgba(16, 16, 24, 0.65);
+  --surface-foreground: #f3f4f6;
+  --surface-secondary: rgba(24, 24, 36, 0.55);
+  --surface-secondary-foreground: #f3f4f6;
+  --surface-tertiary: rgba(32, 32, 48, 0.45);
+  --surface-tertiary-foreground: #f3f4f6;
+
+  /* Overlays (popovers, floating menus, modals) */
+  --overlay: rgba(14, 14, 22, 0.82);
+  --overlay-foreground: #f3f4f6;
+
+  --muted: #9ca3af;
+  --border: rgba(255, 255, 255, 0.12);
+  --separator: rgba(255, 255, 255, 0.08);
+
+  --field-background: rgba(255, 255, 255, 0.06);
+  --field-foreground: #f3f4f6;
+  --field-placeholder: #6b7280;
+  --field-hover: rgba(255, 255, 255, 0.09);
+  --field-focus: rgba(255, 255, 255, 0.13);
+
+  --default: rgba(255, 255, 255, 0.08);
+  --default-foreground: #ffffff;
+  --default-hover: rgba(255, 255, 255, 0.14);
+
+  /* Glass Optics & Specular Tokens */
+  --glass-blur: blur(28px) saturate(190%) contrast(105%);
+  --glass-blur-sm: blur(16px) saturate(180%);
+  --glass-bevel: inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.22);
+  --glass-border-color: rgba(255, 255, 255, 0.13);
+}
+
+/* Ambient Caustic Fluid Backdrop */
+html.theme-glass body {
+  background: 
+    radial-gradient(ellipse 90% 70% at 15% 15%, rgba(59, 130, 246, 0.12), transparent 70%),
+    radial-gradient(ellipse 80% 60% at 85% 85%, rgba(139, 92, 246, 0.10), transparent 70%),
+    radial-gradient(circle 500px at 50% 45%, rgba(16, 185, 129, 0.04), transparent 60%),
+    #050508 !important;
+  background-attachment: fixed !important;
+}
+
+/* Main App Glass Container */
+html.theme-glass .chat-app-frame {
+  background: rgba(10, 10, 15, 0.70) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border-color: var(--glass-border-color) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+/* Glass Sidebar */
+html.theme-glass aside {
+  background: rgba(12, 12, 18, 0.55) !important;
+  backdrop-filter: var(--glass-blur-sm) !important;
+  -webkit-backdrop-filter: var(--glass-blur-sm) !important;
+  border-right-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Glass Header */
+html.theme-glass header {
+  background: rgba(12, 12, 18, 0.65) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Glass Message List Area (when no custom wallpaper/gradient override) */
+html.theme-glass .message-list-container:not([style*="background"]) {
+  background: transparent !important;
+}
+
+/* Message Bubbles in Liquid Glass */
+/* Received Bubbles: Frosted smoke glass */
+html.theme-glass .group.items-start > div:not(.tapback-floating-bar) {
+  background: rgba(255, 255, 255, 0.07) !important;
+  backdrop-filter: blur(14px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  color: #f3f4f6 !important;
+}
+
+/* Sent Bubbles: Luminous accent glass with specular top bevel */
+html.theme-glass .group.items-end > div:not([style*="background"]):not(.tapback-floating-bar) {
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklab, var(--accent) 80%, black 20%) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Tapback Floating Reaction Bar */
+html.theme-glass .group .absolute.-top-12 {
+  background: rgba(18, 18, 26, 0.85) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Attached Reaction Badges */
+html.theme-glass .group .absolute.-bottom-2\.5 {
+  background: rgba(16, 16, 24, 0.85) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Chat Composer Glass Container */
+html.theme-glass form.border-t,
+html.theme-glass div:has(> form.border-t) {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Input Fields and Search Bars */
+html.theme-glass input,
+html.theme-glass textarea {
+  color: #f3f4f6 !important;
+}
+
+/* Modals & Dialog Sheets */
+html.theme-glass .bg-background\/95,
+html.theme-glass [role="dialog"] {
+  backdrop-filter: blur(32px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}

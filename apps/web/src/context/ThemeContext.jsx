@@ -9,15 +9,17 @@ function getSystemTheme() {
 
 function readStoredTheme() {
   const theme = localStorage.getItem("theme");
-  if (theme === "light" || theme === "dark") return theme;
+  if (theme === "light" || theme === "dark" || theme === "glass") return theme;
 
   return null;
 }
 
 function applyDomTheme(theme) {
   const root = document.documentElement;
-  root.classList.toggle("dark", theme === "dark");
-  root.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
+  const isDark = theme === "dark" || theme === "glass";
+  root.classList.toggle("dark", isDark);
+  root.classList.toggle("theme-glass", theme === "glass");
+  root.setAttribute("data-theme", theme);
 }
 
 function readStoredThemePreset() {
@@ -31,7 +33,7 @@ export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => readStoredTheme() ?? getSystemTheme());
   const [themePreset, setThemePresetState] = useState(readStoredThemePreset);
 
-  // this applies light/dark mode
+  // this applies light/dark/glass mode
   useLayoutEffect(() => {
     applyDomTheme(theme);
   }, [theme]);
@@ -47,10 +49,22 @@ export function ThemeProvider({ children }) {
     localStorage.setItem("theme-preset", themePreset);
   }, [theme, themePreset]);
 
-  const setTheme = (next) => setThemeState(next);
+  const setTheme = (next) => {
+    setThemeState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      if (resolved === "light" || resolved === "dark" || resolved === "glass") {
+        return resolved;
+      }
+      return "dark";
+    });
+  };
 
   const toggleTheme = () => {
-    setThemeState((t) => (t === "dark" ? "light" : "dark"));
+    setThemeState((t) => {
+      if (t === "light") return "dark";
+      if (t === "dark") return "glass";
+      return "light";
+    });
   };
 
   const setThemePreset = (next) => {

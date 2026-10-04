@@ -38,11 +38,12 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
   const selectedTheme = getThemeById(selectedThemeId);
   const hasChanged = selectedThemeId !== currentThemeId;
 
-  // Resolve preview background based on light / dark mode
+  // Resolve preview background based on light / dark / glass mode
+  const isDarkish = colorMode === "dark" || colorMode === "glass";
   const previewBgStyle =
-    colorMode === "dark" && selectedTheme.darkBgStyle
+    isDarkish && selectedTheme.darkBgStyle
       ? selectedTheme.darkBgStyle
-      : selectedTheme.bgStyle || { background: colorMode === "dark" ? "#18181b" : "#f4f4f5" };
+      : selectedTheme.bgStyle || { background: isDarkish ? "#18181b" : "#f4f4f5" };
 
   const handleApply = async () => {
     if (!partnerId) {
