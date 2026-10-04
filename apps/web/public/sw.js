@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v2";
+const CACHE_NAME = "imessage-v3";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -131,11 +131,10 @@ self.addEventListener("push", (event) => {
       payload = { title: "iMessage", body: event.data.text() };
     }
 
-    const senderName = payload.title || "iMessage";
+    const senderName = payload.data?.senderName || payload.title || "iMessage";
     const senderId = payload.data?.senderId || "general";
-    const newText = payload.body || "New message received";
 
-    // 2. Group multiple messages by sender in a single banner (tag: chat-<senderId>)
+    // 2. Group multiple notifications by sender in a single banner (tag: chat-<senderId>)
     const tag = `chat-${senderId}`;
 
     let existingNotifications = [];
@@ -146,24 +145,20 @@ self.addEventListener("push", (event) => {
     }
 
     const existing = existingNotifications.length > 0 ? existingNotifications[0] : null;
-
-    let finalTitle = senderName;
-    let finalBody = newText;
-    let accumulatedMessages = [newText];
     let count = 1;
 
-    if (existing && existing.data && Array.isArray(existing.data.messages)) {
-      accumulatedMessages = [...existing.data.messages, newText].slice(-4);
-      count = (existing.data.count || existing.data.messages.length) + 1;
-      finalTitle = `${senderName} (${count} messages)`;
-      finalBody = accumulatedMessages.join("\n");
+    if (existing && existing.data && typeof existing.data.count === "number") {
+      count = existing.data.count + 1;
     } else if (existing) {
-      const prevBody = existing.body || "";
-      accumulatedMessages = [prevBody, newText];
       count = 2;
-      finalTitle = `${senderName} (2 messages)`;
-      finalBody = `${prevBody}\n${newText}`;
     }
+
+    // Privacy rule: Only show sender name/ID and notification count — NEVER the message content
+    const finalTitle = count > 1 ? `${senderName} (${count} notifications)` : senderName;
+    const finalBody =
+      count > 1
+        ? `${count} new notifications • Open application to view`
+        : "1 new notification • Open application to view";
 
     const options = {
       body: finalBody,
@@ -172,13 +167,12 @@ self.addEventListener("push", (event) => {
       data: {
         ...(payload.data || {}),
         senderId,
-        messages: accumulatedMessages,
         count,
         timestamp: Date.now(),
       },
       vibrate: [200, 100, 200, 100, 200],
       tag, // Groups into a single banner per sender
-      renotify: true, // Re-triggers heads-up pop-down banner for each new message
+      renotify: true, // Re-triggers heads-up banner on each notification arrival
       silent: false,
       requireInteraction: false,
       timestamp: Date.now(),

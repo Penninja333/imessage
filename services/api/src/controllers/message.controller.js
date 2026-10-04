@@ -276,22 +276,22 @@ export async function sendMessage(req, res) {
         const devices = await DeviceToken.find({ userId: receiverId });
         if (devices && devices.length > 0) {
           const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
-          const title = nicknameDoc?.nickname || senderName;
+          const senderDisplayName = nicknameDoc?.nickname || senderName || "Friend";
 
-          let body = text;
-          if (!body) {
-            if (imageUrl) body = "📷 Sent an image";
-            else if (videoUrl) body = "🎥 Sent a video";
-            else if (audioUrl) body = "🎤 Sent a voice message";
-            else body = "New message";
-          }
+          // Privacy-first: Notification payload contains NO message text
+          const title = senderDisplayName;
+          const body = "New notification • Open application to view";
 
           const tokens = devices.map((d) => d.token);
           await sendPush({
             tokens,
             title,
             body,
-            data: { senderId: senderId.toString(), messageId: newMessage._id.toString() },
+            data: {
+              senderId: senderId.toString(),
+              senderName: senderDisplayName,
+              messageId: newMessage._id.toString(),
+            },
           });
         }
       } catch (pushErr) {

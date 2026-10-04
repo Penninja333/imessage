@@ -64,8 +64,28 @@ export async function subscribeToWebPush(forceRefresh = false) {
 
     let subscription = await registration.pushManager.getSubscription();
 
-    // If forceRefresh is requested, remove stale/dead subscription
-    if (subscription && forceRefresh) {
+    // Check if existing subscription key matches the server's VAPID public key
+    let needsNewSubscription = forceRefresh || !subscription;
+    if (subscription && !forceRefresh) {
+      try {
+        const rawAppKey = subscription.options?.applicationServerKey;
+        if (rawAppKey) {
+          const currentKeyBytes = new Uint8Array(rawAppKey);
+          const serverKeyBytes = urlBase64ToUint8Array(publicKey);
+          if (
+            currentKeyBytes.length !== serverKeyBytes.length ||
+            !currentKeyBytes.every((b, i) => b === serverKeyBytes[i])
+          ) {
+            console.log("[notifications] VAPID key changed, refreshing subscription...");
+            needsNewSubscription = true;
+          }
+        }
+      } catch (checkErr) {
+        console.warn("[notifications] Key check error:", checkErr);
+      }
+    }
+
+    if (subscription && needsNewSubscription) {
       try {
         await subscription.unsubscribe();
         subscription = null;
@@ -120,9 +140,11 @@ export function showWebNotification(title, options = {}) {
     return;
   }
 
+  // Privacy rule: Only show sender name and notification notice — no message content
   const defaultOptions = {
-    icon: "/logo.png",
-    badge: "/logo.png",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    body: "1 new notification • Open application to view",
     ...options,
   };
 

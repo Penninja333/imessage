@@ -105,7 +105,7 @@ export async function sendPush({ tokens, title, body, data = {} }) {
             console.warn(
               `[push] Web Push delivery failed for endpoint: ${sub.endpoint} (${err.statusCode || "ERR"}: ${err.body ? err.body.trim() : err.message})`,
             );
-            if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 400) {
+            if ([400, 401, 403, 404, 410].includes(err.statusCode)) {
               if (sub.endpoint) {
                 const escaped = sub.endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                 DeviceToken.deleteMany({ token: { $regex: escaped } }).catch(() => {});

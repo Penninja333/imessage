@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import { io } from "socket.io-client";
 import { useChatStore } from "./useChatStore";
+import { subscribeToWebPush } from "../lib/notifications";
 
 const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:3000" : "/";
 
@@ -19,6 +20,15 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
 
       get().connectSocket(res.data);
+
+      // Automatically register or update Web Push device token for this user
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        subscribeToWebPush().catch(() => {});
+      }
     } catch (error) {
       console.error("Error in checkAuth:", error);
       set({ authUser: null });

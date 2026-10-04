@@ -216,18 +216,12 @@ export const useChatStore = create(
                 get().conversations.find((c) => String(c._id) === String(newMessage.senderId)) ||
                 get().users.find((u) => String(u._id) === String(newMessage.senderId));
               const senderName = partner?.nickname || partner?.fullName || "iMessage";
-              const body =
-                newMessage.text ||
-                (newMessage.image
-                  ? "📷 Photo"
-                  : newMessage.video
-                    ? "🎥 Video"
-                    : newMessage.audio
-                      ? "🎤 Voice message"
-                      : "New message");
 
+              // Privacy rule: Only show sender name and notification count notice
               showWebNotification(senderName, {
-                body,
+                body: "1 new notification • Open application to view",
+                tag: `chat-${newMessage.senderId}`,
+                renotify: true,
                 data: { conversationId: newMessage.senderId },
               });
             }
