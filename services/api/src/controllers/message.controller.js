@@ -446,7 +446,7 @@ export async function toggleReaction(req, res) {
     }
 
     const cleanEmoji = typeof emoji === "string" ? emoji.trim() : "";
-    if (!cleanEmoji || cleanEmoji.length > 8) {
+    if (!cleanEmoji || cleanEmoji.length > 32) {
       return res.status(400).json({ message: "Invalid emoji" });
     }
 
@@ -463,31 +463,39 @@ export async function toggleReaction(req, res) {
       return res.status(403).json({ message: "Not authorized to react to this message" });
     }
 
+    if (!Array.isArray(message.reactions)) {
+      message.reactions = [];
+    }
+
+    // A user can have at most one reaction on a message
     const existingIndex = message.reactions.findIndex(
-      (r) => String(r.userId) === String(userId) && r.emoji === cleanEmoji,
+      (r) => String(r.userId) === String(userId),
     );
 
     if (existingIndex > -1) {
-      // Toggle off
-      message.reactions.splice(existingIndex, 1);
+      if (message.reactions[existingIndex].emoji === cleanEmoji) {
+        // Tapping the same emoji toggles it off
+        message.reactions.splice(existingIndex, 1);
+      } else {
+        // Tapping a different emoji switches/updates to the new emoji
+        message.reactions[existingIndex].emoji = cleanEmoji;
+      }
     } else {
-      // Toggle on
+      // Toggle on new reaction
       message.reactions.push({ userId, emoji: cleanEmoji });
     }
 
     await message.save();
 
     const partnerId = String(message.senderId) === String(userId) ? message.receiverId : message.senderId;
-    const partnerSocketId = getReceiverSocketId(partnerId);
-    const mySocketId = getReceiverSocketId(userId);
 
     const payload = {
-      messageId: message._id,
+      messageId: String(message._id),
       reactions: message.reactions,
     };
 
-    if (partnerSocketId) io.to(partnerSocketId).emit("messageReaction", payload);
-    if (mySocketId) io.to(mySocketId).emit("messageReaction", payload);
+    io.to(String(partnerId)).emit("messageReaction", payload);
+    io.to(String(userId)).emit("messageReaction", payload);
 
     res.status(200).json(message);
   } catch (error) {
@@ -521,17 +529,16 @@ export async function deleteMessage(req, res) {
     message.audio = null;
     await message.save();
 
-    const partnerSocketId = getReceiverSocketId(message.receiverId);
-    const mySocketId = getReceiverSocketId(userId);
+    const partnerId = String(message.senderId) === String(userId) ? message.receiverId : message.senderId;
 
     const payload = {
-      messageId: message._id,
+      messageId: String(message._id),
       deleted: true,
       text: message.text,
     };
 
-    if (partnerSocketId) io.to(partnerSocketId).emit("messageDeleted", payload);
-    if (mySocketId) io.to(mySocketId).emit("messageDeleted", payload);
+    io.to(String(partnerId)).emit("messageDeleted", payload);
+    io.to(String(userId)).emit("messageDeleted", payload);
 
     res.status(200).json(message);
   } catch (error) {
@@ -582,18 +589,15 @@ export async function editMessage(req, res) {
     message.editedAt = new Date();
     await message.save();
 
-    const partnerSocketId = getReceiverSocketId(message.receiverId);
-    const mySocketId = getReceiverSocketId(userId);
-
     const payload = {
-      messageId: message._id,
+      messageId: String(message._id),
       text: message.text,
       isEdited: message.isEdited,
       editedAt: message.editedAt,
     };
 
-    if (partnerSocketId) io.to(partnerSocketId).emit("messageEdited", payload);
-    if (mySocketId) io.to(mySocketId).emit("messageEdited", payload);
+    io.to(String(message.receiverId)).emit("messageEdited", payload);
+    io.to(String(userId)).emit("messageEdited", payload);
 
     res.status(200).json(message);
   } catch (error) {

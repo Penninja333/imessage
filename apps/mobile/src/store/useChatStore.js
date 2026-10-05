@@ -59,7 +59,7 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
       const updated = res.data;
       set({
-        messages: get().messages.map((m) => (m._id === messageId ? { ...m, reactions: updated.reactions } : m)),
+        messages: get().messages.map((m) => (String(m._id) === String(messageId) ? { ...m, reactions: updated.reactions } : m)),
       });
     } catch (error) {
       console.warn('Error reacting to message:', error.message);
@@ -128,7 +128,7 @@ export const useChatStore = create((set, get) => ({
 
     socket.on('messageReaction', ({ messageId, reactions }) => {
       set({
-        messages: get().messages.map((m) => (m._id === messageId ? { ...m, reactions } : m)),
+        messages: get().messages.map((m) => (String(m._id) === String(messageId) ? { ...m, reactions } : m)),
       });
     });
 

@@ -158,6 +158,11 @@ describe("Messages routes (unauthenticated)", () => {
     const res = await request(testApp).put("/api/messages/507f1f77bcf86cd799439011/edit").send({ text: "edited" });
     expect(res.status).toBe(401);
   });
+
+  it("POST /api/messages/:id/react returns 401", async () => {
+    const res = await request(testApp).post("/api/messages/507f1f77bcf86cd799439011/react").send({ emoji: "❤️" });
+    expect(res.status).toBe(401);
+  });
 });
 
 describe("Messages routes (authenticated)", () => {
@@ -270,6 +275,44 @@ describe("Messages routes (authenticated)", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toContain("15 minutes");
+  });
+
+  it("POST /api/messages/:id/react adds, switches, and toggles off reactions", async () => {
+    const messageDoc = {
+      _id: "msg123",
+      senderId: "user123",
+      receiverId: "user456",
+      text: "hello",
+      reactions: [],
+      save: vi.fn().mockResolvedValue(true),
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+
+    // 1. Add reaction ❤️
+    const res1 = await request(testApp)
+      .post("/api/messages/msg123/react")
+      .send({ emoji: "❤️" });
+
+    expect(res1.status).toBe(200);
+    expect(messageDoc.reactions).toHaveLength(1);
+    expect(messageDoc.reactions[0].emoji).toBe("❤️");
+
+    // 2. Switch reaction to 👍
+    const res2 = await request(testApp)
+      .post("/api/messages/msg123/react")
+      .send({ emoji: "👍" });
+
+    expect(res2.status).toBe(200);
+    expect(messageDoc.reactions).toHaveLength(1);
+    expect(messageDoc.reactions[0].emoji).toBe("👍");
+
+    // 3. Toggle off by clicking same emoji 👍
+    const res3 = await request(testApp)
+      .post("/api/messages/msg123/react")
+      .send({ emoji: "👍" });
+
+    expect(res3.status).toBe(200);
+    expect(messageDoc.reactions).toHaveLength(0);
   });
 });
 

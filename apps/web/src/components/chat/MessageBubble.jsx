@@ -28,6 +28,8 @@ function MessageBubbleComponent({
   const toggleReaction = useChatStore((state) => state.toggleReaction);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const setReplyingTo = useChatStore((state) => state.setReplyingTo);
+  const authUser = useAuthStore((state) => state.authUser);
+  const myId = authUser?._id ? String(authUser._id) : "";
 
   const [showTapback, setShowTapback] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
@@ -217,6 +219,12 @@ function MessageBubbleComponent({
     });
   };
 
+  const handleSelectReaction = async (emoji) => {
+    setShowTapback(false);
+    if (!message.id) return;
+    await toggleReaction(message.id, emoji);
+  };
+
   const handleCopy = async () => {
     if (!message.text) return;
     try {
@@ -259,20 +267,32 @@ function MessageBubbleComponent({
       {/* Tapback Reaction Floating Bar */}
       {showTapback && !isDeleted && (
         <div
+          onPointerDown={(e) => e.stopPropagation()}
           className={`absolute -top-12 z-30 flex items-center gap-1 rounded-full border border-border/80 bg-background/95 p-1 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-150 ${
             isOwnMessage ? "right-1" : "left-1"
           }`}
         >
-          {TAPBACK_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => handleSelectReaction(emoji)}
-              className="flex size-8 items-center justify-center rounded-full text-base hover:scale-125 active:scale-95 transition-transform"
-            >
-              <AppleEmoji char={emoji} size={22} />
-            </button>
-          ))}
+          {TAPBACK_EMOJIS.map((emoji) => {
+            const hasReactedWithThis = (message.reactions || []).some(
+              (r) => String(r.userId) === myId && r.emoji === emoji,
+            );
+            return (
+              <button
+                key={emoji}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectReaction(emoji);
+                }}
+                className={`flex size-8 items-center justify-center rounded-full text-base hover:scale-125 active:scale-95 transition-all ${
+                  hasReactedWithThis ? "bg-accent/25 ring-2 ring-accent scale-110 shadow-xs" : ""
+                }`}
+                title={hasReactedWithThis ? `Remove ${emoji}` : `React with ${emoji}`}
+              >
+                <AppleEmoji char={emoji} size={22} />
+              </button>
+            );
+          })}
 
           <div className="h-4 w-px bg-border/80 mx-0.5" />
 
@@ -338,9 +358,17 @@ function MessageBubbleComponent({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onDoubleClick={(e) => {
+          if (!isDeleted) {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowTapback((prev) => !prev);
+          }
+        }}
         onContextMenu={(e) => {
           if (!isDeleted) {
             e.preventDefault();
+            e.stopPropagation();
             setShowTapback(true);
           }
         }}
@@ -448,19 +476,39 @@ function MessageBubbleComponent({
         {/* Attached Tapback Reaction Badges */}
         {Object.keys(reactionCounts).length > 0 ? (
           <div
-            onClick={() => setShowTapback(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTapback(true);
+            }}
             className={`absolute -bottom-2.5 flex cursor-pointer items-center gap-0.5 rounded-full border border-border bg-background px-1.5 py-0.5 text-[11px] font-medium shadow-md backdrop-blur-md active:scale-95 transition-transform ${
               isOwnMessage ? "right-2" : "left-2"
             }`}
+            title="Reactions"
           >
-            {Object.entries(reactionCounts).map(([emoji, count]) => (
-              <span key={emoji} className="flex items-center gap-0.5">
-                <AppleEmoji char={emoji} size={13} />
-                {count > 1 ? (
-                  <span className="text-[10px] text-muted">{count}</span>
-                ) : null}
-              </span>
-            ))}
+            {Object.entries(reactionCounts).map(([emoji, count]) => {
+              const iReacted = (message.reactions || []).some(
+                (r) => String(r.userId) === myId && r.emoji === emoji,
+              );
+              return (
+                <span
+                  key={emoji}
+                  className={`flex items-center gap-0.5 px-0.5 rounded-full ${
+                    iReacted ? "text-accent font-semibold" : ""
+                  }`}
+                >
+                  <AppleEmoji char={emoji} size={13} />
+                  {count > 1 ? (
+                    <span
+                      className={`text-[10px] ${
+                        iReacted ? "text-accent font-semibold" : "text-muted"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                </span>
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -518,6 +566,17 @@ function arePropsEqual(prevProps, nextProps) {
   if (pm === nm) return true;
   if (!pm || !nm) return false;
 
+  const prevReactions = pm.reactions || [];
+  const nextReactions = nm.reactions || [];
+  const reactionsEqual =
+    prevReactions === nextReactions ||
+    (prevReactions.length === nextReactions.length &&
+      prevReactions.every(
+        (r, i) =>
+          r.emoji === nextReactions[i]?.emoji &&
+          String(r.userId) === String(nextReactions[i]?.userId),
+      ));
+
   return (
     pm.id === nm.id &&
     pm.text === nm.text &&
@@ -534,15 +593,7 @@ function arePropsEqual(prevProps, nextProps) {
     (pm.replyTo === nm.replyTo ||
       (pm.replyTo?.messageId === nm.replyTo?.messageId &&
         pm.replyTo?.text === nm.replyTo?.text)) &&
-    (pm.reactions === nm.reactions ||
-      (Array.isArray(pm.reactions) &&
-        Array.isArray(nm.reactions) &&
-        pm.reactions.length === nm.reactions.length &&
-        pm.reactions.every(
-          (r, i) =>
-            r.emoji === nm.reactions[i]?.emoji &&
-            String(r.userId) === String(nm.reactions[i]?.userId),
-        )))
+    reactionsEqual
   );
 }
 

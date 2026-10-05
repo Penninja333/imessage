@@ -298,7 +298,7 @@ export const useChatStore = create(
         socket.on("messageReaction", ({ messageId, reactions }) => {
           set((state) => ({
             messages: state.messages.map((m) =>
-              m._id === messageId ? { ...m, reactions } : m,
+              String(m._id) === String(messageId) ? { ...m, reactions } : m,
             ),
           }));
         });
@@ -306,7 +306,7 @@ export const useChatStore = create(
         socket.on("messageDeleted", ({ messageId, text }) => {
           set((state) => ({
             messages: state.messages.map((m) =>
-              m._id === messageId
+              String(m._id) === String(messageId)
                 ? { ...m, text, deleted: true, image: null, video: null, audio: null }
                 : m,
             ),
@@ -620,6 +620,45 @@ export const useChatStore = create(
 
       toggleReaction: async (messageId, emoji) => {
         if (!messageId || !emoji) return false;
+
+        const authUser = useAuthStore.getState().authUser;
+        const myId = authUser?._id ? String(authUser._id) : "";
+
+        // Snapshot for rollback in case of network or server error
+        const previousMessages = get().messages;
+
+        // Optimistic update for zero-latency instant feedback
+        if (myId) {
+          set((state) => ({
+            messages: state.messages.map((m) => {
+              if (String(m._id) !== String(messageId)) return m;
+
+              const existingReactions = Array.isArray(m.reactions) ? [...m.reactions] : [];
+              const myReactionIndex = existingReactions.findIndex(
+                (r) => String(r.userId) === myId,
+              );
+
+              if (myReactionIndex > -1) {
+                if (existingReactions[myReactionIndex].emoji === emoji) {
+                  // Toggle off
+                  existingReactions.splice(myReactionIndex, 1);
+                } else {
+                  // Switch emoji
+                  existingReactions[myReactionIndex] = {
+                    ...existingReactions[myReactionIndex],
+                    emoji,
+                  };
+                }
+              } else {
+                // Add new reaction
+                existingReactions.push({ userId: myId, emoji });
+              }
+
+              return { ...m, reactions: existingReactions };
+            }),
+          }));
+        }
+
         try {
           const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
           const updatedReactions = res.data?.reactions || [];
@@ -631,7 +670,9 @@ export const useChatStore = create(
           return true;
         } catch (error) {
           console.error("toggleReaction error:", error);
-          toast.error("Could not add reaction");
+          // Rollback optimistic update
+          set({ messages: previousMessages });
+          toast.error("Could not update reaction");
           return false;
         }
       },
