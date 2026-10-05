@@ -658,10 +658,11 @@ export async function editMessage(req, res) {
 // Theme label lookup — mirrors the frontend chatThemes.js catalog
 const THEME_LABELS = {
   default: "Default",
+  imessage: "iMessage 💙",
   sunset: "Sunset 🌅",
   ocean: "Ocean 🌊",
   love: "Love ❤️",
-  forest: "Forest 🌿",
+  forest: "Forest 🌲",
   galaxy: "Galaxy 🌌",
   unicorn: "Unicorn 🦄",
   midnight: "Midnight 🌙",
@@ -673,6 +674,13 @@ const THEME_LABELS = {
   tropical: "Tropical 🌴",
   lava: "Lava 🔥",
   aurora: "Aurora 🌈",
+  indigo: "Indigo 🌌",
+  amber: "Amber 🍯",
+  cobalt: "Cobalt 💎",
+  lavender: "Lavender 🪻",
+  mocha: "Mocha ☕",
+  sage: "Sage 🌿",
+  graphite: "Graphite ⚙️",
 };
 
 export async function getChatTheme(req, res) {
