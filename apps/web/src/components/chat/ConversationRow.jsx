@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Avatar } from "@heroui/react";
+import { BellOffIcon } from "lucide-react";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { formatConversationTime } from "../../lib/utils";
 import { AppleEmojiText } from "../common/AppleEmoji";
@@ -41,15 +42,20 @@ function ConversationRowComponent({ user, selected, onSelect }) {
             ) : null}
           </div>
 
-          {formattedTime ? (
-            <span
-              className={`shrink-0 text-[11px] tabular-nums ${
-                hasUnread ? "font-semibold text-accent" : "text-muted"
-              }`}
-            >
-              {formattedTime}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {user.isMuted ? (
+              <BellOffIcon className="size-3 text-muted/70" />
+            ) : null}
+            {formattedTime ? (
+              <span
+                className={`text-[11px] tabular-nums ${
+                  hasUnread ? "font-semibold text-accent" : "text-muted"
+                }`}
+              >
+                {formattedTime}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {/* Bottom line: Last message preview + Unread badge */}
@@ -89,6 +95,7 @@ export const ConversationRow = memo(ConversationRowComponent, (prev, next) => {
     prev.user.unreadCount === next.user.unreadCount &&
     prev.user.lastMessage === next.user.lastMessage &&
     prev.user.lastMessageAt === next.user.lastMessageAt &&
-    prev.user.hasNickname === next.user.hasNickname
+    prev.user.hasNickname === next.user.hasNickname &&
+    prev.user.isMuted === next.user.isMuted
   );
 });

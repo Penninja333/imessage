@@ -24,6 +24,7 @@ vi.mock("../src/models/deviceToken.model.js", () => ({
 // Mock User model
 const mockUserFindOne = vi.fn();
 const mockUserFind = vi.fn();
+const mockUserUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
 vi.mock("../src/models/user.model.js", () => ({
   default: {
     findOne: mockUserFindOne,
@@ -31,6 +32,7 @@ vi.mock("../src/models/user.model.js", () => ({
     find: mockUserFind,
     findOneAndUpdate: vi.fn(),
     findOneAndDelete: vi.fn(),
+    updateOne: mockUserUpdateOne,
   },
 }));
 
@@ -181,10 +183,16 @@ describe("Messages routes (authenticated)", () => {
     mockNicknameFind.mockReturnValue({
       lean: vi.fn().mockResolvedValue([]),
     });
+    const mockMsgList = [
+      { senderId: "user123", receiverId: "user456", text: "hello" },
+    ];
     mockMessageFind.mockReturnValue({
-      sort: vi.fn().mockResolvedValue([
-        { senderId: "user123", receiverId: "user456", text: "hello" },
-      ]),
+      sort: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(mockMsgList),
+        }),
+        lean: vi.fn().mockResolvedValue(mockMsgList),
+      }),
     });
   });
 
@@ -198,7 +206,8 @@ describe("Messages routes (authenticated)", () => {
   it("GET /api/messages/:id returns message history", async () => {
     const res = await request(testApp).get("/api/messages/user456");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    const list = Array.isArray(res.body) ? res.body : res.body.messages;
+    expect(Array.isArray(list)).toBe(true);
   });
 
   it("POST /api/messages/send/:id creates and returns a message", async () => {
@@ -365,4 +374,62 @@ describe("Nickname routes (authenticated)", () => {
     // Privacy boundary: only my own nicknames are returned
     res.body.forEach((n) => expect(n).not.toHaveProperty("setterId"));
   });
+
+  it("GET /api/messages/search searches messages across conversations", async () => {
+    mockMessageFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { _id: "m1", senderId: "user123", receiverId: "user456", text: "hello search" },
+          ]),
+        }),
+      }),
+    });
+    const res = await request(testApp).get("/api/messages/search?q=hello");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body[0]).toHaveProperty("text", "hello search");
+  });
+
+  it("GET /api/messages/link-preview returns fallback for invalid or empty URL", async () => {
+    const res = await request(testApp).get("/api/messages/link-preview?url=not-a-valid-url");
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/messages/forward forwards message to recipient", async () => {
+    mockMessageFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        _id: "m_orig",
+        senderId: "user123",
+        receiverId: "user456",
+        text: "orig message",
+      }),
+    });
+    mockMessageSave.mockResolvedValue({
+      _id: "m_fwd",
+      senderId: "user123",
+      receiverId: "user789",
+      text: "orig message",
+      forwardedFrom: { messageId: "m_orig", senderId: "user123" },
+    });
+    const res = await request(testApp)
+      .post("/api/messages/forward")
+      .send({ messageId: "m_orig", toUserId: "user789" });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("forwardedFrom");
+  });
+
+  it("POST /api/messages/:id/mute and DELETE /api/messages/:id/mute updates mute state", async () => {
+    const muteRes = await request(testApp)
+      .post("/api/messages/user456/mute")
+      .send({ duration: "1h" });
+    expect(muteRes.status).toBe(200);
+    expect(muteRes.body).toHaveProperty("mutedUntil");
+
+    const unmuteRes = await request(testApp)
+      .delete("/api/messages/user456/mute");
+    expect(unmuteRes.status).toBe(200);
+    expect(unmuteRes.body.mutedUntil).toBe(null);
+  });
 });
+

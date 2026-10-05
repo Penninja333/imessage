@@ -20,6 +20,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    mutedConversations: [
+      {
+        partnerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        mutedUntil: { type: Date, default: null }, // null means muted indefinitely
+      },
+    ],
   },
   { timestamps: true }, // createdAt & updatedAt
 );

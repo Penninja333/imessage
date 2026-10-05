@@ -38,6 +38,7 @@ export function ChatComposer() {
   const editingMessage = useChatStore((state) => state.editingMessage);
   const cancelEditingMessage = useChatStore((state) => state.cancelEditingMessage);
   const editMessage = useChatStore((state) => state.editMessage);
+  const setDraft = useChatStore((state) => state.setDraft);
   const { activeConversation, activeConversationId } = useSelectedConversation();
   const { playRandomKeyStrokeSound } = useKeyboardSound();
   const [pendingMediaFile, setPendingMediaFile] = useState(null);
@@ -130,9 +131,13 @@ export function ChatComposer() {
   };
 
   const handleComposerTextChange = (event) => {
-    setComposerText(event.target.value);
+    const val = event.target.value;
+    setComposerText(val);
 
     if (activeConversationId) {
+      if (!editingMessage) {
+        setDraft(activeConversationId, val);
+      }
       const now = Date.now();
       if (now - lastTypingSentRef.current > 1500) {
         lastTypingSentRef.current = now;

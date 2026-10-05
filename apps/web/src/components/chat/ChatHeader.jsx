@@ -14,6 +14,8 @@ import {
   BellRingIcon,
   Droplets as DropletsIcon,
   SearchIcon,
+  Bell as BellIcon,
+  BellOff as BellOffIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
@@ -21,6 +23,7 @@ import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { NicknameDetailsModal } from "./NicknameDetailsModal";
 import { ChatThemePicker } from "./ChatThemePicker";
 import { InChatSearch } from "./InChatSearch";
+import { MuteConversationMenu } from "./MuteConversationMenu";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 
 import { ThemePresetPicker } from "../ThemePresetPicker";
@@ -54,6 +57,7 @@ export function ChatHeader() {
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [showMobileOptions, setShowMobileOptions] = useState(false);
+  const [showMuteMenu, setShowMuteMenu] = useState(false);
 
   const isPartnerTyping =
     typingUser && String(typingUser) === String(activeConversationId);
@@ -227,6 +231,32 @@ export function ChatHeader() {
             >
               <SearchIcon className="size-4.5" strokeWidth={2} />
             </Button>
+          ) : null}
+
+          {activeConversation ? (
+            <div className="relative">
+              <Button
+                variant="ghost"
+                isIconOnly
+                className={`size-9 ${activeConversation.isMuted ? "text-amber-500 bg-amber-500/10" : "text-muted hover:text-foreground"}`}
+                aria-label={activeConversation.isMuted ? "Unmute conversation" : "Mute conversation"}
+                title={activeConversation.isMuted ? "Muted notifications" : "Mute notifications"}
+                onPress={() => setShowMuteMenu(!showMuteMenu)}
+              >
+                {activeConversation.isMuted ? (
+                  <BellOffIcon className="size-4.5" strokeWidth={2} />
+                ) : (
+                  <BellIcon className="size-4.5" strokeWidth={2} />
+                )}
+              </Button>
+              <MuteConversationMenu
+                partnerId={activeConversation.id}
+                isMuted={activeConversation.isMuted}
+                mutedUntil={activeConversation.mutedUntil}
+                isOpen={showMuteMenu}
+                onClose={() => setShowMuteMenu(false)}
+              />
+            </div>
           ) : null}
 
           {activeConversation ? (
@@ -406,6 +436,34 @@ export function ChatHeader() {
                 <SearchIcon className="size-4 text-accent" />
                 Search in Chat
               </button>
+            ) : null}
+
+            {activeConversation ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowMuteMenu(!showMuteMenu)}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+                >
+                  <span className="flex items-center gap-2">
+                    {activeConversation.isMuted ? (
+                      <BellOffIcon className="size-4 text-amber-500" />
+                    ) : (
+                      <BellIcon className="size-4" />
+                    )}
+                    Notifications
+                  </span>
+                  <span className="text-[10px] text-muted">
+                    {activeConversation.isMuted ? "Muted" : "Active"}
+                  </span>
+                </button>
+                <MuteConversationMenu
+                  partnerId={activeConversation.id}
+                  isMuted={activeConversation.isMuted}
+                  mutedUntil={activeConversation.mutedUntil}
+                  isOpen={showMuteMenu}
+                  onClose={() => setShowMuteMenu(false)}
+                />
+              </div>
             ) : null}
 
             {activeConversation ? (

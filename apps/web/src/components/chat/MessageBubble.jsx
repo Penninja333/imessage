@@ -2,12 +2,13 @@ import { useState, useRef, useEffect, memo } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
-import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2, Reply, Pencil } from "lucide-react";
+import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2, Reply, Pencil, CornerUpRight } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useMediaViewerStore } from "../../store/useMediaViewerStore";
-import { formatMessageTime } from "../../lib/utils";
+import { formatMessageTime, extractFirstUrl } from "../../lib/utils";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import toast from "react-hot-toast";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -75,6 +76,8 @@ function MessageBubbleComponent({
   const hasVideo = Boolean(message.videoUrl);
   const hasAudio = Boolean(message.audioUrl);
   const isDeleted = Boolean(message.deleted);
+  const firstUrl = !isDeleted && message.text ? extractFirstUrl(message.text) : null;
+  const hasForwarded = Boolean(message.forwardedFrom);
 
   // Group reactions by emoji: { "❤️": 2, "👍": 1 }
   const reactionCounts = (message.reactions || []).reduce((acc, r) => {
@@ -332,6 +335,20 @@ function MessageBubbleComponent({
             </button>
           ) : null}
 
+          {!isDeleted ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowTapback(false);
+                useChatStore.getState().setForwardingMessage(message);
+              }}
+              className="flex size-7 items-center justify-center rounded-full text-muted hover:text-foreground hover:bg-surface transition"
+              title="Forward"
+            >
+              <CornerUpRight className="size-3.5" />
+            </button>
+          ) : null}
+
           {isOwnMessage ? (
             <button
               type="button"
@@ -378,6 +395,14 @@ function MessageBubbleComponent({
             : "rounded-bl-sm bg-surface text-foreground"
         } ${showTapback ? "ring-2 ring-accent" : ""}`}
       >
+        {/* Forwarded Tag */}
+        {hasForwarded ? (
+          <div className="flex items-center gap-1 px-3.5 pt-2 pb-0.5 text-[11px] font-medium italic opacity-75">
+            <CornerUpRight className="size-3" />
+            <span>Forwarded</span>
+          </div>
+        ) : null}
+
         {/* Reply quoted preview — shown inside the bubble above the content */}
         {message.replyTo ? (
           <div
@@ -456,6 +481,10 @@ function MessageBubbleComponent({
             >
               <AppleEmojiText text={message.text} />
             </div>
+          ) : null}
+
+          {firstUrl ? (
+            <LinkPreviewCard url={firstUrl} isOwnMessage={isOwnMessage} />
           ) : null}
         </div>
 
@@ -593,6 +622,8 @@ function arePropsEqual(prevProps, nextProps) {
     (pm.replyTo === nm.replyTo ||
       (pm.replyTo?.messageId === nm.replyTo?.messageId &&
         pm.replyTo?.text === nm.replyTo?.text)) &&
+    (pm.forwardedFrom === nm.forwardedFrom ||
+      pm.forwardedFrom?.messageId === nm.forwardedFrom?.messageId) &&
     reactionsEqual
   );
 }

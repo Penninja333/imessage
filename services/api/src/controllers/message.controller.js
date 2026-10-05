@@ -118,9 +118,10 @@ export async function getConversationsForSidebar(req, res) {
       },
     ]);
 
-    const [myNicknamesForThem, theirNicknamesForMe] = await Promise.all([
+    const [myNicknamesForThem, theirNicknamesForMe, myUser] = await Promise.all([
       Nickname.find({ withUserId: loggedInUserId }).lean(),
       Nickname.find({ forUserId: loggedInUserId }).lean(),
+      User.findById(loggedInUserId).select("mutedConversations").lean(),
     ]);
 
     const nicknameMap = Object.fromEntries(
@@ -129,12 +130,23 @@ export async function getConversationsForSidebar(req, res) {
     const myNicknameMap = Object.fromEntries(
       theirNicknamesForMe.map((n) => [String(n.withUserId), n.nickname]),
     );
+    const muteMap = Object.fromEntries(
+      (myUser?.mutedConversations || []).map((m) => [String(m.partnerId), m.mutedUntil]),
+    );
 
-    const conversationsWithNicknames = conversations.map((conv) => ({
-      ...conv,
-      nickname: nicknameMap[String(conv._id)] || null,
-      myNickname: myNicknameMap[String(conv._id)] || null,
-    }));
+    const conversationsWithNicknames = conversations.map((conv) => {
+      const mutedUntil = muteMap[String(conv._id)] ?? undefined;
+      const isMuted =
+        mutedUntil !== undefined &&
+        (mutedUntil === null || new Date(mutedUntil) > new Date());
+      return {
+        ...conv,
+        nickname: nicknameMap[String(conv._id)] || null,
+        myNickname: myNicknameMap[String(conv._id)] || null,
+        mutedUntil: isMuted ? (mutedUntil ?? null) : null,
+        isMuted,
+      };
+    });
 
     res.status(200).json(conversationsWithNicknames);
   } catch (error) {
@@ -147,29 +159,53 @@ export async function getMessages(req, res) {
   try {
     const { id: userToChatId } = req.params;
     const myId = req.user._id;
+    const { before, limit } = req.query;
 
     if (!userToChatId || userToChatId === "undefined" || userToChatId === "null") {
-      return res.status(200).json([]);
+      return res.status(200).json({ messages: [], hasMore: false });
     }
 
-    const messages = await Message.find({
+    const pageLimit = Math.min(parseInt(limit) || 50, 100);
+    const query = {
       $or: [
         { senderId: myId, receiverId: userToChatId },
         { senderId: userToChatId, receiverId: myId },
       ],
-    }).sort({ createdAt: 1 });
+    };
 
-    // Mark unread messages from userToChatId as seen in background
-    Message.updateMany(
-      { senderId: userToChatId, receiverId: myId, seen: false },
-      { $set: { seen: true } },
-    )
-      .then(() => {
-        io.to(String(userToChatId)).emit("messagesSeen", { byUserId: String(myId) });
-      })
-      .catch((err) => console.warn("Error marking messages as seen:", err.message));
+    // Cursor: only fetch messages older than `before` timestamp
+    if (before) {
+      const beforeDate = new Date(before);
+      if (!isNaN(beforeDate.getTime())) {
+        query.createdAt = { $lt: beforeDate };
+      }
+    }
 
-    res.status(200).json(messages);
+    // Fetch one extra to know if there are more pages
+    const messages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(pageLimit + 1)
+      .lean();
+
+    const hasMore = messages.length > pageLimit;
+    if (hasMore) messages.pop();
+
+    // Return in ascending order for the UI
+    messages.reverse();
+
+    // Mark unread messages from userToChatId as seen in background (only on first page load)
+    if (!before) {
+      Message.updateMany(
+        { senderId: userToChatId, receiverId: myId, seen: false },
+        { $set: { seen: true } },
+      )
+        .then(() => {
+          io.to(String(userToChatId)).emit("messagesSeen", { byUserId: String(myId) });
+        })
+        .catch((err) => console.warn("Error marking messages as seen:", err.message));
+    }
+
+    res.status(200).json({ messages, hasMore });
   } catch (error) {
     console.error("Error in getMessages:", error.message);
     res.status(500).json({ message: "Internal server error" });
@@ -275,24 +311,35 @@ export async function sendMessage(req, res) {
       try {
         const devices = await DeviceToken.find({ userId: receiverId });
         if (devices && devices.length > 0) {
-          const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
-          const senderDisplayName = nicknameDoc?.nickname || senderName || "Friend";
+          // Check if receiver has muted this sender's conversation
+          const receiverUser = await User.findById(receiverId).select("mutedConversations").lean();
+          const muteEntry = receiverUser?.mutedConversations?.find(
+            (m) => String(m.partnerId) === String(senderId),
+          );
+          const isMuted =
+            muteEntry &&
+            (muteEntry.mutedUntil === null || new Date(muteEntry.mutedUntil) > new Date());
 
-          // Privacy-first: Notification payload contains NO message text
-          const title = senderDisplayName;
-          const body = "New notification • Open application to view";
+          if (!isMuted) {
+            const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: receiverId });
+            const senderDisplayName = nicknameDoc?.nickname || senderName || "Friend";
 
-          const tokens = devices.map((d) => d.token);
-          await sendPush({
-            tokens,
-            title,
-            body,
-            data: {
-              senderId: senderId.toString(),
-              senderName: senderDisplayName,
-              messageId: newMessage._id.toString(),
-            },
-          });
+            // Privacy-first: Notification payload contains NO message text
+            const title = senderDisplayName;
+            const body = "New notification • Open application to view";
+
+            const tokens = devices.map((d) => d.token);
+            await sendPush({
+              tokens,
+              title,
+              body,
+              data: {
+                senderId: senderId.toString(),
+                senderName: senderDisplayName,
+                messageId: newMessage._id.toString(),
+              },
+            });
+          }
         }
       } catch (pushErr) {
         console.warn("[push] Background notification attempt error:", pushErr.message);
@@ -704,3 +751,302 @@ export async function setChatTheme(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+
+// ─── Global Search ────────────────────────────────────────────────────────────
+
+export async function globalSearchMessages(req, res) {
+  try {
+    const myId = req.user._id;
+    const q = (req.query.q || "").trim();
+    const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+
+    if (!q || q.length < 2) {
+      return res.status(200).json([]);
+    }
+
+    // Text search across messages the user participates in
+    const messages = await Message.find({
+      $or: [{ senderId: myId }, { receiverId: myId }],
+      deleted: { $ne: true },
+      isSystem: { $ne: true },
+      text: { $regex: q, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    // Collect unique peer IDs to batch-fetch user info
+    const peerIds = [
+      ...new Set(
+        messages.map((m) =>
+          String(m.senderId) === String(myId) ? String(m.receiverId) : String(m.senderId),
+        ),
+      ),
+    ];
+
+    const peerUsers = await User.find({ _id: { $in: peerIds } })
+      .select("fullName profilePic")
+      .lean();
+
+    const peerMap = Object.fromEntries(peerUsers.map((u) => [String(u._id), u]));
+
+    // Fetch nicknames for peers
+    const nicknameDocs = await Nickname.find({ withUserId: myId, forUserId: { $in: peerIds } }).lean();
+    const nicknameMap = Object.fromEntries(nicknameDocs.map((n) => [String(n.forUserId), n.nickname]));
+
+    const results = messages.map((m) => {
+      const peerId =
+        String(m.senderId) === String(myId) ? String(m.receiverId) : String(m.senderId);
+      const peer = peerMap[peerId] || {};
+      const nickname = nicknameMap[peerId] || null;
+      return {
+        messageId: String(m._id),
+        conversationId: peerId,
+        peerId,
+        peerName: nickname || peer.fullName || "Unknown",
+        peerAvatar: peer.profilePic || null,
+        text: m.text || "",
+        createdAt: m.createdAt,
+        isMine: String(m.senderId) === String(myId),
+      };
+    });
+
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error in globalSearchMessages:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// ─── Link Preview ─────────────────────────────────────────────────────────────
+
+// Simple in-memory cache: url → { data, expiresAt }
+const linkPreviewCache = new Map();
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export async function getLinkPreview(req, res) {
+  try {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ message: "url is required" });
+
+    // Basic URL validation
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return res.status(400).json({ message: "Invalid URL" });
+    }
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return res.status(400).json({ message: "Only HTTP(S) URLs supported" });
+    }
+
+    // Check cache
+    const cached = linkPreviewCache.get(url);
+    if (cached && Date.now() < cached.expiresAt) {
+      return res.status(200).json(cached.data);
+    }
+
+    // Fetch with short timeout and user-agent spoof
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+
+    let html;
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; LinkPreviewBot/1.0)",
+          Accept: "text/html",
+        },
+        redirect: "follow",
+      });
+      clearTimeout(timer);
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/html")) {
+        return res.status(200).json({ url });
+      }
+      // Read only the first 30KB — enough to get <head> OG tags
+      const reader = response.body?.getReader();
+      if (!reader) return res.status(200).json({ url });
+      let text = "";
+      while (text.length < 30000) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += new TextDecoder().decode(value);
+      }
+      reader.cancel().catch(() => {});
+      html = text;
+    } catch {
+      clearTimeout(timer);
+      return res.status(200).json({ url });
+    }
+
+    const getMeta = (property) => {
+      const match =
+        html.match(new RegExp(`<meta[^>]+property=["']og:${property}["'][^>]+content=["']([^"']+)["']`, "i")) ||
+        html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${property}["']`, "i")) ||
+        html.match(new RegExp(`<meta[^>]+name=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"));
+      return match ? match[1].trim() : null;
+    };
+
+    const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+    const data = {
+      url,
+      title: getMeta("title") || (titleTag ? titleTag[1].trim() : null),
+      description: getMeta("description"),
+      image: getMeta("image"),
+      siteName: getMeta("site_name") || parsed.hostname,
+    };
+
+    linkPreviewCache.set(url, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Error in getLinkPreview:", error.message);
+    res.status(200).json({ url: req.query.url }); // graceful fallback
+  }
+}
+
+// ─── Message Forwarding ───────────────────────────────────────────────────────
+
+export async function forwardMessage(req, res) {
+  try {
+    const { messageId, toUserId } = req.body;
+    const senderId = req.user._id;
+    const senderName = req.user.fullName;
+
+    if (!messageId || !toUserId) {
+      return res.status(400).json({ message: "messageId and toUserId are required" });
+    }
+
+    const original = await Message.findById(messageId).lean();
+    if (!original) {
+      return res.status(404).json({ message: "Original message not found" });
+    }
+
+    // IDOR: only participants can forward
+    if (
+      String(original.senderId) !== String(senderId) &&
+      String(original.receiverId) !== String(senderId)
+    ) {
+      return res.status(403).json({ message: "Not authorized to forward this message" });
+    }
+
+    if (original.deleted) {
+      return res.status(400).json({ message: "Cannot forward a deleted message" });
+    }
+
+    const forwarded = new Message({
+      senderId,
+      receiverId: toUserId,
+      text: original.text || null,
+      image: original.image || null,
+      video: original.video || null,
+      audio: original.audio || null,
+      seen: false,
+      forwardedFrom: {
+        messageId: original._id,
+        senderId: original.senderId,
+      },
+    });
+
+    await forwarded.save();
+
+    // Real-time delivery
+    io.to(String(toUserId)).emit("newMessage", forwarded);
+    io.to(String(senderId)).emit("newMessage", forwarded);
+
+    // Background push to receiver
+    (async () => {
+      try {
+        const devices = await DeviceToken.find({ userId: toUserId });
+        if (devices && devices.length > 0) {
+          const nicknameDoc = await Nickname.findOne({ forUserId: senderId, withUserId: toUserId });
+          const senderDisplayName = nicknameDoc?.nickname || senderName || "Friend";
+          await sendPush({
+            tokens: devices.map((d) => d.token),
+            title: senderDisplayName,
+            body: "New notification • Open application to view",
+            data: { senderId: senderId.toString(), messageId: forwarded._id.toString() },
+          });
+        }
+      } catch {}
+    })();
+
+    res.status(201).json(forwarded);
+  } catch (error) {
+    console.error("Error in forwardMessage:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// ─── Per-Contact Mute ─────────────────────────────────────────────────────────
+
+const MUTE_DURATIONS = {
+  "1h": 1 * 60 * 60 * 1000,
+  "8h": 8 * 60 * 60 * 1000,
+  "1w": 7 * 24 * 60 * 60 * 1000,
+  always: null, // null = indefinitely muted
+};
+
+export async function muteConversation(req, res) {
+  try {
+    const { id: partnerId } = req.params;
+    const { duration } = req.body; // '1h' | '8h' | '1w' | 'always'
+    const myId = req.user._id;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(400).json({ message: "Invalid partner ID" });
+    }
+
+    if (!MUTE_DURATIONS.hasOwnProperty(duration)) {
+      return res.status(400).json({ message: "duration must be one of: 1h, 8h, 1w, always" });
+    }
+
+    const ms = MUTE_DURATIONS[duration];
+    const mutedUntil = ms !== null ? new Date(Date.now() + ms) : null;
+
+    await User.updateOne(
+      { _id: myId },
+      {
+        $pull: { mutedConversations: { partnerId } },
+      },
+    );
+
+    await User.updateOne(
+      { _id: myId },
+      {
+        $push: { mutedConversations: { partnerId, mutedUntil } },
+      },
+    );
+
+    res.status(200).json({ partnerId, mutedUntil });
+  } catch (error) {
+    console.error("Error in muteConversation:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function unmuteConversation(req, res) {
+  try {
+    const { id: partnerId } = req.params;
+    const myId = req.user._id;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(400).json({ message: "Invalid partner ID" });
+    }
+
+    await User.updateOne(
+      { _id: myId },
+      { $pull: { mutedConversations: { partnerId } } },
+    );
+
+    res.status(200).json({ partnerId, mutedUntil: null });
+  } catch (error) {
+    console.error("Error in unmuteConversation:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+

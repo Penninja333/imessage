@@ -5,9 +5,7 @@ import { NoConversationPlaceholder } from "./NoConversationPlaceholder";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { useChatStore } from "../../store/useChatStore";
 import { useChatTheme } from "../../hooks/useChatTheme";
-
-const INITIAL_WINDOW = 30; // messages rendered on first open
-const LOAD_MORE_STEP = 40; // how many more to prepend on scroll-up
+import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 
 function formatDateSeparator(dateStr) {
   if (!dateStr) return "Today";
@@ -51,26 +49,31 @@ export function MessageList() {
   const { activeConversation, activeConversationId } = useSelectedConversation();
   const typingUser = useChatStore((state) => state.typingUser);
   const isMessagesLoading = useChatStore((state) => state.isMessagesLoading);
+  const isLoadingMoreMessages = useChatStore((state) => state.isLoadingMoreMessages);
+  const hasMoreMessages = useChatStore((state) => state.hasMoreMessages);
   const activeMatchId = useChatStore((state) => state.activeMatchId);
+  const loadMoreMessages = useChatStore((state) => state.loadMoreMessages);
   const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
 
-  const [visibleCount, setVisibleCount] = useState(INITIAL_WINDOW);
   const scrollRef = useRef(null);
-  const sentinelRef = useRef(null); // top sentinel for IntersectionObserver
+  const sentinelRef = useRef(null); // top sentinel for loading more
   const bottomAnchorRef = useRef(null);
-  const isLoadingMoreRef = useRef(false); // prevent double-trigger
+  const isLoadingMoreRef = useRef(false);
+
+  // Unread jump button
+  const [showJumpButton, setShowJumpButton] = useState(false);
+  const [unreadBelowCount, setUnreadBelowCount] = useState(0);
+  const bottomSentinelRef = useRef(null); // watch if bottom is visible
 
   const isPartnerTyping =
     Boolean(typingUser && String(typingUser) === String(activeConversationId));
 
   const allMessages = activeConversation?.messages || [];
-  const hasOlderMessages = allMessages.length > visibleCount;
-  const messages = hasOlderMessages ? allMessages.slice(-visibleCount) : allMessages;
-  const hiddenCount = allMessages.length - visibleCount;
 
-  // Reset window when switching conversations
+  // Reset when switching conversations
   useEffect(() => {
-    setVisibleCount(INITIAL_WINDOW);
+    setShowJumpButton(false);
+    setUnreadBelowCount(0);
     isLoadingMoreRef.current = false;
   }, [activeConversationId]);
 
@@ -96,15 +99,6 @@ export function MessageList() {
   useEffect(() => {
     if (!activeMatchId) return;
 
-    // Check if match is beyond current visible window
-    const matchIdx = allMessages.findIndex((m) => String(m.id) === String(activeMatchId));
-    if (matchIdx !== -1) {
-      const neededVisible = allMessages.length - matchIdx + 10;
-      if (neededVisible > visibleCount) {
-        setVisibleCount(neededVisible);
-      }
-    }
-
     const timer = setTimeout(() => {
       const el = document.getElementById(`msg-${activeMatchId}`);
       if (el) {
@@ -113,35 +107,32 @@ export function MessageList() {
     }, 70);
 
     return () => clearTimeout(timer);
-  }, [activeMatchId, allMessages, visibleCount]);
+  }, [activeMatchId]);
 
-  // Load more when user scrolls to the top sentinel
+  // Load more (server-side pagination) when user scrolls near the top sentinel
   const handleLoadMore = useCallback(() => {
-    if (!hasOlderMessages || isLoadingMoreRef.current) return;
+    if (!hasMoreMessages || isLoadingMoreRef.current || isLoadingMoreMessages) return;
     isLoadingMoreRef.current = true;
 
     const el = messagesScrollRef.current;
-    // Capture the current scroll height BEFORE adding more messages
     const prevScrollHeight = el ? el.scrollHeight : 0;
     const prevScrollTop = el ? el.scrollTop : 0;
 
-    setVisibleCount((prev) => prev + LOAD_MORE_STEP);
-
-    // After React re-renders with more messages, restore scroll position
-    requestAnimationFrame(() => {
-      if (el) {
-        const newScrollHeight = el.scrollHeight;
-        const diff = newScrollHeight - prevScrollHeight;
-        el.scrollTop = prevScrollTop + diff;
-      }
-      // Small debounce before allowing next trigger
-      setTimeout(() => {
-        isLoadingMoreRef.current = false;
-      }, 300);
+    loadMoreMessages(activeConversationId).then(() => {
+      requestAnimationFrame(() => {
+        if (el) {
+          const newScrollHeight = el.scrollHeight;
+          const diff = newScrollHeight - prevScrollHeight;
+          el.scrollTop = prevScrollTop + diff;
+        }
+        setTimeout(() => {
+          isLoadingMoreRef.current = false;
+        }, 300);
+      });
     });
-  }, [hasOlderMessages, messagesScrollRef]);
+  }, [hasMoreMessages, isLoadingMoreMessages, loadMoreMessages, activeConversationId, messagesScrollRef]);
 
-  // IntersectionObserver on the top sentinel — fires when user scrolls near top
+  // IntersectionObserver on the top sentinel
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -154,7 +145,7 @@ export function MessageList() {
       },
       {
         root: messagesScrollRef.current,
-        rootMargin: "120px 0px 0px 0px", // trigger 120px before the sentinel actually hits viewport top
+        rootMargin: "120px 0px 0px 0px",
         threshold: 0,
       },
     );
@@ -162,6 +153,46 @@ export function MessageList() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [handleLoadMore, messagesScrollRef, activeConversationId]);
+
+  // Unread jump button: watch bottom sentinel visibility
+  useEffect(() => {
+    const el = bottomSentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isBottomVisible = entries[0]?.isIntersecting;
+        setShowJumpButton(!isBottomVisible);
+      },
+      { root: messagesScrollRef.current, threshold: 0 },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [messagesScrollRef, activeConversationId]);
+
+  // Count unread messages below the visible fold
+  useEffect(() => {
+    if (!showJumpButton) {
+      setUnreadBelowCount(0);
+      return;
+    }
+    // Count messages that are not from me and not seen (approximate "unread below")
+    const scrollEl = messagesScrollRef.current;
+    if (!scrollEl) return;
+    let count = 0;
+    const items = scrollEl.querySelectorAll("[data-unread]");
+    for (const item of items) {
+      const rect = item.getBoundingClientRect();
+      const parentRect = scrollEl.getBoundingClientRect();
+      if (rect.top > parentRect.bottom) count++;
+    }
+    setUnreadBelowCount(count);
+  }, [showJumpButton, allMessages, messagesScrollRef]);
+
+  const handleJumpToBottom = () => {
+    bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  };
 
   return (
     <div
@@ -178,10 +209,17 @@ export function MessageList() {
           <div ref={sentinelRef} className="shrink-0 pointer-events-none" style={{ height: "1px" }} />
 
           {/* Loading older messages indicator */}
-          {hasOlderMessages ? (
+          {isLoadingMoreMessages ? (
+            <div className="my-2 flex justify-center">
+              <span className="flex items-center gap-1.5 rounded-full bg-surface/60 px-3 py-0.5 text-[11px] text-muted">
+                <LoaderIcon className="size-3 animate-spin" />
+                Loading older messages…
+              </span>
+            </div>
+          ) : hasMoreMessages ? (
             <div className="my-2 flex justify-center">
               <span className="rounded-full bg-surface/60 px-3 py-0.5 text-[11px] text-muted animate-pulse">
-                {hiddenCount} older message{hiddenCount !== 1 ? "s" : ""} — scroll up to load
+                Scroll up to load more
               </span>
             </div>
           ) : null}
@@ -193,15 +231,15 @@ export function MessageList() {
                 <MessageSkeleton key={i} isRight={i % 3 === 0} />
               ))}
             </div>
-          ) : messages.length === 0 ? (
+          ) : allMessages.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center py-12 text-center text-muted">
               <p className="text-sm font-medium">No messages yet</p>
               <p className="text-xs text-muted/70 mt-1">Send a message to start the conversation</p>
             </div>
           ) : null}
 
-          {messages.map((message, index) => {
-            const prevMessage = messages[index - 1];
+          {allMessages.map((message, index) => {
+            const prevMessage = allMessages[index - 1];
 
             // Date separator
             const currentDateLabel = formatDateSeparator(message.createdAt);
@@ -216,7 +254,7 @@ export function MessageList() {
               prevMessage.createdAt &&
               Math.abs(new Date(message.createdAt) - new Date(prevMessage.createdAt)) < 120000;
 
-            const nextMessage = messages[index + 1];
+            const nextMessage = allMessages[index + 1];
             const isNextSameSender = nextMessage && nextMessage.role === message.role;
             const isNextCloseInTime =
               nextMessage &&
@@ -227,11 +265,13 @@ export function MessageList() {
             // Only show timestamp at the end of a cluster
             const showTime = !(isNextSameSender && isNextCloseInTime);
             const isMatch = Boolean(activeMatchId && String(message.id) === String(activeMatchId));
+            const isUnread = message.role === "them" && !message.seen;
 
             return (
               <div
                 key={message.id || index}
                 id={`msg-${message.id}`}
+                data-unread={isUnread ? "true" : undefined}
                 className={`flex flex-col transition-all duration-300 rounded-2xl ${
                   isMatch
                     ? "ring-2 ring-accent/80 bg-accent/15 scale-[1.01] p-1.5 -m-1.5 shadow-md"
@@ -266,6 +306,9 @@ export function MessageList() {
             </div>
           ) : null}
 
+          {/* Bottom sentinel for unread-jump visibility tracking */}
+          <div ref={bottomSentinelRef} className="h-1 shrink-0 pointer-events-none" />
+
           {/* Bottom anchor — scroll-anchoring target */}
           <div
             ref={bottomAnchorRef}
@@ -276,6 +319,19 @@ export function MessageList() {
       ) : (
         <NoConversationPlaceholder />
       )}
+
+      {/* ↓ Unread Jump Button */}
+      {showJumpButton && activeConversation ? (
+        <button
+          type="button"
+          onClick={handleJumpToBottom}
+          className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground shadow-lg hover:brightness-110 active:scale-95 transition-all animate-in slide-in-from-bottom-2 duration-200"
+          aria-label="Jump to latest messages"
+        >
+          <ChevronDownIcon className="size-3.5" strokeWidth={2.5} />
+          {unreadBelowCount > 0 ? `${unreadBelowCount} new` : "Latest"}
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import ChatSidebar from "../components/chat/ChatSidebar";
 import { ChatHeader } from "../components/chat/ChatHeader";
 import { MessageList } from "../components/chat/MessageList";
 import { ChatComposer } from "../components/chat/ChatComposer";
+import { GlobalSearchModal } from "../components/chat/GlobalSearchModal";
+import { ForwardMessageModal } from "../components/chat/ForwardMessageModal";
 import { EmojiParticleCanvas } from "../components/common/EmojiParticleCanvas";
 
 function ChatPage() {
@@ -19,7 +21,22 @@ function ChatPage() {
   const getConversationTheme = useChatStore((state) => state.getConversationTheme);
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
 
+  const forwardingMessage = useChatStore((state) => state.forwardingMessage);
+  const clearForwardingMessage = useChatStore((state) => state.clearForwardingMessage);
+
   const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
+
+  // ─── Cmd+K / Ctrl+K Global Search shortcut ─────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        useChatStore.getState().setGlobalSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     getUsers();
@@ -92,6 +109,12 @@ function ChatPage() {
         </div>
       </div>
       <EmojiParticleCanvas />
+      <GlobalSearchModal />
+      <ForwardMessageModal
+        isOpen={Boolean(forwardingMessage)}
+        message={forwardingMessage}
+        onClose={clearForwardingMessage}
+      />
     </div>
   );
 }

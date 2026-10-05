@@ -26,6 +26,8 @@ export const useChatStore = create(
       isConversationsLoading: false,
       isUsersLoading: false,
       isMessagesLoading: false,
+      isLoadingMoreMessages: false,
+      hasMoreMessages: false,
       activeConversationId: null,
       searchQuery: "",
       sidebarTab: "chats",
@@ -39,6 +41,15 @@ export const useChatStore = create(
       inChatSearchQuery: "",
       activeMatchId: null,
       conversationThemes: {}, // { [partnerId]: themeId } — shared per-conversation, synced via socket
+      drafts: {}, // { [conversationId]: string } — persisted per-conversation draft text
+      // Global search
+      globalSearchResults: [],
+      isGlobalSearching: false,
+      isGlobalSearchOpen: false,
+      // Forward message
+      forwardingMessage: null, // { id, text, imageUrl, ... } — set when user picks "Forward"
+      // Link preview cache: { [url]: { title, description, image, siteName, url } | null }
+      linkPreviews: {},
 
       syncBadge: () => {
         const total = get().conversations.reduce(
@@ -85,14 +96,36 @@ export const useChatStore = create(
 
       getMessages: async (userId) => {
         if (!userId) return;
-        set({ isMessagesLoading: true });
+        set({ isMessagesLoading: true, hasMoreMessages: false });
         try {
-          const res = await axiosInstance.get(`/messages/${userId}`);
-          set({ messages: res.data });
+          const res = await axiosInstance.get(`/messages/${userId}?limit=50`);
+          // API now returns { messages, hasMore }
+          const { messages, hasMore } = res.data;
+          set({ messages: messages || [], hasMoreMessages: Boolean(hasMore) });
         } catch (error) {
           toast.error(error.response?.data?.message || "Failed to load messages");
         } finally {
           set({ isMessagesLoading: false });
+        }
+      },
+
+      loadMoreMessages: async (userId) => {
+        if (!userId || get().isLoadingMoreMessages || !get().hasMoreMessages) return;
+        const firstMessage = get().messages[0];
+        if (!firstMessage) return;
+        set({ isLoadingMoreMessages: true });
+        try {
+          const before = firstMessage.createdAt;
+          const res = await axiosInstance.get(`/messages/${userId}?limit=50&before=${encodeURIComponent(before)}`);
+          const { messages: older, hasMore } = res.data;
+          set((state) => ({
+            messages: [...(older || []), ...state.messages],
+            hasMoreMessages: Boolean(hasMore),
+          }));
+        } catch (error) {
+          console.warn("loadMoreMessages error:", error.message);
+        } finally {
+          set({ isLoadingMoreMessages: false });
         }
       },
 
@@ -422,13 +455,26 @@ export const useChatStore = create(
       setSelectedUser: (selectedUser) => set({ selectedUser }),
 
       setActiveConversationId: (activeConversationId) => {
+        // Save current composerText as draft for the outgoing conversation
+        const prevConvId = get().activeConversationId;
+        const currentText = get().composerText;
+        if (prevConvId) {
+          get().setDraft(prevConvId, currentText);
+        }
+
+        // Restore draft for the incoming conversation
+        const restoredDraft = activeConversationId ? (get().drafts[String(activeConversationId)] || "") : "";
+
         set((state) => ({
           activeConversationId,
+          composerText: restoredDraft,
           selectedUser:
             state.users.find((user) => String(user._id) === String(activeConversationId)) ||
             state.conversations.find((user) => String(user._id) === String(activeConversationId)) ||
             null,
           messages: [], // always clear immediately — never show stale messages from previous convo
+          hasMoreMessages: false,
+          isLoadingMoreMessages: false,
           typingUser: null,
           replyingTo: null,
           editingMessage: null,
@@ -558,8 +604,9 @@ export const useChatStore = create(
 
         const replyingTo = get().replyingTo;
 
-        // Clear composer and reply state immediately
+        // Clear composer, reply state, and persisted draft immediately
         set({ composerText: "", replyingTo: null });
+        get().clearDraft(conversationId);
 
         const payload = { text: messageText };
         if (replyingTo?.id) payload.replyToId = replyingTo.id;
@@ -740,10 +787,130 @@ export const useChatStore = create(
 
       setInChatSearchQuery: (query) => set({ inChatSearchQuery: query }),
       setActiveMatchId: (activeMatchId) => set({ activeMatchId }),
+
+      // ── Draft Persistence ────────────────────────────────────────────────
+      setDraft: (conversationId, text) => {
+        if (!conversationId) return;
+        set((state) => ({
+          drafts: { ...state.drafts, [String(conversationId)]: text },
+        }));
+      },
+
+      getDraft: (conversationId) => {
+        if (!conversationId) return "";
+        return get().drafts[String(conversationId)] || "";
+      },
+
+      clearDraft: (conversationId) => {
+        if (!conversationId) return;
+        set((state) => {
+          const next = { ...state.drafts };
+          delete next[String(conversationId)];
+          return { drafts: next };
+        });
+      },
+
+      // ── Global Search ────────────────────────────────────────────────────
+      setGlobalSearchOpen: (open) => set({ isGlobalSearchOpen: Boolean(open), globalSearchResults: [] }),
+
+      globalSearch: async (q) => {
+        if (!q || q.trim().length < 2) {
+          set({ globalSearchResults: [] });
+          return;
+        }
+        set({ isGlobalSearching: true });
+        try {
+          const res = await axiosInstance.get(`/messages/search?q=${encodeURIComponent(q.trim())}`);
+          set({ globalSearchResults: res.data || [] });
+        } catch {
+          set({ globalSearchResults: [] });
+        } finally {
+          set({ isGlobalSearching: false });
+        }
+      },
+
+      // ── Link Preview ─────────────────────────────────────────────────────
+      fetchLinkPreview: async (url) => {
+        if (!url) return null;
+        const cached = get().linkPreviews[url];
+        if (cached !== undefined) return cached === "loading" ? null : cached;
+
+        set((state) => ({ linkPreviews: { ...state.linkPreviews, [url]: "loading" } }));
+
+        try {
+          const res = await axiosInstance.get(`/messages/link-preview?url=${encodeURIComponent(url)}`);
+          const data = res.data && res.data.title ? res.data : null;
+          set((state) => ({ linkPreviews: { ...state.linkPreviews, [url]: data } }));
+          return data;
+        } catch {
+          set((state) => ({ linkPreviews: { ...state.linkPreviews, [url]: null } }));
+          return null;
+        }
+      },
+
+      // ── Message Forwarding ───────────────────────────────────────────────
+      setForwardingMessage: (message) => set({ forwardingMessage: message }),
+      clearForwardingMessage: () => set({ forwardingMessage: null }),
+
+      forwardMessage: async (messageId, toUserId) => {
+        if (!messageId || !toUserId) return false;
+        try {
+          await axiosInstance.post("/messages/forward", { messageId, toUserId });
+          toast.success("Message forwarded");
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to forward message");
+          return false;
+        }
+      },
+
+      // ── Per-Contact Mute ─────────────────────────────────────────────────
+      muteConversation: async (partnerId, duration) => {
+        if (!partnerId) return false;
+        try {
+          const res = await axiosInstance.post(`/messages/${partnerId}/mute`, { duration });
+          const { mutedUntil } = res.data;
+          set((state) => ({
+            conversations: state.conversations.map((c) =>
+              String(c._id) === String(partnerId)
+                ? { ...c, isMuted: true, mutedUntil }
+                : c,
+            ),
+          }));
+          const labels = { "1h": "1 hour", "8h": "8 hours", "1w": "1 week", always: "forever" };
+          toast.success(`Muted ${labels[duration] || ""}`);
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to mute conversation");
+          return false;
+        }
+      },
+
+      unmuteConversation: async (partnerId) => {
+        if (!partnerId) return false;
+        try {
+          await axiosInstance.delete(`/messages/${partnerId}/mute`);
+          set((state) => ({
+            conversations: state.conversations.map((c) =>
+              String(c._id) === String(partnerId)
+                ? { ...c, isMuted: false, mutedUntil: null }
+                : c,
+            ),
+          }));
+          toast.success("Unmuted");
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to unmute");
+          return false;
+        }
+      },
     }),
     {
       name: "imessage-storage",
-      partialize: (state) => ({ isSoundEnabled: state.isSoundEnabled }),
+      partialize: (state) => ({
+        isSoundEnabled: state.isSoundEnabled,
+        drafts: state.drafts,
+      }),
     },
   ),
 );

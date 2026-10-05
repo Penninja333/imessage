@@ -6,7 +6,7 @@ import { APP_NAME, AppLogo } from "../AppLogo";
 import { UserButton } from "@clerk/react";
 
 import { SearchField, Tabs } from "@heroui/react";
-import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon, BellRingIcon } from "lucide-react";
+import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon, BellRingIcon, SearchIcon } from "lucide-react";
 import { ConversationRow } from "./ConversationRow";
 import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 import { usePermissionsStore } from "../../store/usePermissionsStore";
@@ -25,6 +25,8 @@ function mapUserForList(user, onlineUsers) {
     lastMessage: user.lastMessage || "",
     lastMessageAt: user.lastMessageAt || null,
     unreadCount: user.unreadCount || 0,
+    isMuted: Boolean(user.isMuted),
+    mutedUntil: user.mutedUntil || null,
     peer: {
       name: displayName,
       avatarUrl: user.profilePic,
@@ -129,6 +131,16 @@ function ChatSidebar() {
             {typeof window !== "undefined" && "Notification" in window && Notification.permission !== "granted" ? (
               <span className="absolute top-1 right-1 size-2 rounded-full bg-amber-500 animate-pulse" />
             ) : null}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => useChatStore.getState().setGlobalSearchOpen(true)}
+            className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-foreground active:scale-95 transition"
+            title="Search all messages (⌘K)"
+            aria-label="Global Search"
+          >
+            <SearchIcon className="size-4" />
           </button>
 
           <UserButton

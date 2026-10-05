@@ -12,6 +12,11 @@ import {
   markMessagesAsSeen,
   getChatTheme,
   setChatTheme,
+  globalSearchMessages,
+  getLinkPreview,
+  forwardMessage,
+  muteConversation,
+  unmuteConversation,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
@@ -23,9 +28,14 @@ router.use(protectRoute);
 router.get("/users", getUsersForSidebar);
 router.get("/conversations", getConversationsForSidebar);
 router.get("/nicknames", getNicknames);
+router.get("/search", globalSearchMessages);
+router.get("/link-preview", getLinkPreview);
+router.post("/forward", forwardMessage);
 router.put("/nickname/:id", setNickname);
 router.get("/:id/theme", getChatTheme);
 router.put("/:id/theme", setChatTheme);
+router.post("/:id/mute", muteConversation);
+router.delete("/:id/mute", unmuteConversation);
 router.get("/:id", getMessages);
 router.post("/:id/seen", markMessagesAsSeen);
 router.post("/send/:id", upload.single("media"), sendMessage);

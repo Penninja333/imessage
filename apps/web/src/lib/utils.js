@@ -41,3 +41,10 @@ export function formatConversationTime(dateStr) {
 
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
+
+export function extractFirstUrl(text) {
+  if (!text || typeof text !== "string") return null;
+  const match = text.match(/https?:\/\/[^\s]+/);
+  return match ? match[0] : null;
+}
+

@@ -37,6 +37,12 @@ function getCachedMappedMessage(message, myId) {
         createdAt: message.createdAt,
         isEdited: Boolean(message.isEdited),
         editedAt: message.editedAt || null,
+        forwardedFrom: message.forwardedFrom
+          ? {
+              messageId: String(message.forwardedFrom.messageId),
+              senderId: String(message.forwardedFrom.senderId),
+            }
+          : null,
         replyTo: message.replyTo
           ? {
               messageId: String(message.replyTo.messageId),
@@ -89,8 +95,14 @@ export function useSelectedConversation() {
   const activeConversation = useMemo(() => {
     if (!selectedUser) return null;
     const displayName = selectedUser.nickname || selectedUser.fullName;
+    const convData = conversations.find((c) => String(c._id) === String(selectedUser._id));
+    const isMuted = Boolean(convData?.isMuted);
+    const mutedUntil = convData?.mutedUntil || null;
+
     return {
       id: String(selectedUser._id),
+      isMuted,
+      mutedUntil,
       peer: {
         id: String(selectedUser._id),
         name: displayName,
@@ -105,7 +117,7 @@ export function useSelectedConversation() {
       },
       messages: mappedMessages,
     };
-  }, [selectedUser, mappedMessages, onlineUsers]);
+  }, [selectedUser, mappedMessages, onlineUsers, conversations]);
 
   return {
     activeConversation,

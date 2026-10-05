@@ -59,6 +59,11 @@ const messageSchema = new mongoose.Schema(
       video: { type: String },
       audio: { type: String },
     },
+    forwardedFrom: {
+      // Set when a message is forwarded — stores origin reference
+      messageId: { type: mongoose.Schema.Types.ObjectId, ref: "Message" },
+      senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    },
   },
   { timestamps: true },
 );
