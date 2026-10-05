@@ -16,6 +16,7 @@ import {
   SearchIcon,
   Bell as BellIcon,
   BellOff as BellOffIcon,
+  ImageIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { AppLogo } from "../AppLogo";
@@ -30,6 +31,7 @@ import { ThemePresetPicker } from "../ThemePresetPicker";
 import { ThemeToggle } from "../ThemeToggle";
 import { WallpaperPicker } from "../WallpaperPicker";
 import { useTheme } from "../../context/theme";
+import { useWallpaper } from "../../context/wallpaper";
 
 import { useChatStore } from "../../store/useChatStore";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
@@ -53,9 +55,11 @@ export function ChatHeader() {
   const { theme, setTheme } = useTheme();
   const { activeConversation, activeConversationId, isLargeScreen } = useSelectedConversation();
   const { theme: currentChatTheme } = useChatTheme(activeConversationId);
+  const { wallpaper: currentWallpaper } = useWallpaper();
 
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
   const [showMobileOptions, setShowMobileOptions] = useState(false);
   const [showMuteMenu, setShowMuteMenu] = useState(false);
 
@@ -404,6 +408,22 @@ export function ChatHeader() {
               )}
             </button>
 
+            <button
+              onClick={() => {
+                setShowWallpaperModal(true);
+                setShowMobileOptions(false);
+              }}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-surface transition"
+            >
+              <span className="flex items-center gap-2">
+                <ImageIcon className="size-4 text-accent" />
+                Chat Wallpaper
+              </span>
+              <span className="text-[10px] text-muted truncate max-w-[100px]">
+                {currentWallpaper?.label || "Sonoma"}
+              </span>
+            </button>
+
             {activeConversation ? (
               <button
                 onClick={() => {
@@ -512,6 +532,12 @@ export function ChatHeader() {
           partnerName={activeConversation.peer.name}
         />
       ) : null}
+
+      {/* Chat Wallpaper modal (invoked from mobile options menu) */}
+      <WallpaperPicker
+        isOpen={showWallpaperModal}
+        onClose={() => setShowWallpaperModal(false)}
+      />
     </div>
   );
 }

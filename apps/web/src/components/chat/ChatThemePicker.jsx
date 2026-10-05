@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Check, Palette, Sparkles, X } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useTheme } from "../../context/theme";
+import { useWallpaper } from "../../context/wallpaper";
 import { CHAT_THEMES, getThemeById } from "../../data/chatThemes";
 import { AppleEmoji } from "../common/AppleEmoji";
 
@@ -38,12 +39,13 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
   const selectedTheme = getThemeById(selectedThemeId);
   const hasChanged = selectedThemeId !== currentThemeId;
 
+  const { frameStyle } = useWallpaper();
+
   // Resolve preview background based on light / dark / glass mode
   const isDarkish = colorMode === "dark" || colorMode === "glass";
-  const previewBgStyle =
-    isDarkish && selectedTheme.darkBgStyle
-      ? selectedTheme.darkBgStyle
-      : selectedTheme.bgStyle || { background: isDarkish ? "#18181b" : "#f4f4f5" };
+  const customBgStyle = isDarkish && selectedTheme.darkBgStyle ? selectedTheme.darkBgStyle : selectedTheme.bgStyle;
+  const isCustom = Boolean(customBgStyle);
+  const previewBgStyle = isCustom ? customBgStyle : frameStyle;
 
   const handleApply = async () => {
     if (!partnerId) {
@@ -111,35 +113,44 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
               className="relative overflow-hidden rounded-2xl border border-border/70 p-3.5 shadow-inner transition-all duration-300"
               style={previewBgStyle}
             >
-              {/* Partner message bubble */}
-              <div className="flex justify-start mb-2">
-                <div className="max-w-[80%] rounded-2xl rounded-bl-sm bg-surface px-3 py-1.5 text-xs text-foreground shadow-xs border border-border/40">
-                  <span>How does this theme look? ✨</span>
-                </div>
-              </div>
-
-              {/* My message bubble with active theme style */}
-              <div className="flex justify-end">
+              {!isCustom && (
                 <div
-                  className="max-w-[80%] rounded-2xl rounded-br-sm px-3 py-1.5 text-xs shadow-xs transition-all duration-300"
-                  style={
-                    selectedTheme.bubbleColor
-                      ? {
-                          background: selectedTheme.bubbleColor,
-                          color: selectedTheme.bubbleText || "#fff",
-                        }
-                      : {
-                          backgroundColor: "var(--accent, #3b82f6)",
-                          color: "#fff",
-                        }
-                  }
-                >
-                  <span className="font-medium inline-flex items-center gap-1">
-                    Looks great! Syncs to both phones
-                    {selectedTheme.emoji ? (
-                      <AppleEmoji char={selectedTheme.emoji} size={14} />
-                    ) : null}
-                  </span>
+                  className="pointer-events-none absolute inset-0 z-0 bg-background/65 dark:bg-background/80 backdrop-blur-[0.5px]"
+                  aria-hidden="true"
+                />
+              )}
+
+              <div className="relative z-10">
+                {/* Partner message bubble */}
+                <div className="flex justify-start mb-2">
+                  <div className="max-w-[80%] rounded-2xl rounded-bl-sm bg-surface px-3 py-1.5 text-xs text-foreground shadow-xs border border-border/40">
+                    <span>How does this theme look? ✨</span>
+                  </div>
+                </div>
+
+                {/* My message bubble with active theme style */}
+                <div className="flex justify-end">
+                  <div
+                    className="max-w-[80%] rounded-2xl rounded-br-sm px-3 py-1.5 text-xs shadow-xs transition-all duration-300"
+                    style={
+                      selectedTheme.bubbleColor
+                        ? {
+                            background: selectedTheme.bubbleColor,
+                            color: selectedTheme.bubbleText || "#fff",
+                          }
+                        : {
+                            backgroundColor: "var(--accent, #3b82f6)",
+                            color: "#fff",
+                          }
+                    }
+                  >
+                    <span className="font-medium inline-flex items-center gap-1">
+                      Looks great! Syncs to both phones
+                      {selectedTheme.emoji ? (
+                        <AppleEmoji char={selectedTheme.emoji} size={14} />
+                      ) : null}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { getInitials, useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useChatStore } from "../../store/useChatStore";
@@ -6,8 +6,9 @@ import { APP_NAME, AppLogo } from "../AppLogo";
 import { UserButton } from "@clerk/react";
 
 import { SearchField, Tabs } from "@heroui/react";
-import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon, BellRingIcon, SearchIcon } from "lucide-react";
+import { ArrowUpCircleIcon, MessageSquareIcon, RefreshCwIcon, UsersIcon, BellRingIcon, SearchIcon, ImageIcon } from "lucide-react";
 import { ConversationRow } from "./ConversationRow";
+import { WallpaperPicker } from "../WallpaperPicker";
 import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 import { usePermissionsStore } from "../../store/usePermissionsStore";
 
@@ -55,6 +56,7 @@ function ChatSidebar() {
   const isChecking = usePwaUpdateStore((state) => state.isChecking);
   const checkForUpdate = usePwaUpdateStore((state) => state.checkForUpdate);
   const updateApp = usePwaUpdateStore((state) => state.updateApp);
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
 
   const { activeConversationId, isLargeScreen } = useSelectedConversation();
 
@@ -143,6 +145,16 @@ function ChatSidebar() {
             <SearchIcon className="size-4" />
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowWallpaperModal(true)}
+            className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-foreground active:scale-95 transition"
+            title="Chat Wallpaper"
+            aria-label="Chat Wallpaper"
+          >
+            <ImageIcon className="size-4" />
+          </button>
+
           <UserButton
             appearance={{
               elements: {
@@ -228,6 +240,11 @@ function ChatSidebar() {
           )}
         </Tabs.Panel>
       </Tabs>
+
+      <WallpaperPicker
+        isOpen={showWallpaperModal}
+        onClose={() => setShowWallpaperModal(false)}
+      />
     </aside>
   );
 }

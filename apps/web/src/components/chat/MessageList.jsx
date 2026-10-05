@@ -5,6 +5,7 @@ import { NoConversationPlaceholder } from "./NoConversationPlaceholder";
 import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { useChatStore } from "../../store/useChatStore";
 import { useChatTheme } from "../../hooks/useChatTheme";
+import { useWallpaper } from "../../context/wallpaper";
 import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 
 function formatDateSeparator(dateStr) {
@@ -54,6 +55,12 @@ export function MessageList() {
   const activeMatchId = useChatStore((state) => state.activeMatchId);
   const loadMoreMessages = useChatStore((state) => state.loadMoreMessages);
   const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
+  const { frameStyle, wallpaper } = useWallpaper();
+
+  // If a custom chat theme is active (solid preset), use its resolvedBgStyle.
+  // Otherwise, fallback to the user's selected wallpaper backdrop.
+  const isCustomTheme = Boolean(resolvedBgStyle);
+  const containerBgStyle = isCustomTheme ? resolvedBgStyle : frameStyle;
 
   const scrollRef = useRef(null);
   const sentinelRef = useRef(null); // top sentinel for loading more
@@ -197,13 +204,24 @@ export function MessageList() {
   return (
     <div
       className="message-list-container relative flex flex-1 flex-col overflow-hidden bg-background transition-colors duration-300"
-      style={resolvedBgStyle || undefined}
+      style={containerBgStyle || undefined}
     >
+      {/* Contrast Scrim Overlay for Wallpaper Readability:
+          When using a wallpaper (default theme), apply an Apple-style frosted scrim
+          so message text, timestamps, and media cards remain 100% legible across any photo.
+          When a solid custom theme is selected, the solid theme tone is rendered directly. */}
+      {!isCustomTheme && wallpaper?.url ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-0 bg-background/65 dark:bg-background/80 backdrop-blur-[0.5px] transition-colors duration-300"
+          aria-hidden="true"
+        />
+      ) : null}
+
       {activeConversation ? (
         <div
           ref={messagesScrollRef}
-          className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 pt-3 pb-6 sm:px-4 sm:pt-4 sm:pb-8 transition-all duration-300"
-          style={{ overflowAnchor: "none", ...(resolvedBgStyle || {}) }}
+          className="relative z-10 flex flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 pt-3 pb-6 sm:px-4 sm:pt-4 sm:pb-8 transition-all duration-300"
+          style={{ overflowAnchor: "none" }}
         >
           {/* Top sentinel element — invisible, watched by IntersectionObserver */}
           <div ref={sentinelRef} className="shrink-0 pointer-events-none" style={{ height: "1px" }} />
@@ -317,7 +335,9 @@ export function MessageList() {
           />
         </div>
       ) : (
-        <NoConversationPlaceholder />
+        <div className="relative z-10 flex min-h-full flex-1 flex-col items-center justify-center">
+          <NoConversationPlaceholder />
+        </div>
       )}
 
       {/* ↓ Unread Jump Button */}
