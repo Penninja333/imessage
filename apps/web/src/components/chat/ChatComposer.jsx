@@ -227,13 +227,15 @@ export function ChatComposer() {
       }
 
       // Check supported MIME type across mobile browsers (Chrome, Safari, Firefox)
+      // Prioritize audio/mp4 for universal playback compatibility across iOS Safari and Android
       let mimeType = "";
       if (typeof MediaRecorder !== "undefined") {
         const types = [
+          "audio/mp4",
+          "audio/mp4;codecs=aac",
           "audio/webm;codecs=opus",
           "audio/webm",
-          "audio/mp4",
-          "audio/ogg",
+          "audio/ogg;codecs=opus",
           "audio/wav",
         ];
         for (const t of types) {

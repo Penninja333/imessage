@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2Icon, PauseIcon, PlayIcon } from "lucide-react";
+import toast from "react-hot-toast";
 
 // Generate stable simulated waveform bar heights based on audio URL
 function getWaveformBars(seedStr, count = 28) {
@@ -40,10 +41,24 @@ export function MessageAudio({ src, isOwnMessage }) {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !src) return;
 
-    const handleLoadedMetadata = () => {
-      if (audio.duration && isFinite(audio.duration)) {
+    // Detect and handle audio duration (including Chromium WebM Infinity duration bug)
+    const handleDuration = () => {
+      if (audio.duration === Infinity) {
+        // MediaRecorder WebM files don't have header duration; seek probe trick discovers it
+        const onProbe = () => {
+          audio.removeEventListener("timeupdate", onProbe);
+          if (isFinite(audio.duration) && audio.duration > 0) {
+            setDuration(audio.duration);
+          } else if (isFinite(audio.currentTime) && audio.currentTime > 0) {
+            setDuration(audio.currentTime);
+          }
+          audio.currentTime = 0;
+        };
+        audio.addEventListener("timeupdate", onProbe, { once: true });
+        audio.currentTime = 1e10;
+      } else if (isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }
       setIsLoading(false);
@@ -51,50 +66,96 @@ export function MessageAudio({ src, isOwnMessage }) {
 
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
-      if (audio.duration && isFinite(audio.duration) && !duration) {
-        setDuration(audio.duration);
+      if (isFinite(audio.currentTime) && audio.currentTime > duration) {
+        setDuration(audio.currentTime);
       }
     };
 
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handlePlaying = () => {
+      setIsPlaying(true);
+      setIsLoading(false);
+    };
+    const handleWaiting = () => setIsLoading(true);
+    const handleCanPlay = () => setIsLoading(false);
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
     };
+    const handleError = () => {
+      console.warn("Audio element error:", audio.error);
+      setIsPlaying(false);
+      setIsLoading(false);
+    };
 
-    const handleWaiting = () => setIsLoading(true);
-    const handleCanPlay = () => setIsLoading(false);
+    // Auto-pause if another voice note in the app starts playing
+    const handleOtherAudioPlay = (e) => {
+      if (e.detail !== audio && !audio.paused) {
+        audio.pause();
+      }
+    };
 
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("loadedmetadata", handleDuration);
+    audio.addEventListener("durationchange", handleDuration);
     audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("playing", handlePlaying);
     audio.addEventListener("waiting", handleWaiting);
     audio.addEventListener("canplay", handleCanPlay);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    window.addEventListener("imessage-audio-play", handleOtherAudioPlay);
+
+    // Initial check if metadata already loaded
+    if (audio.readyState >= 1) {
+      handleDuration();
+    }
 
     return () => {
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("loadedmetadata", handleDuration);
+      audio.removeEventListener("durationchange", handleDuration);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("playing", handlePlaying);
       audio.removeEventListener("waiting", handleWaiting);
       audio.removeEventListener("canplay", handleCanPlay);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      window.removeEventListener("imessage-audio-play", handleOtherAudioPlay);
     };
-  }, [duration]);
+  }, [src]);
 
   const togglePlay = async () => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (isPlaying) {
+    if (!audio.paused && isPlaying) {
       audio.pause();
-      setIsPlaying(false);
     } else {
       try {
         setIsLoading(true);
+
+        // Notify other voice messages to pause
+        window.dispatchEvent(
+          new CustomEvent("imessage-audio-play", { detail: audio })
+        );
+
+        // On mobile PWA, ensure audio is loaded before initiating playback
+        if (audio.readyState === 0) {
+          audio.load();
+        }
+
         await audio.play();
-        setIsPlaying(true);
       } catch (err) {
         console.error("Audio playback error:", err);
-      } finally {
         setIsLoading(false);
+        setIsPlaying(false);
+        if (err.name !== "AbortError") {
+          toast.error("Could not play voice message");
+        }
       }
     }
   };
@@ -107,11 +168,14 @@ export function MessageAudio({ src, isOwnMessage }) {
     const rect = waveform.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, clickX / rect.width));
-    const targetTime = pct * (duration || audio.duration || 0);
+    const targetDuration = duration > 0 ? duration : (isFinite(audio.duration) ? audio.duration : 0);
 
-    if (isFinite(targetTime)) {
-      audio.currentTime = targetTime;
-      setCurrentTime(targetTime);
+    if (targetDuration > 0) {
+      const targetTime = pct * targetDuration;
+      if (isFinite(targetTime)) {
+        audio.currentTime = targetTime;
+        setCurrentTime(targetTime);
+      }
     }
   };
 
@@ -121,11 +185,15 @@ export function MessageAudio({ src, isOwnMessage }) {
     const rate = PLAYBACK_RATES[nextIndex];
     if (audioRef.current) {
       audioRef.current.playbackRate = rate;
+      audioRef.current.defaultPlaybackRate = rate;
     }
   };
 
-  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const effectiveDuration = duration > 0 ? duration : (isFinite(audioRef.current?.duration) ? audioRef.current.duration : 0);
+  const progress = effectiveDuration > 0 ? Math.min(1, currentTime / effectiveDuration) : 0;
   const currentPlaybackRate = PLAYBACK_RATES[playbackRateIndex];
+
+  if (!src) return null;
 
   return (
     <div className="flex min-w-[210px] sm:min-w-[250px] max-w-full flex-col gap-1.5 py-1">
@@ -205,15 +273,15 @@ export function MessageAudio({ src, isOwnMessage }) {
         <span className={isOwnMessage ? "text-white/80" : "text-muted"}>
           {isPlaying || currentTime > 0
             ? formatDuration(currentTime)
-            : formatDuration(duration)}
+            : formatDuration(effectiveDuration)}
         </span>
-        {duration > 0 && (
-          <span className={isOwnMessage ? "text-white/60" : "text-muted/70"}>
-            {isPlaying
-              ? `-${formatDuration(Math.max(0, duration - currentTime))}`
+        <span className={isOwnMessage ? "text-white/60" : "text-muted/70"}>
+          {isPlaying && effectiveDuration > 0
+            ? `-${formatDuration(Math.max(0, effectiveDuration - currentTime))}`
+            : effectiveDuration > 0
+              ? formatDuration(effectiveDuration)
               : "Voice message"}
-          </span>
-        )}
+        </span>
       </div>
     </div>
   );

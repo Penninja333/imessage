@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v4";
+const CACHE_NAME = "imessage-v5";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -62,11 +62,16 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Ignore API requests, socket connections, and Clerk auth requests
+  // Ignore API requests, socket connections, Clerk auth requests, external media CDNs, and audio/video streaming
   if (
     url.pathname.startsWith("/api") ||
     url.pathname.startsWith("/socket.io") ||
     url.hostname.includes("clerk") ||
+    url.hostname.includes("imagekit.io") ||
+    request.destination === "audio" ||
+    request.destination === "video" ||
+    request.headers.has("range") ||
+    url.pathname.match(/\.(mp3|mp4|webm|wav|ogg|m4a|aac)$/i) ||
     request.method !== "GET"
   ) {
     return;

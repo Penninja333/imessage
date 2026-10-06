@@ -650,16 +650,24 @@ export const useChatStore = create(
       sendVoiceMessage: async ({ conversationId, audioBlob }) => {
         if (!conversationId || !audioBlob) return false;
 
-        const mime = audioBlob.type || "audio/webm";
-        const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : "webm";
+        const mime = audioBlob.type || "audio/mp4";
+        const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : mime.includes("wav") ? "wav" : "webm";
         const file = new File([audioBlob], `voice-${Date.now()}.${ext}`, { type: mime });
 
         const formData = new FormData();
         formData.append("media", file);
+        const replyingTo = get().replyingTo;
+        if (replyingTo?.id) {
+          formData.append("replyToId", replyingTo.id);
+        }
 
         set({ isSendingMedia: true });
         try {
-          return await get().sendMessage(formData);
+          const success = await get().sendMessage(formData);
+          if (success && replyingTo) {
+            set({ replyingTo: null });
+          }
+          return success;
         } finally {
           set({ isSendingMedia: false });
         }
