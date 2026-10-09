@@ -57,10 +57,9 @@ export function MessageList() {
   const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
   const { frameStyle, wallpaper } = useWallpaper();
 
-  // If a custom chat theme is active (solid preset), use its resolvedBgStyle.
-  // Otherwise, fallback to the user's selected wallpaper backdrop.
-  const isCustomTheme = Boolean(resolvedBgStyle);
-  const containerBgStyle = isCustomTheme ? resolvedBgStyle : frameStyle;
+  // Custom chat theme tints the chat wallpaper while preserving theme bubble colors and emoji
+  const isCustomTheme = Boolean(theme && theme.id !== "default" && resolvedBgStyle);
+  const wallpaperStyle = frameStyle || {};
 
   const scrollRef = useRef(null);
   const sentinelRef = useRef(null); // top sentinel for loading more
@@ -212,15 +211,36 @@ export function MessageList() {
   return (
     <div
       className="message-list-container relative flex flex-1 flex-col overflow-hidden bg-background transition-colors duration-300"
-      style={containerBgStyle || undefined}
+      style={wallpaperStyle}
     >
-      {/* Contrast Scrim Overlay for Wallpaper Readability:
-          When using a wallpaper (default theme), apply an Apple-style frosted scrim
-          so message text, timestamps, and media cards remain 100% legible across any photo.
-          When a solid custom theme is selected, the solid theme tone is rendered directly. */}
-      {!isCustomTheme && wallpaper?.url ? (
+      {/* Contrast Scrim & Ambient Theme Wash Layer:
+          Ensures the wallpaper is vibrant and visible in the chat (on PWA and desktop),
+          while providing balanced contrast for message bubbles and applying the theme's
+          distinctive ambient color wash when a custom theme is selected. */}
+      {wallpaper?.url ? (
+        <>
+          {/* Subtle contrast scrim for crisp text readability across light/dark modes */}
+          <div
+            className="pointer-events-none absolute inset-0 z-0 bg-background/30 dark:bg-background/45 backdrop-blur-[0.5px] transition-colors duration-300"
+            aria-hidden="true"
+          />
+
+          {/* Atmospheric Theme Wash — tints wallpaper with the active chat theme color while keeping the photo fully visible */}
+          {isCustomTheme && resolvedBgStyle?.background ? (
+            <div
+              className="pointer-events-none absolute inset-0 z-0 transition-all duration-300"
+              style={{
+                backgroundColor: resolvedBgStyle.background,
+                opacity: 0.50,
+              }}
+              aria-hidden="true"
+            />
+          ) : null}
+        </>
+      ) : isCustomTheme && resolvedBgStyle ? (
         <div
-          className="pointer-events-none absolute inset-0 z-0 bg-background/65 dark:bg-background/80 backdrop-blur-[0.5px] transition-colors duration-300"
+          className="pointer-events-none absolute inset-0 z-0 transition-all duration-300"
+          style={resolvedBgStyle}
           aria-hidden="true"
         />
       ) : null}

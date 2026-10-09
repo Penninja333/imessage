@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v5";
+const CACHE_NAME = "imessage-v6";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -13,6 +13,19 @@ const STATIC_ASSETS = [
   "/fonts/SF-Pro-Display-Medium.woff2",
   "/fonts/SF-Pro-Text-Semibold.woff2",
   "/fonts/SF-Pro-Display-Bold.woff2",
+  "/wallpapers/sonoma-horizon.jpg",
+  "/wallpapers/redwoods.jpg",
+  "/wallpapers/utah-evening.jpg",
+  "/wallpapers/san-francisco-bay.jpg",
+  "/wallpapers/iceland-coast.jpg",
+  "/wallpapers/new-york-midtown.jpg",
+  "/wallpapers/macos-graphic.jpg",
+  "/wallpapers/radial-yellow.jpg",
+  "/wallpapers/radial-purple.jpg",
+  "/wallpapers/radial-green.jpg",
+  "/wallpapers/radial-blue.jpg",
+  "/wallpapers/ventura-light.jpg",
+  "/wallpapers/ventura-dark.jpg",
 ];
 
 // Install: Cache core static assets

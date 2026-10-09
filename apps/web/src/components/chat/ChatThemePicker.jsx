@@ -47,8 +47,7 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
   // Resolve preview background based on light / dark / glass mode
   const isDarkish = colorMode === "dark" || colorMode === "glass";
   const customBgStyle = isDarkish && selectedTheme.darkBgStyle ? selectedTheme.darkBgStyle : selectedTheme.bgStyle;
-  const isCustom = Boolean(customBgStyle);
-  const previewBgStyle = isCustom ? customBgStyle : frameStyle;
+  const isCustom = Boolean(selectedTheme.id !== "default" && customBgStyle);
 
   const handleApply = async () => {
     if (!partnerId) {
@@ -98,7 +97,7 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-foreground active:scale-95 transition"
+            className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-foreground active:scale-95 transition"
             aria-label="Close"
           >
             <X className="size-4" />
@@ -114,14 +113,25 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
             </span>
             <div
               className="relative overflow-hidden rounded-2xl border border-border/70 p-3.5 shadow-inner transition-all duration-300"
-              style={previewBgStyle}
+              style={frameStyle || undefined}
             >
-              {!isCustom && (
+              {/* Wallpaper contrast scrim */}
+              <div
+                className="pointer-events-none absolute inset-0 z-0 bg-background/30 dark:bg-background/45 backdrop-blur-[0.5px]"
+                aria-hidden="true"
+              />
+
+              {/* Theme ambient wash */}
+              {isCustom && customBgStyle?.background ? (
                 <div
-                  className="pointer-events-none absolute inset-0 z-0 bg-background/65 dark:bg-background/80 backdrop-blur-[0.5px]"
+                  className="pointer-events-none absolute inset-0 z-0 transition-all duration-300"
+                  style={{
+                    backgroundColor: customBgStyle.background,
+                    opacity: 0.50,
+                  }}
                   aria-hidden="true"
                 />
-              )}
+              ) : null}
 
               <div className="relative z-10">
                 {/* Partner message bubble */}
@@ -150,7 +160,7 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
                     <span className="font-medium inline-flex items-center gap-1">
                       Looks great! Syncs to both phones
                       {selectedTheme.emoji ? (
-                        <AppleEmoji char={selectedTheme.emoji} size={14} />
+                        <AppleEmoji char={selectedTheme.emoji} size={14} interactive={false} />
                       ) : null}
                     </span>
                   </div>
