@@ -36,6 +36,8 @@ function getCachedMappedMessage(message, myId) {
         fileName: message.fileName || null,
         fileSize: message.fileSize || null,
         fileType: message.fileType || null,
+        viewOnce: Boolean(message.viewOnce),
+        viewedOnce: Boolean(message.viewedOnce),
         isSystem: Boolean(message.isSystem),
         reactions: message.reactions || [],
         deleted: Boolean(message.deleted),

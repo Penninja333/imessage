@@ -297,6 +297,67 @@ describe("Messages routes (authenticated)", () => {
     expect(res.body.themeId).toBe("custom-#8b5cf6");
   });
 
+  it("POST /api/messages/send/:id supports viewOnce flag for photos", async () => {
+    const { hasImageKitConfig, uploadChatMedia } = await import("../src/lib/imagekit.js");
+    hasImageKitConfig.mockReturnValue(true);
+    uploadChatMedia.mockResolvedValue("https://ik.imagekit.io/test/viewonce.jpg");
+
+    mockMessageSave.mockResolvedValue({
+      senderId: "user123",
+      receiverId: "user456",
+      image: "https://ik.imagekit.io/test/viewonce.jpg",
+      viewOnce: true,
+      viewedOnce: false,
+    });
+
+    const res = await request(testApp)
+      .post("/api/messages/send/user456")
+      .field("viewOnce", "true")
+      .attach("media", Buffer.from("fake-jpg-bytes"), {
+        filename: "secret.jpg",
+        contentType: "image/jpeg",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.viewOnce).toBe(true);
+  });
+
+  it("POST /api/messages/:id/view-once marks viewOnce photo as consumed and returns imageUrl", async () => {
+    const messageDoc = {
+      _id: "507f1f77bcf86cd799439011",
+      senderId: "user456",
+      receiverId: "user123", // logged in user is recipient
+      image: "https://ik.imagekit.io/test/viewonce.jpg",
+      viewOnce: true,
+      viewedOnce: false,
+      save: vi.fn().mockResolvedValue(true),
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+
+    const res = await request(testApp).post("/api/messages/507f1f77bcf86cd799439011/view-once");
+
+    expect(res.status).toBe(200);
+    expect(res.body.viewedOnce).toBe(true);
+    expect(res.body.imageUrl).toBe("https://ik.imagekit.io/test/viewonce.jpg");
+    expect(messageDoc.save).toHaveBeenCalled();
+  });
+
+  it("POST /api/messages/:id/view-once rejects already viewed photos with 410", async () => {
+    const messageDoc = {
+      _id: "507f1f77bcf86cd799439011",
+      senderId: "user456",
+      receiverId: "user123",
+      image: "https://ik.imagekit.io/test/viewonce.jpg",
+      viewOnce: true,
+      viewedOnce: true,
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+
+    const res = await request(testApp).post("/api/messages/507f1f77bcf86cd799439011/view-once");
+
+    expect(res.status).toBe(410);
+  });
+
   it("PUT /api/messages/:id/edit edits own recent message", async () => {
     const messageDoc = {
       _id: "msg123",

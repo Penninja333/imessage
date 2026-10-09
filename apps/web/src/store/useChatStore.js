@@ -163,6 +163,9 @@ export const useChatStore = create(
         const tempId =
           existingTempId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const isFormData = typeof FormData !== "undefined" && messageData instanceof FormData;
+        const isViewOnce = isFormData
+          ? messageData.get("viewOnce") === "true"
+          : Boolean(messageData?.viewOnce);
 
         // If newly dispatching, append optimistic message instantly for zero perceived latency
         if (!existingTempId) {
@@ -178,6 +181,8 @@ export const useChatStore = create(
             text: textVal,
             status: "sending",
             createdAt: new Date().toISOString(),
+            viewOnce: isViewOnce,
+            viewedOnce: false,
             _retryData: messageData,
             replyTo: replyingTo
               ? {
@@ -341,12 +346,23 @@ export const useChatStore = create(
         socket.off("emojiBurst");
         socket.off("userTyping");
         socket.off("userStopTyping");
+        socket.off("messageViewOnceOpened");
 
         socket.on("connect", () => {
           const failed = get().messages.filter((m) => m.status === "failed" && m._retryData);
           failed.forEach((m) => {
             get().retrySendMessage(m.tempId || m._id);
           });
+        });
+
+        socket.on("messageViewOnceOpened", ({ messageId, viewedOnceAt }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              String(m._id) === String(messageId) || m.tempId === messageId
+                ? { ...m, viewedOnce: true, viewedOnceAt, image: null }
+                : m,
+            ),
+          }));
         });
 
         socket.on("newMessage", (newMessage) => {
@@ -763,13 +779,16 @@ export const useChatStore = create(
         return get().sendMessage(payload);
       },
 
-      sendMediaMessage: async ({ conversationId, file, caption }) => {
+      sendMediaMessage: async ({ conversationId, file, caption, viewOnce = false }) => {
         if (!conversationId || !file) return false;
 
         const formData = new FormData();
         formData.append("media", file);
         if (caption && caption.trim()) {
           formData.append("text", caption.trim());
+        }
+        if (viewOnce) {
+          formData.append("viewOnce", "true");
         }
         const replyingTo = get().replyingTo;
         if (replyingTo?.id) {
@@ -785,6 +804,26 @@ export const useChatStore = create(
           return success;
         } finally {
           set({ isSendingMedia: false });
+        }
+      },
+
+      openViewOnceMessage: async (messageId) => {
+        if (!messageId) return null;
+        try {
+          const res = await axiosInstance.post(`/messages/${messageId}/view-once`);
+          const data = res.data;
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              String(m._id) === String(messageId) || m.tempId === messageId
+                ? { ...m, viewedOnce: true, viewedOnceAt: data.viewedOnceAt }
+                : m,
+            ),
+          }));
+          return data.imageUrl;
+        } catch (error) {
+          const errMsg = error.response?.data?.message || "Failed to open photo";
+          toast.error(errMsg);
+          return null;
         }
       },
 

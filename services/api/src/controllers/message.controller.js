@@ -213,7 +213,15 @@ export async function getMessages(req, res) {
         .catch((err) => console.warn("Error marking messages as seen:", err.message));
     }
 
-    res.status(200).json({ messages, hasMore });
+    // For viewOnce messages that were already viewed, redact image URL for privacy
+    const sanitizedMessages = messages.map((m) => {
+      if (m.viewOnce && m.viewedOnce) {
+        return { ...m, image: null };
+      }
+      return m;
+    });
+
+    res.status(200).json({ messages: sanitizedMessages, hasMore });
   } catch (error) {
     console.error("Error in getMessages:", error.message);
     res.status(500).json({ message: "Internal server error" });
@@ -309,6 +317,8 @@ export async function sendMessage(req, res) {
       }
     }
 
+    const isViewOnce = req.body.viewOnce === "true" || req.body.viewOnce === true;
+
     const newMessage = new Message({
       senderId,
       receiverId,
@@ -320,6 +330,8 @@ export async function sendMessage(req, res) {
       fileName,
       fileSize,
       fileType,
+      viewOnce: Boolean(isViewOnce && imageUrl),
+      viewedOnce: false,
       seen: false,
       ...(replyTo ? { replyTo } : {}),
     });
@@ -1284,5 +1296,62 @@ export async function getPinnedMessages(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+
+// ─── View Once Photos ────────────────────────────────────────────────────────
+
+export async function openViewOnceMessage(req, res) {
+  try {
+    const { id: messageId } = req.params;
+    const myId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (!message.viewOnce) {
+      return res.status(400).json({ message: "Not a view once photo" });
+    }
+
+    if (String(message.receiverId) !== String(myId)) {
+      return res.status(403).json({ message: "Only the recipient can open view once photos" });
+    }
+
+    if (message.viewedOnce) {
+      return res.status(410).json({ message: "This photo has expired" });
+    }
+
+    const imageUrl = message.image;
+
+    // Mark as consumed
+    message.viewedOnce = true;
+    message.viewedOnceAt = new Date();
+    await message.save();
+
+    const payload = {
+      messageId: String(message._id),
+      viewedOnce: true,
+      viewedOnceAt: message.viewedOnceAt,
+    };
+
+    io.to(String(message.senderId)).emit("messageViewOnceOpened", payload);
+    io.to(String(message.receiverId)).emit("messageViewOnceOpened", payload);
+
+    res.status(200).json({
+      messageId: String(message._id),
+      imageUrl,
+      viewedOnce: true,
+      viewedOnceAt: message.viewedOnceAt,
+    });
+  } catch (error) {
+    console.error("Error in openViewOnceMessage:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
 
 

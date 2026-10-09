@@ -23,6 +23,7 @@ import { formatMessageTime, extractFirstUrl } from "../../lib/utils";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import { DocumentCard } from "./DocumentCard";
+import { ViewOnceModal } from "./ViewOnceModal";
 import toast from "react-hot-toast";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -60,11 +61,14 @@ function MessageBubbleComponent({
   const toggleStarMessage = useChatStore((state) => state.toggleStarMessage);
   const togglePinMessage = useChatStore((state) => state.togglePinMessage);
   const retrySendMessage = useChatStore((state) => state.retrySendMessage);
+  const openViewOnceMessage = useChatStore((state) => state.openViewOnceMessage);
   const authUser = useAuthStore((state) => state.authUser);
   const myId = authUser?._id ? String(authUser._id) : "";
   const now = useSyncExternalStore(subscribeClock, getClockSnapshot, getClockSnapshot);
 
   const [showTapback, setShowTapback] = useState(false);
+  const [viewOncePhotoUrl, setViewOncePhotoUrl] = useState(null);
+  const [isOpeningViewOnce, setIsOpeningViewOnce] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
   const [isSwipeTriggered, setIsSwipeTriggered] = useState(false);
   const longPressTimerRef = useRef(null);
@@ -225,7 +229,7 @@ function MessageBubbleComponent({
     const peerName = activePartner?.nickname || activePartner?.fullName || "Friend";
 
     const mediaList = rawMessages
-      .filter((m) => !m.deleted && (m.image || m.video))
+      .filter((m) => !m.deleted && !m.viewOnce && (m.image || m.video))
       .map((m) => {
         const isMine = String(m.senderId) === String(myId);
         return {
@@ -251,6 +255,23 @@ function MessageBubbleComponent({
       media: currentItem,
       mediaList,
     });
+  };
+
+  const handleOpenViewOnce = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isOpeningViewOnce || message.viewedOnce) return;
+    setIsOpeningViewOnce(true);
+    try {
+      const url = await openViewOnceMessage(message.id);
+      if (url) {
+        setViewOncePhotoUrl(url);
+      }
+    } finally {
+      setIsOpeningViewOnce(false);
+    }
   };
 
   const handleSelectReaction = async (emoji) => {
@@ -519,7 +540,63 @@ function MessageBubbleComponent({
         ) : null}
 
         <div className="px-3.5 py-2">
-          {hasImage ? (
+          {message.viewOnce ? (
+            <div className="py-1 select-none">
+              {message.viewedOnce ? (
+                /* State: Already Opened / Expired */
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast("Photo expired");
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs select-none transition cursor-pointer ${
+                    isOwnMessage
+                      ? "bg-white/15 text-white/75 hover:opacity-90"
+                      : "bg-surface/80 text-muted hover:text-foreground border border-border/50"
+                  }`}
+                  title="Photo expired"
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-current text-[10px] font-bold opacity-60">
+                    1
+                  </span>
+                  <span className="italic font-normal">Opened</span>
+                </div>
+              ) : isOwnMessage ? (
+                /* State: Sender Waiting */
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast("You sent a view once photo");
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-semibold text-white select-none cursor-default"
+                  title="View once photo"
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full border-2 border-current text-[10px] font-black">
+                    1
+                  </span>
+                  <span>Photo</span>
+                  <span className="text-[10px] opacity-75 font-normal">· View once</span>
+                </div>
+              ) : (
+                /* State: Recipient Can Open */
+                <button
+                  type="button"
+                  disabled={isOpeningViewOnce}
+                  onClick={handleOpenViewOnce}
+                  className="inline-flex items-center gap-2 rounded-full bg-accent/15 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent hover:text-accent-foreground active:scale-95 transition-all shadow-xs border border-accent/30"
+                  title="Tap to view photo"
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full border-2 border-current text-[10px] font-black">
+                    1
+                  </span>
+                  <span>Photo</span>
+                  <span className="text-[10px] opacity-80 font-normal">
+                    · {isOpeningViewOnce ? "Opening..." : "Tap to view"}
+                  </span>
+                </button>
+              )}
+            </div>
+          ) : hasImage ? (
             <div
               className="group/img relative mb-1.5 cursor-pointer overflow-hidden rounded-lg sm:rounded-xl active:scale-[0.99] transition-transform"
               onClick={(e) => {
@@ -726,6 +803,14 @@ function MessageBubbleComponent({
       >
         {message.time}
       </div>
+
+      {/* View Once Photo Viewer Modal */}
+      <ViewOnceModal
+        isOpen={Boolean(viewOncePhotoUrl)}
+        imageUrl={viewOncePhotoUrl}
+        senderName={isOwnMessage ? "You" : "Friend"}
+        onClose={() => setViewOncePhotoUrl(null)}
+      />
     </div>
   );
 }
@@ -753,6 +838,8 @@ function arePropsEqual(prevProps, nextProps) {
   return (
     pm.id === nm.id &&
     pm.status === nm.status &&
+    pm.viewOnce === nm.viewOnce &&
+    pm.viewedOnce === nm.viewedOnce &&
     pm.text === nm.text &&
     pm.time === nm.time &&
     pm.seen === nm.seen &&

@@ -190,13 +190,14 @@ export function ChatComposer() {
     }
   };
 
-  const handleConfirmMediaSend = async ({ file, caption }) => {
+  const handleConfirmMediaSend = async ({ file, caption, viewOnce }) => {
     if (!activeConversationId || !file) return false;
 
     const didSendMessage = await sendMediaMessage({
       conversationId: activeConversationId,
       file,
       caption,
+      viewOnce,
     });
 
     if (didSendMessage) {

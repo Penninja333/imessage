@@ -62,6 +62,18 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    viewOnce: {
+      type: Boolean,
+      default: false,
+    },
+    viewedOnce: {
+      type: Boolean,
+      default: false,
+    },
+    viewedOnceAt: {
+      type: Date,
+      default: null,
+    },
     replyTo: {
       // Snapshot of the replied-to message (stored inline so it survives deletion)
       messageId: { type: mongoose.Schema.Types.ObjectId, ref: "Message" },

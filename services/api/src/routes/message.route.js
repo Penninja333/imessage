@@ -21,6 +21,7 @@ import {
   getStarredMessages,
   togglePinMessage,
   getPinnedMessages,
+  openViewOnceMessage,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
@@ -44,6 +45,7 @@ router.get("/:id/starred", getStarredMessages);
 router.get("/:id/pinned", getPinnedMessages);
 router.post("/:id/star", toggleStarMessage);
 router.post("/:id/pin", togglePinMessage);
+router.post("/:id/view-once", openViewOnceMessage);
 router.get("/:id", getMessages);
 router.post("/:id/seen", markMessagesAsSeen);
 router.post("/send/:id", upload.single("media"), sendMessage);

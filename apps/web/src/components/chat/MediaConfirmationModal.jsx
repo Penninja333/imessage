@@ -32,12 +32,14 @@ export function MediaConfirmationModal({
 }) {
   const [prevFile, setPrevFile] = useState(file);
   const [caption, setCaption] = useState(initialCaption);
+  const [isViewOnce, setIsViewOnce] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef(null);
 
   if (file !== prevFile) {
     setPrevFile(file);
     setCaption(initialCaption || "");
+    setIsViewOnce(false);
   }
 
   const previewUrl = useMemo(() => {
@@ -106,7 +108,11 @@ export function MediaConfirmationModal({
       if (isImage) {
         fileToSend = await compressImage(file);
       }
-      const success = await onSend({ file: fileToSend, caption: caption.trim() });
+      const success = await onSend({
+        file: fileToSend,
+        caption: caption.trim(),
+        viewOnce: isImage ? isViewOnce : false,
+      });
       if (success) {
         onClose();
       }
@@ -226,8 +232,8 @@ export function MediaConfirmationModal({
 
         {/* Caption Input & Action Bar */}
         <footer className="border-t border-border/60 bg-surface/50 p-3 sm:p-4 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {/* Caption Input Field */}
-          <div className="mb-3">
+          {/* Caption Input Field & View Once Toggle */}
+          <div className="relative mb-3 flex items-center">
             <input
               ref={inputRef}
               type="text"
@@ -240,10 +246,41 @@ export function MediaConfirmationModal({
                   handleConfirmSend(e);
                 }
               }}
-              placeholder="Add a caption... (optional)"
-              className="w-full rounded-full border border-border/80 bg-background/90 px-4 py-2.5 text-sm sm:text-base text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition shadow-inner"
+              placeholder={isViewOnce ? "View once photo..." : "Add a caption... (optional)"}
+              className={`w-full rounded-full border border-border/80 bg-background/90 py-2.5 pl-4 ${
+                isImage ? "pr-12" : "pr-4"
+              } text-sm sm:text-base text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition shadow-inner`}
             />
+
+            {/* View Once Toggle Button for Photos */}
+            {isImage ? (
+              <button
+                type="button"
+                onClick={() => setIsViewOnce((prev) => !prev)}
+                title={isViewOnce ? "View once is ON (tap to turn off)" : "Set photo to view once"}
+                className={`absolute right-2 flex size-8 items-center justify-center rounded-full transition-all active:scale-90 ${
+                  isViewOnce
+                    ? "bg-accent text-accent-foreground shadow-sm ring-2 ring-accent/30 scale-105"
+                    : "text-muted hover:text-foreground hover:bg-surface/80"
+                }`}
+                aria-label="Toggle view once"
+                aria-pressed={isViewOnce}
+              >
+                <span className="flex size-5.5 items-center justify-center rounded-full border-2 border-current text-[11px] font-black leading-none">
+                  1
+                </span>
+              </button>
+            ) : null}
           </div>
+
+          {isImage && isViewOnce ? (
+            <div className="mb-2.5 flex items-center justify-center gap-1.5 text-center text-xs font-medium text-accent animate-in fade-in slide-in-from-top-1 duration-150">
+              <span className="flex size-4 items-center justify-center rounded-full border border-accent text-[9px] font-bold">
+                1
+              </span>
+              <span>Photo set to view once</span>
+            </div>
+          ) : null}
 
           {/* Action Buttons: Explicit Cancel vs Send */}
           <div className="flex items-center justify-between gap-3">
