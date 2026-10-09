@@ -3,29 +3,25 @@ import { Download, X, Share2, Smartphone } from "lucide-react";
 
 export default function InstallPwaBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [isStandalone] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      window.navigator?.standalone ||
+      document.referrer?.includes("android-app://")
+    );
+  });
+  const [isIOS] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    return /iphone|ipad|ipod/.test(userAgent);
+  });
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("imessage_pwa_dismissed") === "true";
+  });
 
   useEffect(() => {
-    // Check if already in standalone / installed mode
-    const standaloneMode =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      window.navigator.standalone ||
-      document.referrer.includes("android-app://");
-
-    setIsStandalone(standaloneMode);
-
-    // Detect iOS
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIosDevice);
-
-    // Check if dismissed previously this session
-    if (sessionStorage.getItem("imessage_pwa_dismissed")) {
-      setDismissed(true);
-    }
-
     // Capture install prompt on Android / Chromium
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();

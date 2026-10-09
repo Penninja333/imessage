@@ -12,6 +12,12 @@ const CONFETTI_COLORS = [
   "#AF52DE", // Apple purple
 ];
 
+const HEART_EMOJIS = new Set(["❤️", "❤", "💖", "💕", "💘", "💓", "💗", "💞", "🥰", "😍"]);
+const FIRE_EMOJIS = new Set(["🔥"]);
+const CONFETTI_EMOJIS = new Set(["🎉", "🥳", "🎊", "🍾"]);
+const WATER_EMOJIS = new Set(["😂", "😭", "🤣", "🥺", "💦", "💧"]);
+const STAR_EMOJIS = new Set(["⭐", "✨", "🌟", "💫"]);
+
 function drawHeart(ctx, x, y, size, alpha) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
@@ -182,11 +188,11 @@ export function EmojiParticleCanvas() {
       const spawnY = typeof y === "number" && !isNaN(y) ? y : window.innerHeight / 2;
 
       const newParticles = [];
-      const isHeart = /^[❤️💖💕💘💓💗💞🥰😍]$/u.test(emoji);
-      const isFire = /^[🔥]$/u.test(emoji);
-      const isConfetti = /^[🎉🥳🎊🍾]$/u.test(emoji);
-      const isWater = /^[😂😭🤣🥺💦💧]$/u.test(emoji);
-      const isStar = /^[⭐✨🌟💫]$/u.test(emoji);
+      const isHeart = HEART_EMOJIS.has(emoji);
+      const isFire = FIRE_EMOJIS.has(emoji);
+      const isConfetti = CONFETTI_EMOJIS.has(emoji);
+      const isWater = WATER_EMOJIS.has(emoji);
+      const isStar = STAR_EMOJIS.has(emoji);
 
       if (isHeart) {
         // Floating upward hearts

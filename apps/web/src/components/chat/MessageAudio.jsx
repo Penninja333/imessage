@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Loader2Icon, PauseIcon, PlayIcon } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -37,7 +37,7 @@ export function MessageAudio({ src, isOwnMessage }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRateIndex, setPlaybackRateIndex] = useState(0);
 
-  const bars = useRef(getWaveformBars(src || "audio", 26)).current;
+  const bars = useMemo(() => getWaveformBars(src || "audio", 26), [src]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -66,8 +66,8 @@ export function MessageAudio({ src, isOwnMessage }) {
 
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
-      if (isFinite(audio.currentTime) && audio.currentTime > duration) {
-        setDuration(audio.currentTime);
+      if (isFinite(audio.currentTime)) {
+        setDuration((prev) => (audio.currentTime > prev ? audio.currentTime : prev));
       }
     };
 
@@ -189,7 +189,7 @@ export function MessageAudio({ src, isOwnMessage }) {
     }
   };
 
-  const effectiveDuration = duration > 0 ? duration : (isFinite(audioRef.current?.duration) ? audioRef.current.duration : 0);
+  const effectiveDuration = duration;
   const progress = effectiveDuration > 0 ? Math.min(1, currentTime / effectiveDuration) : 0;
   const currentPlaybackRate = PLAYBACK_RATES[playbackRateIndex];
 

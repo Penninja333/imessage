@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Bell, BellOff, Clock, ShieldAlert } from "lucide-react";
+import { Bell, Clock } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 
 const MUTE_OPTIONS = [

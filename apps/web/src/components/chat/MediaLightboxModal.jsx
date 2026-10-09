@@ -26,6 +26,7 @@ export default function MediaLightboxModal() {
   const prevMedia = useMediaViewerStore((state) => state.prevMedia);
 
   const containerRef = useRef(null);
+  const [prevMediaKey, setPrevMediaKey] = useState(() => `${isOpen}-${activeMedia?.url || ""}`);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -34,15 +35,17 @@ export default function MediaLightboxModal() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Touch gesture tracking for mobile swipe
-  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
-
   // Reset zoom & pan when media item changes or closes
-  useEffect(() => {
+  const currentMediaKey = `${isOpen}-${activeMedia?.url || ""}`;
+  if (currentMediaKey !== prevMediaKey) {
+    setPrevMediaKey(currentMediaKey);
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setIsLoading(true);
-  }, [activeMedia?.url, isOpen]);
+  }
+
+  // Touch gesture tracking for mobile swipe
+  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
 
   // Lock body scroll when modal is open
   useEffect(() => {

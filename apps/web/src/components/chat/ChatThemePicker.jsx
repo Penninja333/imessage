@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Check, Palette, Sparkles, X } from "lucide-react";
+import { Check, Palette, X } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useTheme } from "../../context/theme";
 import { useWallpaper } from "../../context/wallpaper";
@@ -13,16 +13,21 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
   );
   const setConversationTheme = useChatStore((s) => s.setConversationTheme);
   const { theme: colorMode } = useTheme();
+  const { frameStyle } = useWallpaper();
 
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+  const [prevThemeId, setPrevThemeId] = useState(currentThemeId);
   const [selectedThemeId, setSelectedThemeId] = useState(currentThemeId);
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync selected theme when modal opens or currentThemeId changes
-  useEffect(() => {
+  if (isOpen !== prevOpen || currentThemeId !== prevThemeId) {
+    setPrevOpen(isOpen);
+    setPrevThemeId(currentThemeId);
     if (isOpen) {
       setSelectedThemeId(currentThemeId);
     }
-  }, [isOpen, currentThemeId]);
+  }
 
   // Handle ESC key
   useEffect(() => {
@@ -38,8 +43,6 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
 
   const selectedTheme = getThemeById(selectedThemeId);
   const hasChanged = selectedThemeId !== currentThemeId;
-
-  const { frameStyle } = useWallpaper();
 
   // Resolve preview background based on light / dark / glass mode
   const isDarkish = colorMode === "dark" || colorMode === "glass";

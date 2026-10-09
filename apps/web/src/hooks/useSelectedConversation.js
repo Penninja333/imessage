@@ -88,7 +88,6 @@ export function useSelectedConversation() {
   const myId = authUser?._id ? String(authUser._id) : "";
   const mappedMessages = useMemo(
     () => messages.map((m) => getCachedMappedMessage(m, myId)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [messages, myId],
   );
 

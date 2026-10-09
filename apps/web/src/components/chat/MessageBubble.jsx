@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, memo, useSyncExternalStore } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
@@ -20,6 +20,20 @@ const TAPBACK_EMOJIS = ["❤️", "👍", "👎", "😂", "‼️", "❓"];
 const SWIPE_TRIGGER = 72; // how far user must swipe to trigger reply
 const SWIPE_MAX = 80;     // clamp the visual translateX
 
+let nowSnapshot = Date.now();
+const clockListeners = new Set();
+if (typeof window !== "undefined") {
+  setInterval(() => {
+    nowSnapshot = Date.now();
+    clockListeners.forEach((fn) => fn());
+  }, 10000);
+}
+const subscribeClock = (cb) => {
+  clockListeners.add(cb);
+  return () => clockListeners.delete(cb);
+};
+const getClockSnapshot = () => nowSnapshot;
+
 function MessageBubbleComponent({
   message,
   showTime = true,
@@ -31,6 +45,7 @@ function MessageBubbleComponent({
   const setReplyingTo = useChatStore((state) => state.setReplyingTo);
   const authUser = useAuthStore((state) => state.authUser);
   const myId = authUser?._id ? String(authUser._id) : "";
+  const now = useSyncExternalStore(subscribeClock, getClockSnapshot, getClockSnapshot);
 
   const [showTapback, setShowTapback] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
@@ -154,8 +169,6 @@ function MessageBubbleComponent({
     if (swipeActiveRef.current && swipeTriggeredRef.current) {
       // Trigger reply
       const chatState = useChatStore.getState();
-      const authUser = useAuthStore.getState().authUser;
-      const myId = authUser?._id ? String(authUser._id) : "";
       const activePartner =
         chatState.users.find((u) => String(u._id) === String(chatState.activeConversationId)) ||
         chatState.conversations.find((c) => String(c._id) === String(chatState.activeConversationId));
@@ -258,7 +271,7 @@ function MessageBubbleComponent({
     !isDeleted &&
     Boolean(message.text) &&
     message.createdAt &&
-    Date.now() - new Date(message.createdAt).getTime() < 15 * 60 * 1000;
+    now - new Date(message.createdAt).getTime() < 15 * 60 * 1000;
 
   return (
     <div

@@ -1009,7 +1009,7 @@ export async function muteConversation(req, res) {
       return res.status(400).json({ message: "Invalid partner ID" });
     }
 
-    if (!MUTE_DURATIONS.hasOwnProperty(duration)) {
+    if (!Object.hasOwn(MUTE_DURATIONS, duration)) {
       return res.status(400).json({ message: "duration must be one of: 1h, 8h, 1w, always" });
     }
 

@@ -1,23 +1,9 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { SearchIcon, XIcon, LoaderIcon } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
-import { useAuthStore } from "../../store/useAuthStore";
 import { formatMessageTime } from "../../lib/utils";
 import { AppleEmojiText } from "../common/AppleEmoji";
 import { withTransform } from "../../lib/imagekit";
-
-function highlightMatch(text, query) {
-  if (!text || !query) return text;
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return text;
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="bg-accent/30 text-foreground rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
-      {text.slice(idx + query.length)}
-    </>
-  );
-}
 
 export function GlobalSearchModal() {
   const isOpen = useChatStore((state) => state.isGlobalSearchOpen);
@@ -30,13 +16,19 @@ export function GlobalSearchModal() {
 
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
-  const queryRef = useRef("");
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+  const [query, setQuery] = useState("");
+
+  if (isOpen !== prevOpen) {
+    setPrevOpen(isOpen);
+    if (!isOpen) {
+      setQuery("");
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      queryRef.current = "";
     }
   }, [isOpen]);
 
@@ -53,7 +45,7 @@ export function GlobalSearchModal() {
   const handleInput = useCallback(
     (e) => {
       const q = e.target.value;
-      queryRef.current = q;
+      setQuery(q);
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         globalSearch(q);
@@ -113,7 +105,7 @@ export function GlobalSearchModal() {
         <div className="max-h-[60vh] overflow-y-auto">
           {results.length === 0 && !isSearching ? (
             <p className="px-4 py-6 text-center text-sm text-muted/70">
-              {queryRef.current.length >= 2 ? "No messages found" : "Start typing to search"}
+              {query.trim().length >= 2 ? "No messages found" : "Start typing to search"}
             </p>
           ) : (
             <ul>

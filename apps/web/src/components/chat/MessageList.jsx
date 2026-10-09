@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import useScrollToBottom from "../../hooks/useScrollToBottom";
 import { MessageBubble } from "./MessageBubble";
 import { NoConversationPlaceholder } from "./NoConversationPlaceholder";
@@ -35,12 +35,12 @@ function formatDateSeparator(dateStr) {
 }
 
 // Thin skeleton bar for loading placeholders
-function MessageSkeleton({ isRight }) {
+function MessageSkeleton({ isRight, index = 0 }) {
   return (
     <div className={`flex w-full ${isRight ? "justify-end" : "justify-start"} my-1`}>
       <div
         className={`h-9 animate-pulse rounded-2xl bg-surface/70 ${isRight ? "rounded-br-sm" : "rounded-bl-sm"}`}
-        style={{ width: `${120 + Math.random() * 80}px` }}
+        style={{ width: `${120 + ((index * 37) % 80)}px` }}
       />
     </div>
   );
@@ -68,21 +68,27 @@ export function MessageList() {
   const isLoadingMoreRef = useRef(false);
 
   // Unread jump button
+  const [prevConvId, setPrevConvId] = useState(activeConversationId);
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [unreadBelowCount, setUnreadBelowCount] = useState(0);
   const bottomSentinelRef = useRef(null); // watch if bottom is visible
 
+  // Reset when switching conversations
+  if (activeConversationId !== prevConvId) {
+    setPrevConvId(activeConversationId);
+    setShowJumpButton(false);
+    setUnreadBelowCount(0);
+  }
+
+  useEffect(() => {
+    isLoadingMoreRef.current = false;
+  }, [activeConversationId]);
+
   const isPartnerTyping =
     Boolean(typingUser && String(typingUser) === String(activeConversationId));
 
-  const allMessages = activeConversation?.messages || [];
-
-  // Reset when switching conversations
-  useEffect(() => {
-    setShowJumpButton(false);
-    setUnreadBelowCount(0);
-    isLoadingMoreRef.current = false;
-  }, [activeConversationId]);
+  const rawMessages = activeConversation?.messages;
+  const allMessages = useMemo(() => rawMessages || [], [rawMessages]);
 
   // Scroll to bottom on first load and when new messages arrive
   const lastMessageId = allMessages.at(-1)?.id;
@@ -168,8 +174,11 @@ export function MessageList() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const isBottomVisible = entries[0]?.isIntersecting;
+        const isBottomVisible = Boolean(entries[0]?.isIntersecting);
         setShowJumpButton(!isBottomVisible);
+        if (isBottomVisible) {
+          setUnreadBelowCount(0);
+        }
       },
       { root: messagesScrollRef.current, threshold: 0 },
     );
@@ -178,23 +187,22 @@ export function MessageList() {
     return () => observer.disconnect();
   }, [messagesScrollRef, activeConversationId]);
 
-  // Count unread messages below the visible fold
+  // Count unread messages below the visible fold asynchronously
   useEffect(() => {
-    if (!showJumpButton) {
-      setUnreadBelowCount(0);
-      return;
-    }
-    // Count messages that are not from me and not seen (approximate "unread below")
-    const scrollEl = messagesScrollRef.current;
-    if (!scrollEl) return;
-    let count = 0;
-    const items = scrollEl.querySelectorAll("[data-unread]");
-    for (const item of items) {
-      const rect = item.getBoundingClientRect();
-      const parentRect = scrollEl.getBoundingClientRect();
-      if (rect.top > parentRect.bottom) count++;
-    }
-    setUnreadBelowCount(count);
+    if (!showJumpButton) return;
+    const rafId = requestAnimationFrame(() => {
+      const scrollEl = messagesScrollRef.current;
+      if (!scrollEl) return;
+      let count = 0;
+      const items = scrollEl.querySelectorAll("[data-unread]");
+      for (const item of items) {
+        const rect = item.getBoundingClientRect();
+        const parentRect = scrollEl.getBoundingClientRect();
+        if (rect.top > parentRect.bottom) count++;
+      }
+      setUnreadBelowCount(count);
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [showJumpButton, allMessages, messagesScrollRef]);
 
   const handleJumpToBottom = () => {
@@ -246,7 +254,7 @@ export function MessageList() {
           {isMessagesLoading ? (
             <div className="flex flex-col gap-1 px-1 py-2">
               {Array.from({ length: 8 }).map((_, i) => (
-                <MessageSkeleton key={i} isRight={i % 3 === 0} />
+                <MessageSkeleton key={i} isRight={i % 3 === 0} index={i} />
               ))}
             </div>
           ) : allMessages.length === 0 ? (
@@ -263,14 +271,6 @@ export function MessageList() {
             const currentDateLabel = formatDateSeparator(message.createdAt);
             const prevDateLabel = prevMessage ? formatDateSeparator(prevMessage.createdAt) : null;
             const showDateHeader = currentDateLabel !== prevDateLabel;
-
-            // Cluster grouping — consecutive same-sender messages within 2 min
-            const isSameSender = prevMessage && prevMessage.role === message.role;
-            const isCloseInTime =
-              prevMessage &&
-              message.createdAt &&
-              prevMessage.createdAt &&
-              Math.abs(new Date(message.createdAt) - new Date(prevMessage.createdAt)) < 120000;
 
             const nextMessage = allMessages[index + 1];
             const isNextSameSender = nextMessage && nextMessage.role === message.role;

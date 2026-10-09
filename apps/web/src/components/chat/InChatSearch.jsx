@@ -10,7 +10,6 @@ export function InChatSearch({ onNavigateMatch }) {
   const messages = useChatStore((state) => state.messages);
 
   const inputRef = useRef(null);
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
   // Focus input automatically when mounted and clean up activeMatchId on unmount
   useEffect(() => {
@@ -31,9 +30,16 @@ export function InChatSearch({ onNavigateMatch }) {
 
   const totalMatches = matchingMessageIds.length;
 
-  // Reset match index when query changes
-  useEffect(() => {
+  const [prevQuery, setPrevQuery] = useState(query);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+  if (query !== prevQuery) {
+    setPrevQuery(query);
     setCurrentMatchIndex(totalMatches > 0 ? 0 : -1);
+  }
+
+  // Sync active match id with chat store & view when matches change
+  useEffect(() => {
     const targetId = totalMatches > 0 ? matchingMessageIds[0] : null;
     setActiveMatchId(targetId);
     if (targetId && onNavigateMatch) {

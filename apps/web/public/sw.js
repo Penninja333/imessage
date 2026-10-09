@@ -133,7 +133,7 @@ self.addEventListener("push", (event) => {
       return;
     }
 
-    let payload = {};
+    let payload;
     try {
       payload = event.data.json();
     } catch {

@@ -11,7 +11,6 @@ import {
   MicIcon,
   Link2Icon,
   ExternalLinkIcon,
-  PlayIcon,
   FilmIcon,
 } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
@@ -30,13 +29,19 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
   const myId = authUser?._id ? String(authUser._id) : "";
 
   const [activeTab, setActiveTab] = useState("info"); // "info" | "media" | "voice" | "links"
+  const [prevPeerNickname, setPrevPeerNickname] = useState(peer?.nickname || "");
+  const [prevOpen, setPrevOpen] = useState(isOpen);
   const [nicknameInput, setNicknameInput] = useState(peer?.nickname || "");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sync nicknameInput whenever peer changes
-  useEffect(() => {
-    setNicknameInput(peer?.nickname || "");
-  }, [peer?.nickname, isOpen]);
+  // Sync nicknameInput when modal opens or peer changes
+  if (isOpen !== prevOpen || peer?.nickname !== prevPeerNickname) {
+    setPrevOpen(isOpen);
+    setPrevPeerNickname(peer?.nickname || "");
+    if (isOpen) {
+      setNicknameInput(peer?.nickname || "");
+    }
+  }
 
   // Handle ESC key to dismiss modal
   useEffect(() => {
@@ -65,7 +70,7 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
         };
       })
       .reverse(); // most recent first
-  }, [messages, myId, peer?.name]);
+  }, [messages, myId, peer]);
 
   // Extract shared voice memos
   const voiceList = useMemo(() => {
@@ -82,7 +87,7 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
         };
       })
       .reverse();
-  }, [messages, myId, peer?.name]);
+  }, [messages, myId, peer]);
 
   // Extract shared links
   const linksList = useMemo(() => {
@@ -109,7 +114,7 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
       }
     });
     return links.reverse();
-  }, [messages, myId, peer?.name]);
+  }, [messages, myId, peer]);
 
   if (!isOpen || !peer || typeof document === "undefined") return null;
 

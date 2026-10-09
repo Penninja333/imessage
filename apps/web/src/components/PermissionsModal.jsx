@@ -18,22 +18,36 @@ export default function PermissionsModal() {
   const isOpen = usePermissionsStore((state) => state.isOpen);
   const closeModal = usePermissionsStore((state) => state.closeModal);
 
-  const [notificationStatus, setNotificationStatus] = useState("default");
-  const [micStatus, setMicStatus] = useState("prompt");
+  const [notificationStatus, setNotificationStatus] = useState(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      return Notification.permission;
+    }
+    return "unsupported";
+  });
+  const [micStatus, setMicStatus] = useState(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("imessage_mic_granted") === "true") {
+      return "granted";
+    }
+    return "prompt";
+  });
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const [isEnablingMic, setIsEnablingMic] = useState(false);
 
-  // Check initial permissions
+  // Check initial permissions asynchronously
   useEffect(() => {
     if (!isOpen) return;
 
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setNotificationStatus(Notification.permission);
-    } else {
-      setNotificationStatus("unsupported");
-    }
-
     if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions
+        .query({ name: "notifications" })
+        .then((res) => {
+          setNotificationStatus(res.state === "prompt" ? "default" : res.state);
+          res.onchange = () => setNotificationStatus(res.state === "prompt" ? "default" : res.state);
+        })
+        .catch(() => {
+          // Ignore query failure
+        });
+
       navigator.permissions
         .query({ name: "microphone" })
         .then((res) => {
@@ -45,8 +59,6 @@ export default function PermissionsModal() {
             setMicStatus("granted");
           }
         });
-    } else if (localStorage.getItem("imessage_mic_granted") === "true") {
-      setMicStatus("granted");
     }
   }, [isOpen]);
 

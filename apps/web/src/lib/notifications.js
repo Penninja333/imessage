@@ -106,7 +106,9 @@ export async function subscribeToWebPush(forceRefresh = false) {
         if (existing) {
           try {
             await existing.unsubscribe();
-          } catch {}
+          } catch {
+            // Ignore failure unsubscribing stale push subscription
+          }
         }
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,

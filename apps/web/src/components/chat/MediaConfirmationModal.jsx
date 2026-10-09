@@ -1,17 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
   SendHorizontalIcon,
   LoaderIcon,
-  ImageIcon,
-  FilmIcon,
   MusicIcon,
   FileIcon,
   Reply,
 } from "lucide-react";
 import { AppleEmojiText } from "../common/AppleEmoji";
-import { withTransform } from "../../lib/imagekit";
 
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return "0 B";
@@ -39,26 +36,28 @@ export function MediaConfirmationModal({
   onClose,
   onSend,
 }) {
+  const [prevFile, setPrevFile] = useState(file);
   const [caption, setCaption] = useState(initialCaption);
   const [isSending, setIsSending] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(null);
   const inputRef = useRef(null);
 
-  // Sync initial caption & create preview URL when a new file is passed
-  useEffect(() => {
-    if (file) {
-      setCaption(initialCaption || "");
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+  if (file !== prevFile) {
+    setPrevFile(file);
+    setCaption(initialCaption || "");
+  }
 
-      return () => {
-        URL.revokeObjectURL(url);
-        setPreviewUrl(null);
-      };
-    } else {
-      setPreviewUrl(null);
-    }
-  }, [file, initialCaption]);
+  const previewUrl = useMemo(() => {
+    if (!file) return null;
+    return URL.createObjectURL(file);
+  }, [file]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   // Lock body scroll when modal is open
   useEffect(() => {

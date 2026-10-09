@@ -346,7 +346,7 @@ export const useChatStore = create(
           }));
         });
 
-        socket.on("messageEdited", ({ messageId, text, isEdited, editedAt }) => {
+        socket.on("messageEdited", ({ messageId, text, editedAt }) => {
           set((state) => ({
             messages: state.messages.map((m) =>
               String(m._id) === String(messageId)
