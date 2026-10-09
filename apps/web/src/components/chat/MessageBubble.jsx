@@ -305,7 +305,7 @@ function MessageBubbleComponent({
                 }`}
                 title={hasReactedWithThis ? `Remove ${emoji}` : `React with ${emoji}`}
               >
-                <AppleEmoji char={emoji} size={22} />
+                <AppleEmoji char={emoji} size={22} interactive={false} />
               </button>
             );
           })}
@@ -538,7 +538,7 @@ function MessageBubbleComponent({
                     iReacted ? "text-accent font-semibold" : ""
                   }`}
                 >
-                  <AppleEmoji char={emoji} size={13} />
+                  <AppleEmoji char={emoji} size={13} interactive={false} />
                   {count > 1 ? (
                     <span
                       className={`text-[10px] ${

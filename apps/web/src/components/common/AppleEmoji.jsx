@@ -14,7 +14,7 @@ function AppleEmojiComponent({
   size = "1.25em",
   className = "",
   style = {},
-  interactive = true,
+  interactive = false,
   onClick,
 }) {
   const [hasError, setHasError] = useState(false);
@@ -71,7 +71,9 @@ function AppleEmojiComponent({
         className={`inline-block select-text ${
           interactive
             ? "cursor-pointer transition-transform duration-150 hover:scale-125 active:scale-95"
-            : ""
+            : onClick
+              ? "cursor-pointer pointer-events-auto"
+              : "pointer-events-none"
         } ${isPopping ? "scale-140 -rotate-6 transition-transform duration-150" : ""} ${className}`}
         style={style}
       >
@@ -98,7 +100,9 @@ function AppleEmojiComponent({
       className={`inline-block select-text align-[-0.2em] mx-[1px] object-contain transition-all duration-150 ${
         interactive
           ? "cursor-pointer hover:scale-125 active:scale-95 touch-manipulation pointer-events-auto"
-          : "pointer-events-none"
+          : onClick
+            ? "cursor-pointer pointer-events-auto"
+            : "pointer-events-none"
       } ${
         isPopping
           ? "scale-140 -rotate-6 transition-transform duration-150 shadow-sm filter drop-shadow-md"
@@ -118,9 +122,11 @@ function AppleEmojiTextComponent({
   text,
   className = "",
   disableBigEmoji = false,
-  interactive = true,
+  interactive,
 }) {
   if (!text) return null;
+
+  const isInteractive = interactive !== undefined ? interactive : !disableBigEmoji;
 
   // 1. Check for Apple iMessage Big Emoji mode (1 to 3 lone emojis)
   if (!disableBigEmoji) {
@@ -137,7 +143,7 @@ function AppleEmojiTextComponent({
               char={e.value}
               unified={e.unified}
               size={emojiSize}
-              interactive={interactive}
+              interactive={isInteractive}
               className="hover:scale-125 active:scale-95 transition-transform duration-200"
             />
           ))}
@@ -158,7 +164,7 @@ function AppleEmojiTextComponent({
               key={idx}
               char={seg.value}
               unified={seg.unified}
-              interactive={interactive}
+              interactive={isInteractive}
             />
           );
         }
