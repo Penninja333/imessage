@@ -48,6 +48,8 @@ export const useChatStore = create(
       isGlobalSearchOpen: false,
       // Forward message
       forwardingMessage: null, // { id, text, imageUrl, ... } — set when user picks "Forward"
+      // Pinned messages for active conversation
+      pinnedMessages: [],
       // Link preview cache: { [url]: { title, description, image, siteName, url } | null }
       linkPreviews: {},
 
@@ -97,6 +99,7 @@ export const useChatStore = create(
       getMessages: async (userId) => {
         if (!userId) return;
         set({ isMessagesLoading: true, hasMoreMessages: false });
+        get().getPinnedMessages(userId);
         try {
           const res = await axiosInstance.get(`/messages/${userId}?limit=50`);
           // API now returns { messages, hasMore }
@@ -422,6 +425,26 @@ export const useChatStore = create(
             },
           }));
         });
+
+        // ── Pinned messages sync across participants ─────────────────────────
+        socket.off("messagePinUpdated");
+        socket.on("messagePinUpdated", ({ messageId, pinned, pinnedAt, pinnedBy, conversationPartnerId }) => {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              String(m._id) === String(messageId)
+                ? { ...m, pinned, pinnedAt, pinnedBy }
+                : m,
+            ),
+          }));
+          const activeId = get().activeConversationId;
+          if (
+            activeId &&
+            (String(conversationPartnerId) === String(activeId) ||
+              get().messages.some((m) => String(m._id) === String(messageId)))
+          ) {
+            get().getPinnedMessages(activeId);
+          }
+        });
       },
 
       cleanupSocketListeners: () => {
@@ -436,6 +459,7 @@ export const useChatStore = create(
         socket?.off("userTyping");
         socket?.off("userStopTyping");
         socket?.off("chatThemeChanged");
+        socket?.off("messagePinUpdated");
       },
 
       // Kept for backward compatibility
@@ -911,6 +935,90 @@ export const useChatStore = create(
           toast.error(error.response?.data?.message || "Failed to unmute");
           return false;
         }
+      },
+
+      // ── Message Pinning ──────────────────────────────────────────────────
+      getPinnedMessages: async (partnerId) => {
+        if (!partnerId) return;
+        try {
+          const res = await axiosInstance.get(`/messages/${partnerId}/pinned`);
+          set({ pinnedMessages: res.data || [] });
+        } catch {
+          set({ pinnedMessages: [] });
+        }
+      },
+
+      togglePinMessage: async (messageId) => {
+        if (!messageId) return false;
+        try {
+          const res = await axiosInstance.post(`/messages/${messageId}/pin`);
+          const { pinned, pinnedAt, pinnedBy } = res.data;
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              String(m._id) === String(messageId)
+                ? { ...m, pinned, pinnedAt, pinnedBy }
+                : m,
+            ),
+          }));
+          const activeId = get().activeConversationId;
+          if (activeId) {
+            get().getPinnedMessages(activeId);
+          }
+          toast.success(pinned ? "Message pinned" : "Message unpinned");
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to update pin");
+          return false;
+        }
+      },
+
+      // ── Starred Messages ─────────────────────────────────────────────────
+      toggleStarMessage: async (messageId) => {
+        if (!messageId) return false;
+        const myId = String(useAuthStore.getState().authUser?._id);
+
+        // Optimistic update
+        set((state) => ({
+          messages: state.messages.map((m) => {
+            if (String(m._id) !== String(messageId)) return m;
+            const starredBy = Array.isArray(m.starredBy) ? [...m.starredBy] : [];
+            const idx = starredBy.findIndex((uid) => String(uid) === myId);
+            if (idx >= 0) starredBy.splice(idx, 1);
+            else starredBy.push(myId);
+            return { ...m, starredBy };
+          }),
+        }));
+
+        try {
+          const res = await axiosInstance.post(`/messages/${messageId}/star`);
+          const { isStarred } = res.data;
+          toast.success(isStarred ? "Message starred" : "Message unstarred");
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to update star");
+          const activeId = get().activeConversationId;
+          if (activeId) get().getMessages(activeId);
+          return false;
+        }
+      },
+
+      getStarredMessages: async (partnerId) => {
+        if (!partnerId) return [];
+        try {
+          const res = await axiosInstance.get(`/messages/${partnerId}/starred`);
+          return res.data || [];
+        } catch {
+          return [];
+        }
+      },
+
+      // ── Jump / Highlight Message ─────────────────────────────────────────
+      highlightMessage: (messageId) => {
+        if (!messageId) return;
+        set({ activeMatchId: String(messageId) });
+        setTimeout(() => {
+          set((state) => (state.activeMatchId === String(messageId) ? { activeMatchId: null } : {}));
+        }, 2800);
       },
     }),
     {

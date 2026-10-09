@@ -37,6 +37,13 @@ function getCachedMappedMessage(message, myId) {
         createdAt: message.createdAt,
         isEdited: Boolean(message.isEdited),
         editedAt: message.editedAt || null,
+        isStarred: Boolean(
+          message.starredBy &&
+          message.starredBy.some((uid) => String(uid) === String(myId))
+        ),
+        pinned: Boolean(message.pinned),
+        pinnedAt: message.pinnedAt || null,
+        pinnedBy: message.pinnedBy ? String(message.pinnedBy) : null,
         forwardedFrom: message.forwardedFrom
           ? {
               messageId: String(message.forwardedFrom.messageId),

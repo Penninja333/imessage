@@ -9,6 +9,7 @@ import {
   Reply,
 } from "lucide-react";
 import { AppleEmojiText } from "../common/AppleEmoji";
+import { compressImage } from "../../lib/imageCompression";
 
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return "0 B";
@@ -108,7 +109,11 @@ export function MediaConfirmationModal({
 
     setIsSending(true);
     try {
-      const success = await onSend({ file, caption: caption.trim() });
+      let fileToSend = file;
+      if (isImage) {
+        fileToSend = await compressImage(file);
+      }
+      const success = await onSend({ file: fileToSend, caption: caption.trim() });
       if (success) {
         onClose();
       }

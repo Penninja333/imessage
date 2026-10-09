@@ -64,6 +64,25 @@ const messageSchema = new mongoose.Schema(
       messageId: { type: mongoose.Schema.Types.ObjectId, ref: "Message" },
       senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     },
+    starredBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
+    pinnedAt: {
+      type: Date,
+      default: null,
+    },
+    pinnedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true },
 );

@@ -24,6 +24,7 @@ import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
 import { NicknameDetailsModal } from "./NicknameDetailsModal";
 import { ChatThemePicker } from "./ChatThemePicker";
 import { InChatSearch } from "./InChatSearch";
+import { PinnedMessageBanner } from "./PinnedMessageBanner";
 import { MuteConversationMenu } from "./MuteConversationMenu";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 
@@ -510,6 +511,9 @@ export function ChatHeader() {
         />
       ) : null}
       </header>
+
+      {/* Pinned Messages Glass Banner */}
+      {activeConversation ? <PinnedMessageBanner /> : null}
 
       {/* In-Chat Message Search Bar */}
       {isInChatSearchOpen && activeConversation ? <InChatSearch /> : null}

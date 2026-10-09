@@ -1058,3 +1058,204 @@ export async function unmuteConversation(req, res) {
   }
 }
 
+// ─── Starred / Bookmarked Messages ──────────────────────────────────────────
+
+export async function toggleStarMessage(req, res) {
+  try {
+    const { id: messageId } = req.params;
+    const myId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    // Must be participant (sender or receiver)
+    if (
+      String(message.senderId) !== String(myId) &&
+      String(message.receiverId) !== String(myId)
+    ) {
+      return res.status(403).json({ message: "Not authorized to star this message" });
+    }
+
+    const starredIndex = (message.starredBy || []).findIndex(
+      (uid) => String(uid) === String(myId),
+    );
+
+    let isStarred = false;
+    if (starredIndex >= 0) {
+      message.starredBy.splice(starredIndex, 1);
+      isStarred = false;
+    } else {
+      if (!message.starredBy) message.starredBy = [];
+      message.starredBy.push(myId);
+      isStarred = true;
+    }
+
+    await message.save();
+
+    res.status(200).json({
+      messageId: String(message._id),
+      isStarred,
+    });
+  } catch (error) {
+    console.error("Error in toggleStarMessage:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function getStarredMessages(req, res) {
+  try {
+    const { id: partnerId } = req.params;
+    const myId = req.user._id;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(400).json({ message: "Invalid partner ID" });
+    }
+
+    const query = {
+      $or: [
+        { senderId: myId, receiverId: partnerId },
+        { senderId: partnerId, receiverId: myId },
+      ],
+      starredBy: myId,
+      deleted: { $ne: true },
+    };
+
+    const starredMessages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json(starredMessages);
+  } catch (error) {
+    console.error("Error in getStarredMessages:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// ─── Pinned Messages (Top Banner) ───────────────────────────────────────────
+
+export async function togglePinMessage(req, res) {
+  try {
+    const { id: messageId } = req.params;
+    const myId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    // Must be participant
+    if (
+      String(message.senderId) !== String(myId) &&
+      String(message.receiverId) !== String(myId)
+    ) {
+      return res.status(403).json({ message: "Not authorized to pin this message" });
+    }
+
+    const partnerId = String(message.senderId) === String(myId) ? message.receiverId : message.senderId;
+
+    if (message.pinned) {
+      // Unpin
+      message.pinned = false;
+      message.pinnedAt = null;
+      message.pinnedBy = null;
+      await message.save();
+
+      const payload = {
+        messageId: String(message._id),
+        pinned: false,
+        conversationPartnerId: String(partnerId),
+      };
+
+      io.to(String(myId)).emit("messagePinUpdated", payload);
+      io.to(String(partnerId)).emit("messagePinUpdated", {
+        ...payload,
+        conversationPartnerId: String(myId),
+      });
+
+      return res.status(200).json(payload);
+    } else {
+      // Pin: Check max 3 pinned in this conversation
+      const currentPinned = await Message.find({
+        $or: [
+          { senderId: myId, receiverId: partnerId },
+          { senderId: partnerId, receiverId: myId },
+        ],
+        pinned: true,
+        deleted: { $ne: true },
+      }).sort({ pinnedAt: 1 });
+
+      if (currentPinned.length >= 3) {
+        // Auto-unpin oldest
+        const oldest = currentPinned[0];
+        oldest.pinned = false;
+        oldest.pinnedAt = null;
+        oldest.pinnedBy = null;
+        await oldest.save();
+      }
+
+      message.pinned = true;
+      message.pinnedAt = new Date();
+      message.pinnedBy = myId;
+      await message.save();
+
+      const payload = {
+        messageId: String(message._id),
+        pinned: true,
+        pinnedAt: message.pinnedAt,
+        pinnedBy: String(message.pinnedBy),
+        conversationPartnerId: String(partnerId),
+      };
+
+      io.to(String(myId)).emit("messagePinUpdated", payload);
+      io.to(String(partnerId)).emit("messagePinUpdated", {
+        ...payload,
+        conversationPartnerId: String(myId),
+      });
+
+      return res.status(200).json(payload);
+    }
+  } catch (error) {
+    console.error("Error in togglePinMessage:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function getPinnedMessages(req, res) {
+  try {
+    const { id: partnerId } = req.params;
+    const myId = req.user._id;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(400).json({ message: "Invalid partner ID" });
+    }
+
+    const pinnedMessages = await Message.find({
+      $or: [
+        { senderId: myId, receiverId: partnerId },
+        { senderId: partnerId, receiverId: myId },
+      ],
+      pinned: true,
+      deleted: { $ne: true },
+    })
+      .sort({ pinnedAt: -1 })
+      .limit(3)
+      .lean();
+
+    res.status(200).json(pinnedMessages);
+  } catch (error) {
+    console.error("Error in getPinnedMessages:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+

@@ -2,7 +2,19 @@ import { useState, useRef, useEffect, memo, useSyncExternalStore } from "react";
 import { withTransform } from "../../lib/imagekit";
 import { MessageVideo } from "./MessageVideo";
 import { MessageAudio } from "./MessageAudio";
-import { CopyIcon, SparklesIcon, Trash2Icon, SmileIcon, Maximize2, Reply, Pencil, CornerUpRight } from "lucide-react";
+import {
+  CopyIcon,
+  SparklesIcon,
+  Trash2Icon,
+  SmileIcon,
+  Maximize2,
+  Reply,
+  Pencil,
+  CornerUpRight,
+  Star,
+  Pin,
+  PinOff,
+} from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useMediaViewerStore } from "../../store/useMediaViewerStore";
@@ -43,6 +55,8 @@ function MessageBubbleComponent({
   const toggleReaction = useChatStore((state) => state.toggleReaction);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const setReplyingTo = useChatStore((state) => state.setReplyingTo);
+  const toggleStarMessage = useChatStore((state) => state.toggleStarMessage);
+  const togglePinMessage = useChatStore((state) => state.togglePinMessage);
   const authUser = useAuthStore((state) => state.authUser);
   const myId = authUser?._id ? String(authUser._id) : "";
   const now = useSyncExternalStore(subscribeClock, getClockSnapshot, getClockSnapshot);
@@ -362,6 +376,48 @@ function MessageBubbleComponent({
             </button>
           ) : null}
 
+          {/* Star / Unstar action */}
+          {!isDeleted ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowTapback(false);
+                toggleStarMessage(message.id);
+              }}
+              className={`flex size-7 items-center justify-center rounded-full transition ${
+                message.isStarred
+                  ? "text-amber-400 bg-amber-400/15"
+                  : "text-muted hover:text-foreground hover:bg-surface"
+              }`}
+              title={message.isStarred ? "Unstar message" : "Star message"}
+            >
+              <Star className={`size-3.5 ${message.isStarred ? "fill-amber-400" : ""}`} />
+            </button>
+          ) : null}
+
+          {/* Pin / Unpin action */}
+          {!isDeleted ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowTapback(false);
+                togglePinMessage(message.id);
+              }}
+              className={`flex size-7 items-center justify-center rounded-full transition ${
+                message.pinned
+                  ? "text-accent bg-accent/15"
+                  : "text-muted hover:text-foreground hover:bg-surface"
+              }`}
+              title={message.pinned ? "Unpin message" : "Pin message"}
+            >
+              {message.pinned ? (
+                <PinOff className="size-3.5" />
+              ) : (
+                <Pin className="size-3.5" />
+              )}
+            </button>
+          ) : null}
+
           {isOwnMessage ? (
             <button
               type="button"
@@ -579,6 +635,16 @@ function MessageBubbleComponent({
             isOwnMessage ? "justify-end text-right" : "justify-start text-left"
           }`}
         >
+          {message.pinned ? (
+            <span title="Pinned message" className="inline-flex items-center text-accent">
+              <Pin className="size-2.5 fill-accent" />
+            </span>
+          ) : null}
+          {message.isStarred ? (
+            <span title="Starred message" className="inline-flex items-center text-amber-400">
+              <Star className="size-2.5 fill-amber-400" />
+            </span>
+          ) : null}
           {message.isEdited ? (
             <span className="text-[10px] italic text-muted-foreground/75 font-normal">
               Edited
@@ -594,7 +660,35 @@ function MessageBubbleComponent({
             </span>
           )}
         </div>
+      ) : (message.pinned || message.isStarred) ? (
+        <div
+          className={`mt-0.5 flex items-center gap-1 px-1 text-[10px] ${
+            isOwnMessage ? "justify-end text-right" : "justify-start text-left"
+          }`}
+        >
+          {message.pinned ? (
+            <span title="Pinned message" className="inline-flex items-center text-accent">
+              <Pin className="size-2.5 fill-accent" />
+            </span>
+          ) : null}
+          {message.isStarred ? (
+            <span title="Starred message" className="inline-flex items-center text-amber-400">
+              <Star className="size-2.5 fill-amber-400" />
+            </span>
+          ) : null}
+        </div>
       ) : null}
+
+      {/* iOS Swipe-Left Timestamp Reveal (slides out from the right gutter) */}
+      <div
+        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-3 text-[11px] tabular-nums font-medium text-muted/70 whitespace-nowrap opacity-0 transition-opacity"
+        style={{
+          opacity: "var(--timestamp-opacity, 0)",
+        }}
+        aria-hidden="true"
+      >
+        {message.time}
+      </div>
     </div>
   );
 }
@@ -627,6 +721,8 @@ function arePropsEqual(prevProps, nextProps) {
     pm.deleted === nm.deleted &&
     pm.isEdited === nm.isEdited &&
     pm.editedAt === nm.editedAt &&
+    pm.isStarred === nm.isStarred &&
+    pm.pinned === nm.pinned &&
     pm.imageUrl === nm.imageUrl &&
     pm.videoUrl === nm.videoUrl &&
     pm.audioUrl === nm.audioUrl &&

@@ -12,6 +12,7 @@ import {
   Link2Icon,
   ExternalLinkIcon,
   FilmIcon,
+  StarIcon,
 } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -19,16 +20,19 @@ import { useMediaViewerStore } from "../../store/useMediaViewerStore";
 import { formatMessageTime } from "../../lib/utils";
 import { withTransform } from "../../lib/imagekit";
 import { MessageAudio } from "./MessageAudio";
+import { AppleEmojiText } from "../common/AppleEmoji";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/gi;
 
 export function ContactDetailsModal({ isOpen, onClose, peer }) {
   const setNickname = useChatStore((state) => state.setNickname);
   const messages = useChatStore((state) => state.messages);
+  const toggleStarMessage = useChatStore((state) => state.toggleStarMessage);
+  const highlightMessage = useChatStore((state) => state.highlightMessage);
   const authUser = useAuthStore((state) => state.authUser);
   const myId = authUser?._id ? String(authUser._id) : "";
 
-  const [activeTab, setActiveTab] = useState("info"); // "info" | "media" | "voice" | "links"
+  const [activeTab, setActiveTab] = useState("info"); // "info" | "media" | "voice" | "links" | "starred"
   const [prevPeerNickname, setPrevPeerNickname] = useState(peer?.nickname || "");
   const [prevOpen, setPrevOpen] = useState(isOpen);
   const [nicknameInput, setNicknameInput] = useState(peer?.nickname || "");
@@ -114,6 +118,26 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
       }
     });
     return links.reverse();
+  }, [messages, myId, peer]);
+
+  // Extract starred messages
+  const starredList = useMemo(() => {
+    return messages
+      .filter((m) => !m.deleted && m.starredBy && m.starredBy.some((uid) => String(uid) === myId))
+      .map((m) => {
+        const isMine = String(m.senderId) === myId;
+        return {
+          id: String(m._id),
+          text: m.text || "",
+          image: m.image,
+          video: m.video,
+          audio: m.audio,
+          time: formatMessageTime(m.createdAt),
+          senderName: isMine ? "You" : peer?.name || "Friend",
+          isMine,
+        };
+      })
+      .reverse();
   }, [messages, myId, peer]);
 
   if (!isOpen || !peer || typeof document === "undefined") return null;
@@ -268,6 +292,24 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
               {linksList.length > 0 ? (
                 <span className="text-[10px] rounded-full bg-accent/20 px-1 text-accent font-bold">
                   {linksList.length}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("starred")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all ${
+                activeTab === "starred"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              <StarIcon className="size-3.5 text-amber-400 fill-amber-400" />
+              <span>Starred</span>
+              {starredList.length > 0 ? (
+                <span className="text-[10px] rounded-full bg-amber-400/20 px-1 text-amber-500 font-bold">
+                  {starredList.length}
                 </span>
               ) : null}
             </button>
@@ -517,6 +559,73 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
                     </div>
                     <ExternalLinkIcon className="size-4 shrink-0 text-muted group-hover:text-accent transition-colors" />
                   </a>
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === "starred" && (
+            <div className="space-y-2.5">
+              {starredList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-surface mb-3 text-muted/60">
+                    <StarIcon className="size-7 text-amber-400" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground/80">No starred messages</p>
+                  <p className="text-xs text-muted mt-1">
+                    Star important messages in chat to find them easily here.
+                  </p>
+                </div>
+              ) : (
+                starredList.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      onClose();
+                      highlightMessage(item.id);
+                    }}
+                    className="group flex cursor-pointer items-start justify-between gap-3 rounded-2xl border border-border/70 bg-surface/60 p-3.5 backdrop-blur-md hover:border-amber-400/40 hover:bg-surface transition-all select-none"
+                    title="Click to jump to message"
+                  >
+                    <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-500 mt-0.5">
+                        <StarIcon className="size-4 fill-amber-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-semibold text-foreground">
+                            {item.senderName}
+                          </span>
+                          <span className="text-[10px] text-muted">{item.time}</span>
+                        </div>
+
+                        <div className="mt-1 text-xs text-foreground/90">
+                          {item.text ? (
+                            <AppleEmojiText text={item.text} disableBigEmoji />
+                          ) : item.image ? (
+                            <span className="text-muted text-[11px]">📷 Photo</span>
+                          ) : item.video ? (
+                            <span className="text-muted text-[11px]">🎬 Video</span>
+                          ) : item.audio ? (
+                            <span className="text-muted text-[11px]">🎤 Voice message</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStarMessage(item.id);
+                      }}
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted hover:text-danger hover:bg-danger/10 transition"
+                      title="Unstar message"
+                      aria-label="Unstar message"
+                    >
+                      <Trash2Icon className="size-3.5" />
+                    </button>
+                  </div>
                 ))
               )}
             </div>

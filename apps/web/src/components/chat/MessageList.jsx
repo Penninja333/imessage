@@ -208,6 +208,54 @@ export function MessageList() {
     bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   };
 
+  // ── iOS Swipe-Left Timestamp Reveal Gesture ─────────────────────────────────
+  const listTouchStartRef = useRef(null);
+  const isSwipeLeftActiveRef = useRef(false);
+  const listWrapperRef = useRef(null);
+
+  const handleListTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      listTouchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+      isSwipeLeftActiveRef.current = false;
+      if (listWrapperRef.current) {
+        listWrapperRef.current.style.transition = "none";
+      }
+    }
+  };
+
+  const handleListTouchMove = (e) => {
+    if (!listTouchStartRef.current || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - listTouchStartRef.current.x;
+    const dy = e.touches[0].clientY - listTouchStartRef.current.y;
+
+    // Detect horizontal left swipe (dx < -8 and horizontal dominance)
+    if (!isSwipeLeftActiveRef.current && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      isSwipeLeftActiveRef.current = true;
+    }
+
+    if (isSwipeLeftActiveRef.current && dx < 0) {
+      const revealX = Math.min(65, Math.max(0, -dx * 0.72));
+      const opacity = Math.min(revealX / 36, 1);
+      if (listWrapperRef.current) {
+        listWrapperRef.current.style.setProperty("--timestamp-reveal-x", `${revealX}px`);
+        listWrapperRef.current.style.setProperty("--timestamp-opacity", `${opacity}`);
+      }
+    }
+  };
+
+  const handleListTouchEnd = () => {
+    if (isSwipeLeftActiveRef.current && listWrapperRef.current) {
+      listWrapperRef.current.style.transition = "transform 0.28s cubic-bezier(0.25, 1, 0.5, 1)";
+      listWrapperRef.current.style.setProperty("--timestamp-reveal-x", "0px");
+      listWrapperRef.current.style.setProperty("--timestamp-opacity", "0");
+    }
+    listTouchStartRef.current = null;
+    isSwipeLeftActiveRef.current = false;
+  };
+
   return (
     <div
       className="message-list-container relative flex flex-1 flex-col overflow-hidden bg-background transition-colors duration-300"
@@ -284,54 +332,67 @@ export function MessageList() {
             </div>
           ) : null}
 
-          {allMessages.map((message, index) => {
-            const prevMessage = allMessages[index - 1];
+          <div
+            ref={listWrapperRef}
+            onTouchStart={handleListTouchStart}
+            onTouchMove={handleListTouchMove}
+            onTouchEnd={handleListTouchEnd}
+            onTouchCancel={handleListTouchEnd}
+            style={{
+              transform: "translateX(calc(-1 * var(--timestamp-reveal-x, 0px)))",
+              willChange: "transform",
+            }}
+            className="flex flex-1 flex-col"
+          >
+            {allMessages.map((message, index) => {
+              const prevMessage = allMessages[index - 1];
 
-            // Date separator
-            const currentDateLabel = formatDateSeparator(message.createdAt);
-            const prevDateLabel = prevMessage ? formatDateSeparator(prevMessage.createdAt) : null;
-            const showDateHeader = currentDateLabel !== prevDateLabel;
+              // Date separator
+              const currentDateLabel = formatDateSeparator(message.createdAt);
+              const prevDateLabel = prevMessage ? formatDateSeparator(prevMessage.createdAt) : null;
+              const showDateHeader = currentDateLabel !== prevDateLabel;
 
-            const nextMessage = allMessages[index + 1];
-            const isNextSameSender = nextMessage && nextMessage.role === message.role;
-            const isNextCloseInTime =
-              nextMessage &&
-              nextMessage.createdAt &&
-              message.createdAt &&
-              Math.abs(new Date(nextMessage.createdAt) - new Date(message.createdAt)) < 120000;
+              const nextMessage = allMessages[index + 1];
+              const isNextSameSender = nextMessage && nextMessage.role === message.role;
+              const isNextCloseInTime =
+                nextMessage &&
+                nextMessage.createdAt &&
+                message.createdAt &&
+                Math.abs(new Date(nextMessage.createdAt) - new Date(message.createdAt)) < 120000;
 
-            // Only show timestamp at the end of a cluster
-            const showTime = !(isNextSameSender && isNextCloseInTime);
-            const isMatch = Boolean(activeMatchId && String(message.id) === String(activeMatchId));
-            const isUnread = message.role === "them" && !message.seen;
+              // Only show timestamp at the end of a cluster
+              const showTime = !(isNextSameSender && isNextCloseInTime);
+              const isMatch = Boolean(activeMatchId && String(message.id) === String(activeMatchId));
+              const isUnread = message.role === "them" && !message.seen;
 
-            return (
-              <div
-                key={message.id || index}
-                id={`msg-${message.id}`}
-                data-unread={isUnread ? "true" : undefined}
-                className={`flex flex-col transition-all duration-300 rounded-2xl ${
-                  isMatch
-                    ? "ring-2 ring-accent/80 bg-accent/15 scale-[1.01] p-1.5 -m-1.5 shadow-md"
-                    : ""
-                }`}
-              >
-                {showDateHeader ? (
-                  <div className="my-3 flex justify-center">
-                    <span className="rounded-full bg-surface/80 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-muted shadow-xs">
-                      {currentDateLabel}
-                    </span>
-                  </div>
-                ) : null}
-                <MessageBubble
-                  message={message}
-                  showTime={showTime}
-                  bubbleColor={theme.bubbleColor}
-                  bubbleTextColor={theme.bubbleText}
-                />
-              </div>
-            );
-          })}
+              return (
+                <div
+                  key={message.id || index}
+                  id={`msg-${message.id}`}
+                  data-unread={isUnread ? "true" : undefined}
+                  className={`flex flex-col transition-all duration-300 rounded-2xl ${
+                    isMatch
+                      ? "ring-2 ring-accent/80 bg-accent/15 scale-[1.01] p-1.5 -m-1.5 shadow-md"
+                      : ""
+                  }`}
+                >
+                  {showDateHeader ? (
+                    <div className="my-3 flex justify-center">
+                      <span className="rounded-full bg-surface/80 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-muted shadow-xs">
+                        {currentDateLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  <MessageBubble
+                    message={message}
+                    showTime={showTime}
+                    bubbleColor={theme.bubbleColor}
+                    bubbleTextColor={theme.bubbleText}
+                  />
+                </div>
+              );
+            })}
+          </div>
 
           {/* Apple-style Animated Typing Bubble */}
           {isPartnerTyping ? (

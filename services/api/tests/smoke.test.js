@@ -57,6 +57,7 @@ vi.mock("../src/models/message.model.js", () => {
     return this;
   }
   MockMessage.find = mockMessageFind;
+  MockMessage.findOne = vi.fn();
   MockMessage.aggregate = mockMessageAggregate;
   MockMessage.updateMany = vi.fn().mockResolvedValue({ modifiedCount: 0 });
   MockMessage.findById = mockMessageFindById;
@@ -431,5 +432,75 @@ describe("Nickname routes (authenticated)", () => {
     expect(unmuteRes.status).toBe(200);
     expect(unmuteRes.body.mutedUntil).toBe(null);
   });
+
+  it("POST /api/messages/:id/star toggles star status on message", async () => {
+    const validMsgId = "507f1f77bcf86cd799439011";
+    const messageDoc = {
+      _id: validMsgId,
+      senderId: "user123",
+      receiverId: "user456",
+      starredBy: [],
+      save: vi.fn().mockResolvedValue(true),
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+
+    const res = await request(testApp).post(`/api/messages/${validMsgId}/star`);
+    expect(res.status).toBe(200);
+    expect(res.body.isStarred).toBe(true);
+    expect(messageDoc.starredBy).toContain("user123");
+  });
+
+  it("GET /api/messages/:id/starred returns starred messages for conversation", async () => {
+    mockMessageFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { _id: "m_star", senderId: "user123", receiverId: "user456", text: "starred msg" },
+        ]),
+      }),
+    });
+
+    const res = await request(testApp).get("/api/messages/user456/starred");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body[0].text).toBe("starred msg");
+  });
+
+  it("POST /api/messages/:id/pin toggles pin status on message", async () => {
+    const validMsgId = "507f1f77bcf86cd799439012";
+    const messageDoc = {
+      _id: validMsgId,
+      senderId: "user123",
+      receiverId: "user456",
+      pinned: false,
+      save: vi.fn().mockResolvedValue(true),
+    };
+    mockMessageFindById.mockResolvedValue(messageDoc);
+    mockMessageFind.mockReturnValue({
+      sort: vi.fn().mockResolvedValue([]),
+    });
+
+    const res = await request(testApp).post(`/api/messages/${validMsgId}/pin`);
+    expect(res.status).toBe(200);
+    expect(res.body.pinned).toBe(true);
+    expect(messageDoc.pinned).toBe(true);
+  });
+
+  it("GET /api/messages/:id/pinned returns pinned messages for conversation", async () => {
+    mockMessageFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { _id: "m_pin", senderId: "user123", receiverId: "user456", pinned: true, text: "pinned banner" },
+          ]),
+        }),
+      }),
+    });
+
+    const res = await request(testApp).get("/api/messages/user456/pinned");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body[0].pinned).toBe(true);
+  });
 });
+
 
