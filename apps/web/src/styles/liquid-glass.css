@@ -1,143 +1,223 @@
 /**
- * Liquid Glass Theme (Dark Obsidian Glassmorphism)
- * VisionOS-inspired translucent dark glass aesthetic with physical specular highlights,
- * deep caustic ambient glows, and hardware-accelerated blur materials.
+ * Apple Liquid Glass Material System
+ * Authentic visionOS & macOS Sequoia glassmorphism architecture:
+ * - High-refraction blur materials: blur(36px) with saturate(210%) and subtle brightness lift
+ * - Physical specular edge reflections: inset 0 1px 1px rgba(255, 255, 255, 0.25)
+ * - Multi-tiered material hierarchy: Window base, control bars, floating capsules, and luminous accent glass
+ * - Translucent ambient caustics that enhance physical depth while preserving the user's wallpaper
+ * - Full prefers-reduced-transparency accessibility support
  */
 
 :root[data-theme="glass"],
 html.theme-glass {
   color-scheme: dark;
 
-  /* Deep pitch-black obsidian foundation */
-  --background: #07070a;
-  --foreground: #f3f4f6;
+  /* Obsidian dark foundation tokens */
+  --background: #08080d;
+  --foreground: #f8fafc;
 
-  /* Translucent dark glass surfaces */
-  --surface: rgba(16, 16, 24, 0.65);
-  --surface-foreground: #f3f4f6;
-  --surface-secondary: rgba(24, 24, 36, 0.55);
-  --surface-secondary-foreground: #f3f4f6;
-  --surface-tertiary: rgba(32, 32, 48, 0.45);
-  --surface-tertiary-foreground: #f3f4f6;
+  /* Translucent dark glass materials */
+  --surface: rgba(18, 18, 28, 0.65);
+  --surface-foreground: #f8fafc;
+  --surface-secondary: rgba(26, 26, 38, 0.55);
+  --surface-secondary-foreground: #f8fafc;
+  --surface-tertiary: rgba(34, 34, 50, 0.45);
+  --surface-tertiary-foreground: #f8fafc;
 
-  /* Overlays (popovers, floating menus, modals) */
-  --overlay: rgba(14, 14, 22, 0.82);
-  --overlay-foreground: #f3f4f6;
+  /* Overlays (popovers, floating menus, dialogs) */
+  --overlay: rgba(18, 18, 28, 0.88);
+  --overlay-foreground: #f8fafc;
 
   --muted: #9ca3af;
   --border: rgba(255, 255, 255, 0.12);
   --separator: rgba(255, 255, 255, 0.08);
 
-  --field-background: rgba(255, 255, 255, 0.06);
-  --field-foreground: #f3f4f6;
+  --field-background: rgba(255, 255, 255, 0.07);
+  --field-foreground: #f8fafc;
   --field-placeholder: #6b7280;
-  --field-hover: rgba(255, 255, 255, 0.09);
-  --field-focus: rgba(255, 255, 255, 0.13);
+  --field-hover: rgba(255, 255, 255, 0.11);
+  --field-focus: rgba(255, 255, 255, 0.15);
 
   --default: rgba(255, 255, 255, 0.08);
   --default-foreground: #ffffff;
   --default-hover: rgba(255, 255, 255, 0.14);
 
-  /* Glass Optics & Specular Tokens */
-  --glass-blur: blur(28px) saturate(190%) contrast(105%);
-  --glass-blur-sm: blur(16px) saturate(180%);
-  --glass-bevel: inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
-  --glass-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.22);
-  --glass-border-color: rgba(255, 255, 255, 0.13);
+  /* Apple Glass Optics & Specular Tokens */
+  --glass-blur: blur(36px) saturate(210%) brightness(102%);
+  --glass-blur-sm: blur(24px) saturate(190%);
+  --glass-bevel: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 20px 60px rgba(0, 0, 0, 0.70), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  --glass-border-color: rgba(255, 255, 255, 0.14);
 }
 
-/* Ambient Caustic Fluid Backdrop */
+/* ─── Ambient Caustics Environment ─────────────────────────────────────────── */
+/* In Apple's system, glass sits above the wallpaper, enhancing environmental depth */
 html.theme-glass body {
   background: 
-    radial-gradient(ellipse 90% 70% at 15% 15%, rgba(59, 130, 246, 0.12), transparent 70%),
-    radial-gradient(ellipse 80% 60% at 85% 85%, rgba(139, 92, 246, 0.10), transparent 70%),
-    radial-gradient(circle 500px at 50% 45%, rgba(16, 185, 129, 0.04), transparent 60%),
-    #050508 !important;
+    radial-gradient(ellipse 90% 65% at 15% 10%, rgba(59, 130, 246, 0.08), transparent 70%),
+    radial-gradient(ellipse 75% 55% at 85% 90%, rgba(139, 92, 246, 0.07), transparent 70%),
+    rgba(5, 5, 8, 0.25) !important;
   background-attachment: fixed !important;
 }
 
-/* Main App Glass Container */
+/* ─── Main Application Glass Window ────────────────────────────────────────── */
 html.theme-glass .chat-app-frame {
-  background: rgba(10, 10, 15, 0.70) !important;
-  backdrop-filter: var(--glass-blur) !important;
+  background: rgba(12, 12, 18, 0.68) !important;
   -webkit-backdrop-filter: var(--glass-blur) !important;
+  backdrop-filter: var(--glass-blur) !important;
   border-color: var(--glass-border-color) !important;
-  box-shadow: var(--glass-shadow) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 24px 64px rgba(0, 0, 0, 0.65) !important;
 }
 
-/* Glass Sidebar */
+/* ─── Apple Control Bars: Sidebar, Header & Composer ───────────────────────── */
+/* Frosted Sidebar (Thin Material) */
 html.theme-glass aside {
-  background: rgba(12, 12, 18, 0.55) !important;
-  backdrop-filter: var(--glass-blur-sm) !important;
-  -webkit-backdrop-filter: var(--glass-blur-sm) !important;
-  border-right-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(14, 14, 22, 0.52) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(200%) !important;
+  backdrop-filter: blur(30px) saturate(200%) !important;
+  border-right-color: rgba(255, 255, 255, 0.09) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
 }
 
-/* Glass Header */
+/* Frosted Navigation Header */
 html.theme-glass header {
-  background: rgba(12, 12, 18, 0.65) !important;
-  backdrop-filter: var(--glass-blur) !important;
-  -webkit-backdrop-filter: var(--glass-blur) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(14, 14, 22, 0.58) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.09) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
 }
 
-/* Glass Message List Area (when no custom wallpaper/gradient override) */
-html.theme-glass .message-list-container:not([style*="background"]) {
-  background: transparent !important;
+/* Frosted Chat Composer Bar */
+html.theme-glass footer {
+  background: rgba(14, 14, 22, 0.58) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  border-top-color: rgba(255, 255, 255, 0.09) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
-/* Message Bubbles in Liquid Glass */
-/* Received Bubbles: Frosted smoke glass */
+/* ─── Glass Message List Area ──────────────────────────────────────────────── */
+/* Preserves transparency so the wallpaper and translucent glass pane refract naturally */
+html.theme-glass .message-list-container {
+  background-color: transparent !important;
+}
+
+/* ─── Apple Glass Message Bubbles ──────────────────────────────────────────── */
+/* Received Message Bubbles: Frosted Smoke Glass */
 html.theme-glass .group.items-start > div:not(.tapback-floating-bar) {
-  background: rgba(255, 255, 255, 0.07) !important;
-  backdrop-filter: blur(14px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-  color: #f3f4f6 !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.22),
+    0 4px 14px rgba(0, 0, 0, 0.25) !important;
+  color: #f8fafc !important;
 }
 
-/* Sent Bubbles: Luminous accent glass with specular top bevel */
+/* Sent Message Bubbles (Default Accent): Luminous Liquid Glass */
 html.theme-glass .group.items-end > div:not([style*="background"]):not(.tapback-floating-bar) {
-  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklab, var(--accent) 80%, black 20%) 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 88%, white 12%) 0%,
+    var(--accent) 52%,
+    color-mix(in srgb, var(--accent) 78%, black 22%) 100%
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25),
+    0 6px 20px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  color: #ffffff !important;
 }
 
-/* Tapback Floating Reaction Bar */
+/* Sent Message Bubbles (Custom Theme): Add Specular Refraction Bevel */
+html.theme-glass .group.items-end > div[style*="background"]:not(.tapback-floating-bar) {
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.20),
+    0 6px 18px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ─── Apple Floating Capsule Controls ──────────────────────────────────────── */
+/* Floating Tapback Reaction Capsule */
+html.theme-glass .group .tapback-floating-bar,
 html.theme-glass .group .absolute.-top-12 {
-  background: rgba(18, 18, 26, 0.85) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  background: rgba(20, 20, 32, 0.85) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(220%) !important;
+  backdrop-filter: blur(32px) saturate(220%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.20) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35),
+    0 16px 40px rgba(0, 0, 0, 0.70) !important;
 }
 
 /* Attached Reaction Badges */
 html.theme-glass .group .absolute.-bottom-2\.5 {
-  background: rgba(16, 16, 24, 0.85) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  background: rgba(24, 24, 38, 0.88) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(200%) !important;
+  backdrop-filter: blur(16px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.45) !important;
 }
 
-/* Chat Composer Glass Container */
-html.theme-glass form.border-t,
-html.theme-glass div:has(> form.border-t) {
-  border-top-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-/* Input Fields and Search Bars */
-html.theme-glass input,
+/* ─── Inputs, Textareas & Search Fields ────────────────────────────────────── */
+html.theme-glass input:not([type="checkbox"]):not([type="radio"]),
 html.theme-glass textarea {
-  color: #f3f4f6 !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25) !important;
 }
 
-/* Modals & Dialog Sheets */
+html.theme-glass input:focus,
+html.theme-glass textarea:focus {
+  background: rgba(255, 255, 255, 0.11) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    0 0 0 2px var(--accent) !important;
+}
+
+/* ─── Dialogs, Modals & Sheets (visionOS Spatial Material) ─────────────────── */
+html.theme-glass [role="dialog"],
 html.theme-glass .bg-background\/95,
-html.theme-glass [role="dialog"] {
-  backdrop-filter: blur(32px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(190%) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+html.theme-glass .chat-app-frame [role="dialog"] {
+  background: rgba(18, 18, 28, 0.88) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(210%) brightness(105%) !important;
+  backdrop-filter: blur(36px) saturate(210%) brightness(105%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.30),
+    0 24px 64px rgba(0, 0, 0, 0.75) !important;
+  color: #f8fafc !important;
+}
+
+/* ─── Apple Micro-Elements: Separator Badges & Typing Pills ────────────────── */
+html.theme-glass .message-list-container span.rounded-full.bg-surface\/80,
+html.theme-glass .message-list-container span.rounded-full.bg-surface\/60 {
+  background: rgba(255, 255, 255, 0.10) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* ─── Accessibility: Reduced Transparency Support ──────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  html.theme-glass .chat-app-frame,
+  html.theme-glass aside,
+  html.theme-glass header,
+  html.theme-glass footer,
+  html.theme-glass [role="dialog"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: #121218 !important;
+  }
 }
