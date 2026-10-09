@@ -14,6 +14,7 @@ import {
   Star,
   Pin,
   PinOff,
+  AlertCircle,
 } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -21,6 +22,7 @@ import { useMediaViewerStore } from "../../store/useMediaViewerStore";
 import { formatMessageTime, extractFirstUrl } from "../../lib/utils";
 import { AppleEmoji, AppleEmojiText } from "../common/AppleEmoji";
 import { LinkPreviewCard } from "./LinkPreviewCard";
+import { DocumentCard } from "./DocumentCard";
 import toast from "react-hot-toast";
 
 // Compress + size images for the bubble (q-auto works for images; f-auto picks WebP/AVIF).
@@ -57,6 +59,7 @@ function MessageBubbleComponent({
   const setReplyingTo = useChatStore((state) => state.setReplyingTo);
   const toggleStarMessage = useChatStore((state) => state.toggleStarMessage);
   const togglePinMessage = useChatStore((state) => state.togglePinMessage);
+  const retrySendMessage = useChatStore((state) => state.retrySendMessage);
   const authUser = useAuthStore((state) => state.authUser);
   const myId = authUser?._id ? String(authUser._id) : "";
   const now = useSyncExternalStore(subscribeClock, getClockSnapshot, getClockSnapshot);
@@ -104,6 +107,7 @@ function MessageBubbleComponent({
   const hasImage = Boolean(message.imageUrl);
   const hasVideo = Boolean(message.videoUrl);
   const hasAudio = Boolean(message.audioUrl);
+  const hasFile = Boolean(message.fileUrl);
   const isDeleted = Boolean(message.deleted);
   const firstUrl = !isDeleted && message.text ? extractFirstUrl(message.text) : null;
   const hasForwarded = Boolean(message.forwardedFrom);
@@ -504,6 +508,8 @@ function MessageBubbleComponent({
               <span className="opacity-80">🎥 Video</span>
             ) : message.replyTo.audioUrl ? (
               <span className="opacity-80">🎤 Voice message</span>
+            ) : message.replyTo.fileUrl ? (
+              <span className="opacity-80">📄 {message.replyTo.fileName || "Document"}</span>
             ) : (
               <p className="line-clamp-2 break-words">
                 <AppleEmojiText text={message.replyTo.text || "Message"} disableBigEmoji />
@@ -541,6 +547,17 @@ function MessageBubbleComponent({
             />
           ) : null}
           {hasAudio ? <MessageAudio src={message.audioUrl} isOwnMessage={isOwnMessage} /> : null}
+
+          {hasFile ? (
+            <DocumentCard
+              fileUrl={message.fileUrl}
+              fileName={message.fileName}
+              fileSize={message.fileSize}
+              fileType={message.fileType}
+              isOwnMessage={isOwnMessage}
+              interactive={!isDeleted}
+            />
+          ) : null}
 
           {message.text ? (
             <div
@@ -629,7 +646,23 @@ function MessageBubbleComponent({
       ) : null}
 
       {/* Timestamp & Delivery/Seen Status */}
-      {showTime ? (
+      {isOwnMessage && message.status === "failed" ? (
+        <div className="mt-1 flex items-center justify-end gap-1.5 px-1 text-xs text-rose-500 font-medium">
+          <AlertCircle className="size-3.5 fill-rose-500 text-white shrink-0" />
+          <span>Not Delivered</span>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              retrySendMessage(message.tempId || message.id);
+            }}
+            className="font-semibold underline hover:opacity-80 active:scale-95 transition"
+          >
+            Tap to Retry
+          </button>
+        </div>
+      ) : showTime ? (
         <div
           className={`mt-0.5 flex items-center gap-1.5 px-1 text-[10px] tabular-nums text-muted-foreground/60 ${
             isOwnMessage ? "justify-end text-right" : "justify-start text-left"
@@ -652,12 +685,16 @@ function MessageBubbleComponent({
           ) : null}
           <span>{message.time}</span>
           {isOwnMessage && !message.isSystem && (
-            <span
-              className={message.seen ? "text-accent font-semibold" : "opacity-60"}
-              title={message.seen ? "Read" : "Delivered"}
-            >
-              {message.seen ? "✓✓" : "✓"}
-            </span>
+            message.status === "sending" ? (
+              <span className="italic opacity-70">Sending...</span>
+            ) : (
+              <span
+                className={message.seen ? "text-accent font-semibold" : "opacity-60"}
+                title={message.seen ? "Read" : "Delivered"}
+              >
+                {message.seen ? "✓✓" : "✓"}
+              </span>
+            )
           )}
         </div>
       ) : (message.pinned || message.isStarred) ? (
@@ -715,6 +752,7 @@ function arePropsEqual(prevProps, nextProps) {
 
   return (
     pm.id === nm.id &&
+    pm.status === nm.status &&
     pm.text === nm.text &&
     pm.time === nm.time &&
     pm.seen === nm.seen &&
@@ -726,11 +764,15 @@ function arePropsEqual(prevProps, nextProps) {
     pm.imageUrl === nm.imageUrl &&
     pm.videoUrl === nm.videoUrl &&
     pm.audioUrl === nm.audioUrl &&
+    pm.fileUrl === nm.fileUrl &&
+    pm.fileName === nm.fileName &&
+    pm.fileSize === nm.fileSize &&
     pm.role === nm.role &&
     // replyTo: shallow compare – if both null/undefined it's fine; if one differs, re-render
     (pm.replyTo === nm.replyTo ||
       (pm.replyTo?.messageId === nm.replyTo?.messageId &&
-        pm.replyTo?.text === nm.replyTo?.text)) &&
+        pm.replyTo?.text === nm.replyTo?.text &&
+        pm.replyTo?.fileUrl === nm.replyTo?.fileUrl)) &&
     (pm.forwardedFrom === nm.forwardedFrom ||
       pm.forwardedFrom?.messageId === nm.forwardedFrom?.messageId) &&
     reactionsEqual

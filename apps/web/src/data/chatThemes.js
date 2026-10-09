@@ -250,5 +250,32 @@ export const CHAT_THEMES = [
 export const DEFAULT_THEME = CHAT_THEMES[0];
 
 export function getThemeById(id) {
+  if (id && typeof id === "string" && id.startsWith("custom-#")) {
+    const hex = id.slice(7);
+    if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+      const fullHex = `#${hex.toLowerCase()}`;
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      // Relative luminance for contrast
+      const lum = (r * 299 + g * 587 + b * 114) / 1000;
+      const bubbleText = lum > 165 ? "#18181b" : "#ffffff";
+
+      return {
+        id,
+        label: `Custom (${fullHex.toUpperCase()})`,
+        emoji: "🎨",
+        bubbleColor: fullHex,
+        bubbleText,
+        bgStyle: { background: `rgba(${r}, ${g}, ${b}, 0.05)` },
+        darkBgStyle: {
+          background: `rgba(${Math.floor(r * 0.12)}, ${Math.floor(g * 0.12)}, ${Math.floor(b * 0.12)}, 0.95)`,
+        },
+        swatch: fullHex,
+      };
+    }
+  }
+
   return CHAT_THEMES.find((t) => t.id === id) ?? DEFAULT_THEME;
 }
+

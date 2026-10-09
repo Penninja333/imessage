@@ -175,12 +175,7 @@ export function ChatComposer() {
     const items = event.clipboardData?.items;
     if (!items) return;
     for (const item of items) {
-      if (
-        item.kind === "file" &&
-        (item.type.startsWith("image/") ||
-          item.type.startsWith("video/") ||
-          item.type.startsWith("audio/"))
-      ) {
+      if (item.kind === "file") {
         const file = item.getAsFile();
         if (file) {
           event.preventDefault();
@@ -489,7 +484,7 @@ export function ChatComposer() {
           <input
             ref={mediaInputRef}
             type="file"
-            accept="image/*,video/*,audio/*"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.tar,.gz,.txt,.csv,.json,.md"
             className="sr-only"
             disabled={isSendingMedia}
             tabIndex={-1}

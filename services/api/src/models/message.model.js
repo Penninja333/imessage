@@ -24,6 +24,18 @@ const messageSchema = new mongoose.Schema(
     audio: {
       type: String,
     },
+    fileUrl: {
+      type: String,
+    },
+    fileName: {
+      type: String,
+    },
+    fileSize: {
+      type: Number,
+    },
+    fileType: {
+      type: String,
+    },
     isSystem: {
       type: Boolean,
       default: false,
@@ -58,6 +70,8 @@ const messageSchema = new mongoose.Schema(
       image: { type: String },
       video: { type: String },
       audio: { type: String },
+      fileUrl: { type: String },
+      fileName: { type: String },
     },
     forwardedFrom: {
       // Set when a message is forwarded — stores origin reference

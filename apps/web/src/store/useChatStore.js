@@ -154,26 +154,121 @@ export const useChatStore = create(
         }
       },
 
-      sendMessage: async (messageData) => {
+      sendMessage: async (messageData, existingTempId = null) => {
         const selectedUser = get().selectedUser;
         if (!selectedUser) return false;
+
+        const authUser = useAuthStore.getState().authUser;
+        const myId = authUser?._id ? String(authUser._id) : "";
+        const tempId =
+          existingTempId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const isFormData = typeof FormData !== "undefined" && messageData instanceof FormData;
+
+        // If newly dispatching, append optimistic message instantly for zero perceived latency
+        if (!existingTempId) {
+          const textVal = isFormData ? messageData.get("text") || "" : messageData.text || "";
+          const fileVal = isFormData ? messageData.get("media") : null;
+          const replyingTo = get().replyingTo;
+
+          const optimisticMsg = {
+            _id: tempId,
+            tempId,
+            senderId: myId,
+            receiverId: selectedUser._id,
+            text: textVal,
+            status: "sending",
+            createdAt: new Date().toISOString(),
+            _retryData: messageData,
+            replyTo: replyingTo
+              ? {
+                  messageId: replyingTo.id,
+                  senderId: replyingTo.role === "me" ? myId : selectedUser._id,
+                  text: replyingTo.text || "",
+                  image: replyingTo.imageUrl || null,
+                  video: replyingTo.videoUrl || null,
+                  audio: replyingTo.audioUrl || null,
+                  fileUrl: replyingTo.fileUrl || null,
+                  fileName: replyingTo.fileName || null,
+                }
+              : null,
+          };
+
+          if (fileVal && typeof fileVal === "object") {
+            const mime = fileVal.type || "";
+            if (mime.startsWith("image/")) {
+              optimisticMsg.image = URL.createObjectURL(fileVal);
+            } else if (mime.startsWith("video/")) {
+              optimisticMsg.video = URL.createObjectURL(fileVal);
+            } else if (mime.startsWith("audio/")) {
+              optimisticMsg.audio = URL.createObjectURL(fileVal);
+            } else {
+              optimisticMsg.fileName = fileVal.name;
+              optimisticMsg.fileSize = fileVal.size;
+              optimisticMsg.fileType = mime;
+            }
+          }
+
+          set((state) => ({
+            messages: [...state.messages, optimisticMsg],
+          }));
+
+          const previewText =
+            optimisticMsg.text ||
+            (optimisticMsg.image
+              ? "📷 Photo"
+              : optimisticMsg.video
+                ? "🎥 Video"
+                : optimisticMsg.audio
+                  ? "🎤 Voice message"
+                  : optimisticMsg.fileName
+                    ? `📄 ${optimisticMsg.fileName}`
+                    : "New message");
+
+          set((state) => {
+            const partnerId = String(selectedUser._id);
+            const existingIndex = state.conversations.findIndex(
+              (c) => String(c._id) === partnerId,
+            );
+
+            if (existingIndex !== -1) {
+              const existing = state.conversations[existingIndex];
+              const updated = {
+                ...existing,
+                lastMessage: previewText,
+                lastMessageAt: optimisticMsg.createdAt,
+              };
+              const rest = state.conversations.filter((_, idx) => idx !== existingIndex);
+              return { conversations: [updated, ...rest] };
+            }
+            return state;
+          });
+        } else {
+          // Re-attempting previously failed message
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m.tempId === tempId || m._id === tempId ? { ...m, status: "sending" } : m,
+            ),
+          }));
+        }
 
         try {
           const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
           const sentMessage = res.data;
 
-          // Functional update: never overwrite concurrent messages from socket or other requests
+          // Swap optimistic message for the persisted server message
           set((state) => {
-            const alreadyExists = state.messages.some(
-              (m) => String(m._id) === String(sentMessage._id),
+            const filtered = state.messages.filter(
+              (m) =>
+                m.tempId !== tempId &&
+                m._id !== tempId &&
+                String(m._id) !== String(sentMessage._id),
             );
-            if (alreadyExists) return state;
             return {
-              messages: [...state.messages, sentMessage],
+              messages: [...filtered, { ...sentMessage, status: "sent" }],
             };
           });
 
-          // Update conversations list with our newly sent message at top
+          // Update conversations list with our newly confirmed message at top
           const previewText =
             sentMessage.text ||
             (sentMessage.image
@@ -182,7 +277,9 @@ export const useChatStore = create(
                 ? "🎥 Video"
                 : sentMessage.audio
                   ? "🎤 Voice message"
-                  : "New message");
+                  : sentMessage.fileName
+                    ? `📄 ${sentMessage.fileName}`
+                    : "New message");
 
           set((state) => {
             const partnerId = String(selectedUser._id);
@@ -207,15 +304,34 @@ export const useChatStore = create(
 
           return true;
         } catch (error) {
-          toast.error(error.response?.data?.message || "Failed to send message");
+          console.warn("Error sending message:", error?.message);
+          // Retain message in outbox marked with failed status for user retry
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m.tempId === tempId || m._id === tempId
+                ? { ...m, status: "failed", _retryData: messageData }
+                : m,
+            ),
+          }));
+          toast.error("Not Delivered. Tap to retry.");
           return false;
         }
+      },
+
+      retrySendMessage: async (tempId) => {
+        const msg = get().messages.find((m) => m.tempId === tempId || m._id === tempId);
+        if (!msg || !msg._retryData) {
+          toast.error("Unable to retry message");
+          return false;
+        }
+        return get().sendMessage(msg._retryData, tempId);
       },
 
       initSocketListeners: (socket) => {
         if (!socket) return;
 
         // Clean up previous listeners to prevent multiple registrations
+        socket.off("connect");
         socket.off("newMessage");
         socket.off("messagesSeen");
         socket.off("nicknameUpdated");
@@ -225,6 +341,13 @@ export const useChatStore = create(
         socket.off("emojiBurst");
         socket.off("userTyping");
         socket.off("userStopTyping");
+
+        socket.on("connect", () => {
+          const failed = get().messages.filter((m) => m.status === "failed" && m._retryData);
+          failed.forEach((m) => {
+            get().retrySendMessage(m.tempId || m._id);
+          });
+        });
 
         socket.on("newMessage", (newMessage) => {
           const authUser = useAuthStore.getState().authUser;
@@ -284,7 +407,9 @@ export const useChatStore = create(
                   ? "🎥 Video"
                   : newMessage.audio
                     ? "🎤 Voice message"
-                    : "New message");
+                    : newMessage.fileName
+                      ? `📄 ${newMessage.fileName}`
+                      : "New message");
 
           set((state) => {
             const existingIndex = state.conversations.findIndex(
@@ -635,15 +760,7 @@ export const useChatStore = create(
         const payload = { text: messageText };
         if (replyingTo?.id) payload.replyToId = replyingTo.id;
 
-        const success = await get().sendMessage(payload);
-        if (!success) {
-          // If sending failed, restore text if composer is still empty
-          set((state) => ({
-            composerText: state.composerText ? state.composerText : messageText,
-            replyingTo: state.replyingTo || replyingTo,
-          }));
-        }
-        return success;
+        return get().sendMessage(payload);
       },
 
       sendMediaMessage: async ({ conversationId, file, caption }) => {
@@ -1030,3 +1147,17 @@ export const useChatStore = create(
     },
   ),
 );
+
+if (typeof window !== "undefined" && !window.__imessage_online_retry_attached) {
+  window.__imessage_online_retry_attached = true;
+  window.addEventListener("online", () => {
+    const store = useChatStore.getState();
+    const failedMessages = (store.messages || []).filter(
+      (m) => m.status === "failed" && m._retryData,
+    );
+    failedMessages.forEach((m) => {
+      store.retrySendMessage(m.tempId || m._id);
+    });
+  });
+}
+

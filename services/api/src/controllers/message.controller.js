@@ -54,6 +54,8 @@ export async function getConversationsForSidebar(req, res) {
           lastMessageImage: { $first: "$image" },
           lastMessageVideo: { $first: "$video" },
           lastMessageAudio: { $first: "$audio" },
+          lastMessageFile: { $first: "$fileUrl" },
+          lastMessageFileName: { $first: "$fileName" },
           lastMessageDeleted: { $first: "$deleted" },
           unreadCount: {
             $sum: {
@@ -103,7 +105,13 @@ export async function getConversationsForSidebar(req, res) {
                             $cond: [
                               { $ne: ["$lastMessageVideo", null] },
                               "🎥 Video",
-                              "",
+                              {
+                                $cond: [
+                                  { $ne: ["$lastMessageFile", null] },
+                                  { $concat: ["📄 ", { $ifNull: ["$lastMessageFileName", "Document"] }] },
+                                  "",
+                                ],
+                              },
                             ],
                           },
                         ],
@@ -257,6 +265,10 @@ export async function sendMessage(req, res) {
     let imageUrl;
     let videoUrl;
     let audioUrl;
+    let fileUrl;
+    let fileName;
+    let fileSize;
+    let fileType;
 
     if (req.file) {
       if (!hasImageKitConfig()) {
@@ -266,7 +278,13 @@ export async function sendMessage(req, res) {
       const url = await uploadChatMedia(req.file);
       if (req.file.mimetype.startsWith("video/")) videoUrl = url;
       else if (req.file.mimetype.startsWith("audio/")) audioUrl = url;
-      else imageUrl = url;
+      else if (req.file.mimetype.startsWith("image/")) imageUrl = url;
+      else {
+        fileUrl = url;
+        fileName = req.file.originalname;
+        fileSize = req.file.size;
+        fileType = req.file.mimetype;
+      }
     }
 
     // Build an inline snapshot of the replied-to message (if any)
@@ -282,6 +300,8 @@ export async function sendMessage(req, res) {
             image: replySource.deleted ? null : (replySource.image || null),
             video: replySource.deleted ? null : (replySource.video || null),
             audio: replySource.deleted ? null : (replySource.audio || null),
+            fileUrl: replySource.deleted ? null : (replySource.fileUrl || null),
+            fileName: replySource.deleted ? null : (replySource.fileName || null),
           };
         }
       } catch (replyErr) {
@@ -296,6 +316,10 @@ export async function sendMessage(req, res) {
       image: imageUrl,
       video: videoUrl,
       audio: audioUrl,
+      fileUrl,
+      fileName,
+      fileSize,
+      fileType,
       seen: false,
       ...(replyTo ? { replyTo } : {}),
     });
@@ -711,7 +735,8 @@ export async function setChatTheme(req, res) {
       return res.status(400).json({ message: "Invalid partner ID" });
     }
 
-    if (!themeId || typeof themeId !== "string" || !THEME_LABELS[themeId]) {
+    const isCustomHex = /^custom-#[0-9a-fA-F]{6}$/i.test(themeId);
+    if (!themeId || typeof themeId !== "string" || (!THEME_LABELS[themeId] && !isCustomHex)) {
       return res.status(400).json({ message: "Invalid or unsupported theme ID" });
     }
 
@@ -725,7 +750,9 @@ export async function setChatTheme(req, res) {
     );
 
     // System message in chat — visible to both users
-    const themeLabel = THEME_LABELS[themeId] || themeId;
+    const themeLabel = isCustomHex
+      ? `Custom Color (${themeId.slice(7).toUpperCase()}) 🎨`
+      : (THEME_LABELS[themeId] || themeId);
     const systemText = `${req.user.fullName} changed the chat theme to ${themeLabel}`;
     let systemMessage = null;
     try {

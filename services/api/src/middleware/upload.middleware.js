@@ -6,12 +6,11 @@ export const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
-    const isImage = file.mimetype.startsWith("image/");
-    const isVideo = file.mimetype.startsWith("video/");
-    const isAudio = file.mimetype.startsWith("audio/");
-
-    if (!isImage && !isVideo && !isAudio) {
-      cb(new Error("Only image, video, and audio uploads are allowed"));
+    // Disallow dangerous executable formats
+    const blockedExtensions = [".exe", ".bat", ".cmd", ".sh", ".com", ".msi", ".vbs", ".scr", ".pif"];
+    const ext = file.originalname ? file.originalname.slice(file.originalname.lastIndexOf(".")).toLowerCase() : "";
+    if (blockedExtensions.includes(ext)) {
+      cb(new Error("Executable file formats are not permitted for security"));
       return;
     }
 

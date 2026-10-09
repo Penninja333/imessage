@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Check, Palette, X } from "lucide-react";
+import { Check, Palette, Pipette, X } from "lucide-react";
 import { useChatStore } from "../../store/useChatStore";
 import { useTheme } from "../../context/theme";
 import { useWallpaper } from "../../context/wallpaper";
@@ -20,14 +20,44 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
   const [selectedThemeId, setSelectedThemeId] = useState(currentThemeId);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Custom hex color picker state
+  const initialCustomHex =
+    currentThemeId.startsWith("custom-#") && currentThemeId.length === 14
+      ? currentThemeId.slice(7)
+      : "007AFF";
+  const [customHex, setCustomHex] = useState(`#${initialCustomHex}`);
+  const [hexInput, setHexInput] = useState(initialCustomHex);
+
   // Sync selected theme when modal opens or currentThemeId changes
   if (isOpen !== prevOpen || currentThemeId !== prevThemeId) {
     setPrevOpen(isOpen);
     setPrevThemeId(currentThemeId);
     if (isOpen) {
       setSelectedThemeId(currentThemeId);
+      if (currentThemeId.startsWith("custom-#") && currentThemeId.length === 14) {
+        const hex = currentThemeId.slice(7);
+        setCustomHex(`#${hex}`);
+        setHexInput(hex);
+      }
     }
   }
+
+  const handleCustomColorChange = (hex) => {
+    setCustomHex(hex);
+    const clean = hex.replace("#", "").toLowerCase();
+    setHexInput(clean);
+    setSelectedThemeId(`custom-#${clean}`);
+  };
+
+  const handleHexInputChange = (val) => {
+    const clean = val.replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
+    setHexInput(clean);
+    if (clean.length === 6) {
+      setCustomHex(`#${clean}`);
+      setSelectedThemeId(`custom-#${clean.toLowerCase()}`);
+    }
+  };
+
 
   // Handle ESC key
   useEffect(() => {
@@ -169,11 +199,75 @@ export function ChatThemePicker({ isOpen, onClose, partnerId, partnerName }) {
             </div>
           </div>
 
+          {/* Custom Color Wheel Section */}
+          <div className="rounded-2xl border border-border/80 bg-surface/40 p-3">
+            <div className="flex items-center justify-between mb-2 px-0.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5">
+                <Pipette className="size-3.5 text-accent" />
+                Custom Color Wheel
+              </span>
+              {selectedThemeId.startsWith("custom-#") && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+                  <Check className="size-3" strokeWidth={3} />
+                  Active Custom
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Native color wheel trigger */}
+              <label className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-0.5 shadow-md ring-2 ring-border/80 transition-transform hover:scale-105 active:scale-95 group">
+                <input
+                  type="color"
+                  value={customHex}
+                  onChange={(e) => handleCustomColorChange(e.target.value)}
+                  className="absolute inset-0 size-full cursor-pointer opacity-0"
+                  aria-label="Pick custom chat color"
+                />
+                <span
+                  className="size-full rounded-full border border-black/15 shadow-inner transition-colors"
+                  style={{ backgroundColor: customHex }}
+                />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-white drop-shadow-sm group-hover:scale-110 transition-transform">
+                  <Palette className="size-4 opacity-90" />
+                </span>
+              </label>
+
+              {/* Hex Input and Action */}
+              <div className="flex-1 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                    #
+                  </span>
+                  <input
+                    type="text"
+                    value={hexInput}
+                    maxLength={6}
+                    placeholder="007AFF"
+                    onChange={(e) => handleHexInputChange(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-background py-1.5 pl-6 pr-3 font-mono text-xs uppercase text-foreground placeholder:text-muted/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedThemeId(`custom-#${hexInput.toLowerCase().padStart(6, "0")}`)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
+                    selectedThemeId.startsWith("custom-#")
+                      ? "bg-accent text-accent-foreground shadow-xs"
+                      : "bg-surface hover:bg-surface/80 text-foreground border border-border"
+                  }`}
+                >
+                  Set Hex
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Theme Presets Grid */}
           <div>
             <div className="flex items-center justify-between mb-2 px-0.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                Choose a Theme
+                Preset Themes
               </span>
               <span className="text-[11px] text-muted inline-flex items-center gap-1">
                 {selectedTheme.label}

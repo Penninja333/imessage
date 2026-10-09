@@ -5,19 +5,12 @@ import {
   SendHorizontalIcon,
   LoaderIcon,
   MusicIcon,
-  FileIcon,
   Reply,
 } from "lucide-react";
 import { AppleEmojiText } from "../common/AppleEmoji";
 import { compressImage } from "../../lib/imageCompression";
-
-function formatFileSize(bytes) {
-  if (!bytes || bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
+import { DocumentCard } from "./DocumentCard";
+import { formatFileSize } from "../../lib/fileUtils";
 
 /**
  * MediaConfirmationModal
@@ -98,7 +91,7 @@ export function MediaConfirmationModal({
   const isVideo = file.type.startsWith("video/");
   const isAudio = file.type.startsWith("audio/");
 
-  const mediaLabel = isImage ? "Photo" : isVideo ? "Video" : isAudio ? "Audio" : "Media";
+  const mediaLabel = isImage ? "Photo" : isVideo ? "Video" : isAudio ? "Audio" : "Document";
 
   const handleConfirmSend = async (e) => {
     if (e) {
@@ -195,10 +188,15 @@ export function MediaConfirmationModal({
               <span className="text-xs text-muted truncate max-w-xs">{file.name}</span>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 p-6 text-center text-muted">
-              <FileIcon className="size-12 text-muted" />
-              <span className="text-sm font-medium text-foreground">{file.name}</span>
-              <span className="text-xs text-muted">{formatFileSize(file.size)}</span>
+            <div className="w-full max-w-sm px-4 py-6 flex flex-col items-center">
+              <div className="w-full">
+                <DocumentCard
+                  fileName={file.name}
+                  fileSize={file.size}
+                  fileType={file.type}
+                  interactive={false}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -216,6 +214,8 @@ export function MediaConfirmationModal({
                   <AppleEmojiText text={replyingTo.text} disableBigEmoji />
                 ) : replyingTo.imageUrl ? (
                   "📷 Photo"
+                ) : replyingTo.fileUrl ? (
+                  `📄 ${replyingTo.fileName || "Document"}`
                 ) : (
                   "Message"
                 )}

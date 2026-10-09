@@ -76,6 +76,17 @@ vi.mock("../src/models/nickname.model.js", () => ({
   },
 }));
 
+// Mock ChatTheme model
+const mockChatThemeFindOneAndUpdate = vi.fn();
+const mockChatThemeFindOne = vi.fn();
+vi.mock("../src/models/chatTheme.model.js", () => ({
+  default: {
+    findOneAndUpdate: mockChatThemeFindOneAndUpdate,
+    findOne: mockChatThemeFindOne,
+  },
+  sortedPair: (a, b) => (String(a) < String(b) ? [a, b] : [b, a]),
+}));
+
 // Mock imagekit
 vi.mock("../src/lib/imagekit.js", () => ({
   hasImageKitConfig: vi.fn(() => false),
@@ -243,6 +254,47 @@ describe("Messages routes (authenticated)", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.audio).toBe("https://ik.imagekit.io/test/chat-voice.webm");
+  });
+
+  it("POST /api/messages/send/:id supports document upload via ImageKit", async () => {
+    const { hasImageKitConfig, uploadChatMedia } = await import("../src/lib/imagekit.js");
+    hasImageKitConfig.mockReturnValue(true);
+    uploadChatMedia.mockResolvedValue("https://ik.imagekit.io/test/report.pdf");
+
+    mockMessageSave.mockResolvedValue({
+      senderId: "user123",
+      receiverId: "user456",
+      fileUrl: "https://ik.imagekit.io/test/report.pdf",
+      fileName: "report.pdf",
+      fileSize: 1024,
+      fileType: "application/pdf",
+    });
+
+    const res = await request(testApp)
+      .post("/api/messages/send/user456")
+      .attach("media", Buffer.from("%PDF-1.4..."), {
+        filename: "report.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.fileUrl).toBe("https://ik.imagekit.io/test/report.pdf");
+    expect(res.body.fileName).toBe("report.pdf");
+  });
+
+  it("PUT /api/messages/:id/theme supports custom hex chat theme", async () => {
+    mockChatThemeFindOneAndUpdate.mockResolvedValue({
+      userA: "user123",
+      userB: "user456",
+      themeId: "custom-#8b5cf6",
+    });
+
+    const res = await request(testApp)
+      .put("/api/messages/user456/theme")
+      .send({ themeId: "custom-#8b5cf6" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.themeId).toBe("custom-#8b5cf6");
   });
 
   it("PUT /api/messages/:id/edit edits own recent message", async () => {
