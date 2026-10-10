@@ -20,6 +20,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: "sourceFile",
     };
   }
+  if (moduleName === "react-dom" || moduleName.startsWith("react-dom/")) {
+    return {
+      filePath: path.resolve(projectRoot, "emptyModule.js"),
+      type: "sourceFile",
+    };
+  }
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);
   }

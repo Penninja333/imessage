@@ -45,8 +45,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v3
@@ -60,7 +62,7 @@ jobs:
       - name: Expo Prebuild (Generate Native Android Project)
         run: |
           cd apps/mobile
-          npx expo prebuild --platform android --clean
+          CI=1 yes | npx expo prebuild --platform android --clean --no-install
         env:
           EXPO_NO_TELEMETRY: 1
 
@@ -87,7 +89,6 @@ jobs:
           if [ "$BUILD_TYPE" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon --stacktrace
           else
-            # Try assembleRelease; if signing is required and not present, build assembleRelease without signing check or assembleDebug fallback
             ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
           fi
         env:
