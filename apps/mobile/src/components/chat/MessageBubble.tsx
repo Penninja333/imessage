@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import { Video, ResizeMode } from "expo-av";
 import { ApiMessage } from "../../api/messages";
 import { useAppTheme } from "../../theme/ThemeContext";
 import { TapbackPicker } from "./TapbackPicker";
@@ -183,6 +184,18 @@ const MessageBubbleComponent: React.FC<Props> = ({
               transition={200}
             />
           </TouchableOpacity>
+        ) : null}
+
+        {message.video ? (
+          <View style={styles.mediaVideoContainer}>
+            <Video
+              source={{ uri: message.video }}
+              style={styles.mediaVideo}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping={false}
+            />
+          </View>
         ) : null}
 
         {message.audio ? (
@@ -367,5 +380,17 @@ const styles = StyleSheet.create({
   },
   reactionPillText: {
     fontSize: 12,
+  },
+  mediaVideoContainer: {
+    width: 220,
+    height: 160,
+    borderRadius: 14,
+    overflow: "hidden",
+    marginVertical: 4,
+    backgroundColor: "#000000",
+  },
+  mediaVideo: {
+    width: "100%",
+    height: "100%",
   },
 });

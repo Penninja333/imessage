@@ -95,6 +95,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/devices", deviceRoutes);
+app.use("/api/device", deviceRoutes);
 
 // if the public directory exists, serve the static files
 // this is for the production build

@@ -207,7 +207,7 @@ export async function globalSearchMessages(query: string): Promise<any[]> {
 }
 
 export async function registerDeviceToken(token: string, platform: "android" | "ios", appVersion = "1.0.0"): Promise<void> {
-  await apiClient.post("/device/register", {
+  await apiClient.post("/devices/register", {
     token,
     platform,
     appVersion,

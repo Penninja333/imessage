@@ -113,6 +113,13 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// High-performance compound indexes for chat thread retrieval, pagination, and aggregation
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
+messageSchema.index({ receiverId: 1, senderId: 1, createdAt: -1 });
+messageSchema.index({ senderId: 1, createdAt: -1 });
+messageSchema.index({ receiverId: 1, createdAt: -1 });
+messageSchema.index({ pinned: 1, pinnedAt: -1 });
+
 const Message = mongoose.model("Message", messageSchema);
 
 export default Message;
