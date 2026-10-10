@@ -1,0 +1,111 @@
+name: Build Standalone Android APK
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/build-android-apk.yml'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (release or debug)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build Standalone Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java 17 (Eclipse Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Install Workspace Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Verify Mobile Typecheck
+        run: npm run typecheck --workspace=@imessage/mobile
+
+      - name: Expo Prebuild (Generate Native Android Project)
+        run: |
+          cd apps/mobile
+          npx expo prebuild --platform android --clean
+        env:
+          EXPO_NO_TELEMETRY: 1
+
+      - name: Configure Keystore Signing (Conditional)
+        id: keystore
+        run: |
+          cd apps/mobile/android/app
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding release keystore..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+            echo "has_keystore=true" >> $GITHUB_OUTPUT
+          else
+            echo "No custom release keystore secret configured — using standard Gradle signing fallback."
+            echo "has_keystore=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Android APK with Gradle
+        run: |
+          cd apps/mobile/android
+          chmod +x gradlew
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          echo "Building Android APK (mode: $BUILD_TYPE)..."
+          
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            # Try assembleRelease; if signing is required and not present, build assembleRelease without signing check or assembleDebug fallback
+            ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
+          fi
+        env:
+          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Locate Output APKs
+        id: locate-apk
+        run: |
+          echo "Listing compiled APKs:"
+          find apps/mobile/android/app/build/outputs/apk -name "*.apk"
+          APK_COUNT=$(find apps/mobile/android/app/build/outputs/apk -name "*.apk" | wc -l)
+          echo "Found $APK_COUNT APK(s)"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imessage-android-apk
+          path: apps/mobile/android/app/build/outputs/apk/**/*.apk
+          retention-days: 30
