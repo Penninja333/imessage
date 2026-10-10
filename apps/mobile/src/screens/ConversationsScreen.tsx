@@ -18,7 +18,9 @@ import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { ConversationRow } from "../components/chat/ConversationRow";
 import { ErrorBoundary } from "../components/common/ErrorBoundary";
+import { GlobalSearchModal } from "../components/common/GlobalSearchModal";
 import { ConversationItem } from "../utils/normalize";
+import { useOutboxStore } from "../store/useOutboxStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Conversations">;
 
@@ -30,17 +32,24 @@ function ConversationsContent({ navigation }: Props) {
   const { authUser, onlineUsers, syncAuthUser, clearAuth } = useAuthStore();
   const {
     conversations,
+    users,
     isLoadingConversations,
     loadConversations,
+    loadUsers,
     setActiveConversationId,
   } = useChatStore();
 
   const [search, setSearch] = useState("");
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
   useEffect(() => {
     syncAuthUser();
     loadConversations(onlineUsers);
-  }, [syncAuthUser, loadConversations, onlineUsers]);
+    loadUsers(onlineUsers);
+    useOutboxStore.getState().loadQueue().then(() => {
+      useOutboxStore.getState().flushOutbox();
+    });
+  }, [syncAuthUser, loadConversations, loadUsers, onlineUsers]);
 
   const handleSignOut = async () => {
     clearAuth();
@@ -90,20 +99,42 @@ function ConversationsContent({ navigation }: Props) {
         </Text>
       </View>
 
-      {/* In-List Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search messages"
-          placeholderTextColor={colors.textMuted}
-          value={search}
-          onChangeText={setSearch}
-          autoCapitalize="none"
-          autoCorrect={false}
-          clearButtonMode="while-editing"
-        />
+      {/* In-List Search Bar & Global Search Button */}
+      <View style={styles.searchRow}>
+        <View style={[styles.searchContainer, { backgroundColor: colors.surface, flex: 1 }]}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search messages"
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+        </View>
+        <TouchableOpacity
+          style={[styles.globalSearchBtn, { backgroundColor: colors.surface }]}
+          onPress={() => setShowGlobalSearch(true)}
+        >
+          <Text style={styles.globalSearchIcon}>🌐</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Global Search Modal */}
+      <GlobalSearchModal
+        visible={showGlobalSearch}
+        contacts={users}
+        onSelectUser={(contact) => {
+          setActiveConversationId(contact.id);
+          navigation.navigate("ChatRoom", {
+            conversationId: contact.id,
+            peerName: contact.fullName,
+          });
+        }}
+        onClose={() => setShowGlobalSearch(false)}
+      />
 
       {isLoadingConversations && conversations.length === 0 ? (
         <View style={styles.centerContainer}>
@@ -200,14 +231,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  searchContainer: {
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 16,
     marginVertical: 10,
+    gap: 8,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     height: 40,
     borderRadius: 12,
+  },
+  globalSearchBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  globalSearchIcon: {
+    fontSize: 18,
   },
   searchIcon: {
     fontSize: 14,

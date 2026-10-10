@@ -10,11 +10,14 @@ interface Props {
   currentUserId?: string;
   isPartnerTyping: boolean;
   isLoadingOlder: boolean;
+  customBubbleColor?: string;
   onLoadOlder: () => void;
   onReply: (message: ApiMessage) => void;
   onEdit: (message: ApiMessage) => void;
   onDelete: (messageId: string) => void;
   onReact: (messageId: string, emoji: string) => void;
+  onTogglePin?: (messageId: string) => void;
+  onToggleStar?: (messageId: string) => void;
 }
 
 export const MessageList: React.FC<Props> = ({
@@ -22,11 +25,14 @@ export const MessageList: React.FC<Props> = ({
   currentUserId,
   isPartnerTyping,
   isLoadingOlder,
+  customBubbleColor,
   onLoadOlder,
   onReply,
   onEdit,
   onDelete,
   onReact,
+  onTogglePin,
+  onToggleStar,
 }) => {
   const { colors, isDark } = useAppTheme();
 
@@ -43,14 +49,17 @@ export const MessageList: React.FC<Props> = ({
           message={item}
           isOwn={isOwn}
           currentUserId={currentUserId}
+          customBubbleColor={customBubbleColor}
           onReply={onReply}
           onEdit={onEdit}
           onDelete={onDelete}
           onReact={onReact}
+          onTogglePin={onTogglePin}
+          onToggleStar={onToggleStar}
         />
       );
     },
-    [currentUserId, onReply, onEdit, onDelete, onReact]
+    [currentUserId, customBubbleColor, onReply, onEdit, onDelete, onReact, onTogglePin, onToggleStar]
   );
 
   return (

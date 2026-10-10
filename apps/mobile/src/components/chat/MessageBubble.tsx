@@ -22,20 +22,26 @@ interface Props {
   message: ApiMessage;
   isOwn: boolean;
   currentUserId?: string;
+  customBubbleColor?: string;
   onReply: (message: ApiMessage) => void;
   onEdit: (message: ApiMessage) => void;
   onDelete: (messageId: string) => void;
   onReact: (messageId: string, emoji: string) => void;
+  onTogglePin?: (messageId: string) => void;
+  onToggleStar?: (messageId: string) => void;
 }
 
 const MessageBubbleComponent: React.FC<Props> = ({
   message,
   isOwn,
   currentUserId,
+  customBubbleColor,
   onReply,
   onEdit,
   onDelete,
   onReact,
+  onTogglePin,
+  onToggleStar,
 }) => {
   const { colors, isDark } = useAppTheme();
   const [showTapback, setShowTapback] = useState(false);
@@ -57,12 +63,27 @@ const MessageBubbleComponent: React.FC<Props> = ({
     } catch {}
 
     const options = ["Reply", "React"];
+    if (onTogglePin && !message.deleted) {
+      options.push(message.pinned ? "Unpin" : "Pin");
+    }
+    if (onToggleStar && !message.deleted) {
+      options.push((message.starredBy || []).length > 0 ? "Unstar" : "Star");
+    }
     if (canEdit) options.push("Edit");
     if (isOwn && !message.deleted) options.push("Delete");
     options.push("Cancel");
 
     const cancelButtonIndex = options.length - 1;
     const destructiveButtonIndex = isOwn && !message.deleted ? options.indexOf("Delete") : -1;
+
+    const handleAction = (action: string) => {
+      if (action === "Reply") onReply(message);
+      else if (action === "React") setShowTapback(true);
+      else if (action === "Pin" || action === "Unpin") onTogglePin?.(message._id);
+      else if (action === "Star" || action === "Unstar") onToggleStar?.(message._id);
+      else if (action === "Edit") onEdit(message);
+      else if (action === "Delete") onDelete(message._id);
+    };
 
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -72,11 +93,7 @@ const MessageBubbleComponent: React.FC<Props> = ({
           destructiveButtonIndex,
         },
         (buttonIndex) => {
-          const action = options[buttonIndex];
-          if (action === "Reply") onReply(message);
-          else if (action === "React") setShowTapback(true);
-          else if (action === "Edit") onEdit(message);
-          else if (action === "Delete") onDelete(message._id);
+          handleAction(options[buttonIndex]);
         }
       );
     } else {
@@ -88,12 +105,7 @@ const MessageBubbleComponent: React.FC<Props> = ({
           .map((opt) => ({
             text: opt,
             style: opt === "Delete" ? "destructive" : "default",
-            onPress: () => {
-              if (opt === "Reply") onReply(message);
-              else if (opt === "React") setShowTapback(true);
-              else if (opt === "Edit") onEdit(message);
-              else if (opt === "Delete") onDelete(message._id);
-            },
+            onPress: () => handleAction(opt),
           })),
         { cancelable: true }
       );
@@ -101,7 +113,7 @@ const MessageBubbleComponent: React.FC<Props> = ({
   };
 
   const bubbleBg = isOwn
-    ? colors.accent
+    ? customBubbleColor || colors.accent
     : isDark
     ? colors.bubbleIncoming
     : "#E9E9EB";

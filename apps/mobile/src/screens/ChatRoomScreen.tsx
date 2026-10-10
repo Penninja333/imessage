@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,12 @@ import { useAuthStore } from "../store/useAuthStore";
 import { Avatar } from "../components/common/Avatar";
 import { MessageList } from "../components/chat/MessageList";
 import { ChatComposer } from "../components/chat/ChatComposer";
+import { PinnedBanner } from "../components/chat/PinnedBanner";
+import { InChatSearch } from "../components/chat/InChatSearch";
+import { ChatThemePicker } from "../components/chat/ChatThemePicker";
+import { ContactDetailsModal } from "../components/chat/ContactDetailsModal";
 import { ErrorBoundary } from "../components/common/ErrorBoundary";
+import { resolveChatTheme } from "../theme/chatThemes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChatRoom">;
 
@@ -30,6 +35,8 @@ function ChatRoomContent({ route, navigation }: Props) {
 
   const {
     messages,
+    pinnedMessages,
+    currentTheme,
     isLoadingMessages,
     isLoadingOlder,
     typingUser,
@@ -41,7 +48,14 @@ function ChatRoomContent({ route, navigation }: Props) {
     setEditingMessage,
     deleteMessage,
     toggleReaction,
+    togglePin,
+    toggleStar,
+    updateTheme,
   } = useChatStore();
+
+  const [showSearch, setShowSearch] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showContactDetails, setShowContactDetails] = useState(false);
 
   useEffect(() => {
     setActiveConversationId(conversationId);
@@ -68,6 +82,7 @@ function ChatRoomContent({ route, navigation }: Props) {
     };
   }, [conversationId, users, conversations, initialPeerName, onlineUsers]);
 
+  const activeTheme = resolveChatTheme(currentTheme);
   const isPartnerTyping = String(typingUser) === String(conversationId);
 
   return (
@@ -79,11 +94,15 @@ function ChatRoomContent({ route, navigation }: Props) {
         {/* Navigation Bar */}
         <View style={[styles.header, { borderBottomColor: isDark ? "#2C2C2E" : "#E5E5EA" }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={[styles.backIcon, { color: colors.accent }]}>‹</Text>
-            <Text style={[styles.backText, { color: colors.accent }]}>Messages</Text>
+            <Text style={[styles.backIcon, { color: activeTheme.tintColor }]}>‹</Text>
+            <Text style={[styles.backText, { color: activeTheme.tintColor }]}>Messages</Text>
           </TouchableOpacity>
 
-          <View style={styles.peerHeader}>
+          <TouchableOpacity
+            style={styles.peerHeader}
+            onPress={() => setShowContactDetails(true)}
+            activeOpacity={0.7}
+          >
             <Avatar
               uri={peer.avatarUrl}
               initials={peer.initials}
@@ -98,15 +117,52 @@ function ChatRoomContent({ route, navigation }: Props) {
                 {isPartnerTyping ? "typing..." : peer.isOnline ? "Online" : ""}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.headerSpacer} />
+          {/* Header Action Buttons (Search & Contact Info) */}
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => setShowSearch((prev) => !prev)}
+              style={styles.iconBtn}
+            >
+              <Text style={styles.actionIcon}>🔍</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowContactDetails(true)}
+              style={styles.iconBtn}
+            >
+              <Text style={[styles.infoIcon, { color: activeTheme.tintColor }]}>ⓘ</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* In-Chat Search Bar */}
+        {showSearch ? (
+          <InChatSearch
+            messages={messages}
+            onSelectMatch={(id) => {
+              // Focused match
+            }}
+            onClose={() => setShowSearch(false)}
+          />
+        ) : null}
+
+        {/* Pinned Messages Banner */}
+        {!showSearch && pinnedMessages.length > 0 ? (
+          <PinnedBanner
+            pinnedMessages={pinnedMessages}
+            onPressMessage={(id) => {
+              // Jump or preview message
+            }}
+            onUnpin={(id) => togglePin(id)}
+          />
+        ) : null}
 
         {/* Message Thread */}
         {isLoadingMessages && messages.length === 0 ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={colors.accent} />
+            <ActivityIndicator size="large" color={activeTheme.tintColor} />
           </View>
         ) : (
           <MessageList
@@ -114,16 +170,38 @@ function ChatRoomContent({ route, navigation }: Props) {
             currentUserId={authUser?._id}
             isPartnerTyping={isPartnerTyping}
             isLoadingOlder={isLoadingOlder}
+            customBubbleColor={activeTheme.bubbleColor}
             onLoadOlder={() => loadOlderMessages(conversationId)}
             onReply={setReplyingTo}
             onEdit={setEditingMessage}
             onDelete={deleteMessage}
             onReact={toggleReaction}
+            onTogglePin={togglePin}
+            onToggleStar={toggleStar}
           />
         )}
 
         {/* Composer */}
         <ChatComposer receiverId={conversationId} />
+
+        {/* Theme Picker Modal */}
+        <ChatThemePicker
+          visible={showThemePicker}
+          currentThemeId={currentTheme}
+          onSelectTheme={(themeId) => updateTheme(conversationId, themeId)}
+          onClose={() => setShowThemePicker(false)}
+        />
+
+        {/* Contact Details Modal */}
+        <ContactDetailsModal
+          visible={showContactDetails}
+          peer={peer}
+          messages={messages}
+          currentTheme={currentTheme}
+          onClose={() => setShowContactDetails(false)}
+          onOpenThemePicker={() => setShowThemePicker(true)}
+          onOpenSearch={() => setShowSearch(true)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -168,7 +246,7 @@ const styles = StyleSheet.create({
   peerHeader: {
     flexDirection: "row",
     alignItems: "center",
-    maxWidth: "50%",
+    maxWidth: "46%",
     gap: 8,
   },
   peerTextGroup: {
@@ -182,8 +260,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     height: 14,
   },
-  headerSpacer: {
-    width: 60,
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  iconBtn: {
+    padding: 6,
+  },
+  actionIcon: {
+    fontSize: 16,
+  },
+  infoIcon: {
+    fontSize: 20,
+    fontWeight: "600",
   },
   centerContainer: {
     flex: 1,
