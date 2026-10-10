@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { checkAuth, MongoUser } from "../api/auth";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import { useChatStore } from "./useChatStore";
 
 const defaultHost = Platform.OS === "android" ? "http://10.0.2.2:3000" : "http://localhost:3000";
 const socketBaseURL =
@@ -68,7 +69,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     socket.on("getOnlineUsers", (users: string[]) => {
-      set({ onlineUsers: users || [] });
+      const list = users || [];
+      set({ onlineUsers: list });
+      useChatStore.getState().updateOnlineStatuses(list);
     });
 
     socket.on("disconnect", (reason) => {

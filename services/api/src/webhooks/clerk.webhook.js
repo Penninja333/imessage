@@ -28,14 +28,18 @@ router.post("/", async (req, res) => {
 
       const email =
         u.email_addresses?.find((e) => e.id === u.primary_email_address_id)?.email_address ??
-        u.email_addresses?.[0]?.email_address;
+        u.email_addresses?.[0]?.email_address ??
+        `${u.id}@no-email.internal`;
 
       const fullName =
-        [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || email?.split("@")[0];
+        [u.first_name, u.last_name].filter(Boolean).join(" ") ||
+        u.username ||
+        email?.split("@")[0] ||
+        `User ${String(u.id).slice(-4)}`;
 
       await User.findOneAndUpdate(
         { clerkId: u.id },
-        { clerkId: u.id, email, fullName, profilePic: u.image_url },
+        { clerkId: u.id, email, fullName, profilePic: u.image_url || "" },
         { new: true, upsert: true, setDefaultsOnInsert: true },
       );
     }
