@@ -10,8 +10,8 @@ This document tracks the end-to-end implementation of the React Native client fo
 |---|---|---|---|
 | **Milestone 1** | Workspace Scaffolding & Base Client | **COMPLETED** | Expo SDK 52 CNG setup, Clerk auth, SecureStore tokenCache, Axios client, base navigation |
 | **Milestone 2** | JIT Backend Fix & Contact Navigation | **COMPLETED** | Backend JIT sync fallback, webhook hardening, Contact list, Conversations list with unread badges, safe peer normalizer |
-| **Milestone 3** | Realtime Engine & Core Chat Thread | **IN PROGRESS** | FlashList inverted message thread, Socket.IO live messages, optimistic send, swipe-to-reply, swipe-left timestamps, tapback reactions |
-| **Milestone 4** | Enriched Media & Ephemeral View Once | Pending | Voice note recording & waveform player with 1x/1.5x/2x speed, View Once photo capsule & viewer, Document sharing, ImageKit lightbox |
+| **Milestone 3** | Realtime Engine & Core Chat Thread | **COMPLETED** | FlashList inverted message thread, Socket.IO live messages, optimistic send, swipe-to-reply, swipe-left timestamps, tapback reactions |
+| **Milestone 4** | Enriched Media & Ephemeral View Once | **IN PROGRESS** | Voice note recording & waveform player with 1x/1.5x/2x speed, View Once photo capsule & viewer, Document sharing, ImageKit lightbox |
 | **Milestone 5** | Themes, Customization & Search | Pending | 24 synced solid chat themes, pinned message carousel, in-chat search, global search modal, contact details drawer with 5 tabs |
 | **Milestone 6** | Push Notifications & Low-End Profiling | Pending | Native FCM push with `expo-notifications`, system tray channels, notification click deep linking, memory (<120MB) & 60fps profiling |
 | **Milestone 7** | CI/CD Pipeline & Standalone APK | Pending | GitHub Actions Android APK workflow (Java 17, Gradle `assembleRelease`), release keystore signing, downloadable artifact |

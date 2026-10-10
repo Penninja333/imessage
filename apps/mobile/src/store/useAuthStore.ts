@@ -74,6 +74,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useChatStore.getState().updateOnlineStatuses(list);
     });
 
+    socket.on("newMessage", (msg) => {
+      useChatStore.getState().handleNewMessage(msg);
+    });
+
+    socket.on("messageEdited", (data) => {
+      useChatStore.getState().handleMessageEdited(data);
+    });
+
+    socket.on("messageDeleted", (data) => {
+      useChatStore.getState().handleMessageDeleted(data);
+    });
+
+    socket.on("messageReaction", (data) => {
+      useChatStore.getState().handleMessageReaction(data);
+    });
+
+    socket.on("messagesSeen", (data) => {
+      useChatStore.getState().handleMessagesSeen(data);
+    });
+
+    socket.on("userTyping", (data) => {
+      useChatStore.getState().handleUserTyping(data);
+    });
+
+    socket.on("userStopTyping", (data) => {
+      useChatStore.getState().handleUserStopTyping(data);
+    });
+
     socket.on("disconnect", (reason) => {
       console.log("[Socket] Disconnected:", reason);
     });
