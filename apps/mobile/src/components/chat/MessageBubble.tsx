@@ -9,9 +9,14 @@ import {
   Alert,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { ApiMessage } from "../../api/messages";
 import { useAppTheme } from "../../theme/ThemeContext";
 import { TapbackPicker } from "./TapbackPicker";
+import { MessageAudio } from "./MessageAudio";
+import { DocumentCard } from "./DocumentCard";
+import { ViewOnceCapsule } from "./ViewOnceCapsule";
+import { Lightbox } from "../common/Lightbox";
 
 interface Props {
   message: ApiMessage;
@@ -34,6 +39,7 @@ const MessageBubbleComponent: React.FC<Props> = ({
 }) => {
   const { colors, isDark } = useAppTheme();
   const [showTapback, setShowTapback] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
 
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "numeric",
@@ -106,10 +112,10 @@ const MessageBubbleComponent: React.FC<Props> = ({
     ? "#FFFFFF"
     : "#000000";
 
-  // Group reactions by emoji: e.g. "❤️ 2", "👍 1"
-  const reactionsSummary = message.reactions && message.reactions.length > 0
-    ? Array.from(new Set(message.reactions.map((r) => r.emoji))).join(" ")
-    : null;
+  const reactionsSummary =
+    message.reactions && message.reactions.length > 0
+      ? Array.from(new Set(message.reactions.map((r) => r.emoji))).join(" ")
+      : null;
 
   return (
     <View style={[styles.wrapper, isOwn ? styles.wrapperRight : styles.wrapperLeft]}>
@@ -143,21 +149,56 @@ const MessageBubbleComponent: React.FC<Props> = ({
               ]}
               numberOfLines={1}
             >
-              {message.replyTo.text || "Message"}
+              {message.replyTo.text || "Media"}
             </Text>
           </View>
         ) : null}
 
-        {/* Message Text */}
-        <Text
-          style={[
-            styles.messageText,
-            { color: textColor },
-            message.deleted && styles.deletedText,
-          ]}
-        >
-          {message.text}
-        </Text>
+        {/* Media / Attachment Routing */}
+        {message.viewOnce ? (
+          <ViewOnceCapsule
+            messageId={message._id}
+            viewedOnce={Boolean(message.viewedOnce)}
+            isOwn={isOwn}
+            initialImageUrl={message.image}
+          />
+        ) : message.image ? (
+          <TouchableOpacity onPress={() => setShowLightbox(true)} activeOpacity={0.9}>
+            <Image
+              source={{ uri: message.image }}
+              style={styles.mediaImage}
+              contentFit="cover"
+              transition={200}
+            />
+          </TouchableOpacity>
+        ) : null}
+
+        {message.audio ? (
+          <MessageAudio uri={message.audio} isOwn={isOwn} />
+        ) : null}
+
+        {message.fileUrl ? (
+          <DocumentCard
+            fileUrl={message.fileUrl}
+            fileName={message.fileName}
+            fileSize={message.fileSize}
+            fileType={message.fileType}
+            isOwn={isOwn}
+          />
+        ) : null}
+
+        {/* Text Message */}
+        {message.text && (!message.viewOnce || !message.image) ? (
+          <Text
+            style={[
+              styles.messageText,
+              { color: textColor },
+              message.deleted && styles.deletedText,
+            ]}
+          >
+            {message.text}
+          </Text>
+        ) : null}
 
         {/* Metadata Footer: Timestamp + Edited Badge + Seen Status */}
         <View style={styles.metaRow}>
@@ -185,7 +226,7 @@ const MessageBubbleComponent: React.FC<Props> = ({
             <Text
               style={[
                 styles.seenIcon,
-                { color: message.seen ? (isOwn ? "#FFFFFF" : colors.accent) : "rgba(255,255,255,0.6)" },
+                { color: message.seen ? "#FFFFFF" : "rgba(255,255,255,0.6)" },
               ]}
             >
               {message.seen ? "✓✓" : "✓"}
@@ -218,6 +259,12 @@ const MessageBubbleComponent: React.FC<Props> = ({
         onSelectReaction={(emoji) => onReact(message._id, emoji)}
         onClose={() => setShowTapback(false)}
       />
+
+      <Lightbox
+        visible={showLightbox}
+        imageUrl={message.image}
+        onClose={() => setShowLightbox(false)}
+      />
     </View>
   );
 };
@@ -238,11 +285,17 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: "80%",
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 6,
     borderRadius: 18,
     position: "relative",
+  },
+  mediaImage: {
+    width: 220,
+    height: 220,
+    borderRadius: 12,
+    marginBottom: 4,
   },
   replyQuote: {
     borderLeftWidth: 3,
@@ -261,6 +314,7 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
     lineHeight: 21,
+    marginTop: 2,
   },
   deletedText: {
     fontStyle: "italic",

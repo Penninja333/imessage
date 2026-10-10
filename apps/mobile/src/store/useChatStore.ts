@@ -4,10 +4,16 @@ import {
   fetchUsers,
   fetchMessages,
   sendTextMessage as apiSendTextMessage,
+  sendMediaMessage as apiSendMediaMessage,
   editMessage as apiEditMessage,
   deleteMessage as apiDeleteMessage,
   reactToMessage as apiReactToMessage,
   markSeen as apiMarkSeen,
+  fetchPinnedMessages,
+  togglePinMessage,
+  toggleStarMessage,
+  fetchChatTheme,
+  setChatTheme,
   ApiMessage,
 } from "../api/messages";
 import { normalizeConversation, normalizePeer, ConversationItem, PeerProfile } from "../utils/normalize";
@@ -22,6 +28,8 @@ interface ChatState {
   isLoadingOlder: boolean;
   hasMoreMessages: boolean;
   activeConversationId: string | null;
+  currentTheme: string;
+  pinnedMessages: ApiMessage[];
   replyingTo: ApiMessage | null;
   editingMessage: ApiMessage | null;
   typingUser: string | null;
@@ -39,10 +47,17 @@ interface ChatState {
   loadMessages: (partnerId: string) => Promise<void>;
   loadOlderMessages: (partnerId: string) => Promise<void>;
   sendMessage: (partnerId: string, text: string) => Promise<boolean>;
+  sendMedia: (partnerId: string, params: { fileUri: string; fileName?: string; fileType?: string; text?: string; viewOnce?: boolean }) => Promise<boolean>;
   editMessage: (messageId: string, text: string) => Promise<boolean>;
   deleteMessage: (messageId: string) => Promise<boolean>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   markSeen: (partnerId: string) => Promise<void>;
+
+  loadPinnedMessages: (partnerId: string) => Promise<void>;
+  togglePin: (messageId: string) => Promise<void>;
+  toggleStar: (messageId: string) => Promise<void>;
+  loadChatTheme: (partnerId: string) => Promise<void>;
+  updateTheme: (partnerId: string, themeId: string) => Promise<void>;
 
   sendTyping: (receiverId: string, socket: any) => void;
   sendStopTyping: (receiverId: string, socket: any) => void;
@@ -55,6 +70,9 @@ interface ChatState {
   handleMessagesSeen: (data: { byUserId: string }) => void;
   handleUserTyping: (data: { senderId: string }) => void;
   handleUserStopTyping: (data: { senderId: string }) => void;
+  handleMessagePinUpdated: (data: { messageId: string; pinned: boolean }) => void;
+  handleMessageViewOnceOpened: (data: { messageId: string }) => void;
+  handleChatThemeUpdated: (data: { themeId: string; partnerId: string }) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -67,6 +85,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingOlder: false,
   hasMoreMessages: false,
   activeConversationId: null,
+  currentTheme: "default",
+  pinnedMessages: [],
   replyingTo: null,
   editingMessage: null,
   typingUser: null,
@@ -77,6 +97,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       activeConversationId: id,
       messages: [],
+      pinnedMessages: [],
+      currentTheme: "default",
       replyingTo: null,
       editingMessage: null,
       typingUser: null,
@@ -84,6 +106,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
     if (id) {
       get().loadMessages(id);
+      get().loadPinnedMessages(id);
+      get().loadChatTheme(id);
       get().markSeen(id);
     }
   },
@@ -360,4 +384,158 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ typingUser: null });
     }
   },
+
+  sendMedia: async (partnerId: string, params) => {
+    if (!partnerId || !params.fileUri) return false;
+
+    const replyingTo = get().replyingTo;
+    set({ replyingTo: null });
+
+    const tempId = `temp-${Date.now()}`;
+    const isImage = params.fileType?.startsWith("image/") || /\.(jpe?g|png|gif|webp)$/i.test(params.fileUri);
+    const isAudio = params.fileType?.startsWith("audio/") || /\.(m4a|aac|mp3|wav|ogg)$/i.test(params.fileUri);
+
+    const optimisticMessage: ApiMessage = {
+      _id: tempId,
+      tempId,
+      senderId: "me",
+      receiverId: partnerId,
+      text: params.text || "",
+      image: isImage ? params.fileUri : null,
+      audio: isAudio ? params.fileUri : null,
+      fileUrl: !isImage && !isAudio ? params.fileUri : null,
+      fileName: params.fileName || null,
+      viewOnce: Boolean(params.viewOnce),
+      viewedOnce: false,
+      seen: false,
+      deleted: false,
+      isEdited: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    set((state) => ({ messages: [...state.messages, optimisticMessage] }));
+
+    try {
+      const sent = await apiSendMediaMessage({
+        receiverId: partnerId,
+        fileUri: params.fileUri,
+        fileName: params.fileName,
+        fileType: params.fileType,
+        text: params.text,
+        replyToId: replyingTo?._id,
+        viewOnce: params.viewOnce,
+      });
+
+      set((state) => ({
+        messages: state.messages.map((m) => (m.tempId === tempId ? sent : m)),
+      }));
+      return true;
+    } catch (err: any) {
+      console.warn("[ChatStore] sendMedia error:", err.message);
+      set((state) => ({
+        messages: state.messages.filter((m) => m.tempId !== tempId),
+      }));
+      return false;
+    }
+  },
+
+  loadPinnedMessages: async (partnerId: string) => {
+    if (!partnerId) return;
+    try {
+      const pinned = await fetchPinnedMessages(partnerId);
+      set({ pinnedMessages: pinned || [] });
+    } catch (err: any) {
+      console.warn("[ChatStore] loadPinnedMessages error:", err.message);
+    }
+  },
+
+  togglePin: async (messageId: string) => {
+    if (!messageId) return;
+    try {
+      const res = await togglePinMessage(messageId);
+      set((state) => {
+        const isPinned = Boolean(res.pinned);
+        const updatedMessages = state.messages.map((m) =>
+          m._id === messageId ? { ...m, pinned: isPinned } : m
+        );
+        const pinnedList = isPinned
+          ? [...state.pinnedMessages.filter((m) => m._id !== messageId), state.messages.find((m) => m._id === messageId) || ({} as any)]
+          : state.pinnedMessages.filter((m) => m._id !== messageId);
+        return {
+          messages: updatedMessages,
+          pinnedMessages: pinnedList.filter((m) => m && m._id),
+        };
+      });
+    } catch (err: any) {
+      console.warn("[ChatStore] togglePin error:", err.message);
+    }
+  },
+
+  toggleStar: async (messageId: string) => {
+    if (!messageId) return;
+    try {
+      await toggleStarMessage(messageId);
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m._id === messageId
+            ? { ...m, starredBy: (m.starredBy || []).includes("me") ? [] : ["me"] }
+            : m
+        ),
+      }));
+    } catch (err: any) {
+      console.warn("[ChatStore] toggleStar error:", err.message);
+    }
+  },
+
+  loadChatTheme: async (partnerId: string) => {
+    if (!partnerId) return;
+    try {
+      const themeId = await fetchChatTheme(partnerId);
+      set({ currentTheme: themeId });
+    } catch {
+      set({ currentTheme: "default" });
+    }
+  },
+
+  updateTheme: async (partnerId: string, themeId: string) => {
+    if (!partnerId) return;
+    try {
+      await setChatTheme(partnerId, themeId);
+      set({ currentTheme: themeId });
+    } catch (err: any) {
+      console.warn("[ChatStore] updateTheme error:", err.message);
+    }
+  },
+
+  handleMessagePinUpdated: ({ messageId, pinned }) => {
+    set((state) => {
+      const updatedMessages = state.messages.map((m) =>
+        m._id === messageId ? { ...m, pinned } : m
+      );
+      const pinnedList = pinned
+        ? [...state.pinnedMessages.filter((m) => m._id !== messageId), updatedMessages.find((m) => m._id === messageId) || ({} as any)]
+        : state.pinnedMessages.filter((m) => m._id !== messageId);
+      return {
+        messages: updatedMessages,
+        pinnedMessages: pinnedList.filter((m) => m && m._id),
+      };
+    });
+  },
+
+  handleMessageViewOnceOpened: ({ messageId }) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m._id === messageId ? { ...m, viewedOnce: true, image: null } : m
+      ),
+    }));
+  },
+
+  handleChatThemeUpdated: ({ themeId, partnerId }) => {
+    const activeId = get().activeConversationId;
+    if (String(partnerId) === String(activeId)) {
+      set({ currentTheme: themeId });
+    }
+  },
 }));
+

@@ -97,6 +97,40 @@ export async function sendTextMessage(
   return res.data;
 }
 
+export interface SendMediaParams {
+  receiverId: string;
+  fileUri: string;
+  fileName?: string;
+  fileType?: string;
+  text?: string;
+  replyToId?: string;
+  viewOnce?: boolean;
+}
+
+export async function sendMediaMessage(params: SendMediaParams): Promise<ApiMessage> {
+  const formData = new FormData();
+  if (params.text) formData.append("text", params.text);
+  if (params.replyToId) formData.append("replyToId", params.replyToId);
+  if (params.viewOnce) formData.append("viewOnce", "true");
+
+  formData.append("media", {
+    uri: params.fileUri,
+    name: params.fileName || "attachment",
+    type: params.fileType || "application/octet-stream",
+  } as any);
+
+  const res = await apiClient.post<ApiMessage>(
+    `/messages/send/${params.receiverId}`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+  return res.data;
+}
+
 export async function editMessage(messageId: string, text: string): Promise<ApiMessage> {
   const res = await apiClient.put<ApiMessage>(`/messages/${messageId}/edit`, { text });
   return res.data;
@@ -117,3 +151,66 @@ export async function reactToMessage(
 export async function markSeen(userId: string): Promise<void> {
   await apiClient.post(`/messages/${userId}/seen`);
 }
+
+export async function openViewOnceMessage(messageId: string): Promise<void> {
+  await apiClient.post(`/messages/${messageId}/view-once`);
+}
+
+export async function togglePinMessage(messageId: string): Promise<any> {
+  const res = await apiClient.post(`/messages/${messageId}/pin`);
+  return res.data;
+}
+
+export async function fetchPinnedMessages(partnerId: string): Promise<ApiMessage[]> {
+  const res = await apiClient.get<ApiMessage[]>(`/messages/${partnerId}/pinned`);
+  return res.data || [];
+}
+
+export async function toggleStarMessage(messageId: string): Promise<any> {
+  const res = await apiClient.post(`/messages/${messageId}/star`);
+  return res.data;
+}
+
+export async function fetchStarredMessages(partnerId: string): Promise<ApiMessage[]> {
+  const res = await apiClient.get<ApiMessage[]>(`/messages/${partnerId}/starred`);
+  return res.data || [];
+}
+
+export async function fetchChatTheme(partnerId: string): Promise<string> {
+  try {
+    const res = await apiClient.get<{ themeId: string }>(`/messages/${partnerId}/theme`);
+    return res.data?.themeId || "default";
+  } catch {
+    return "default";
+  }
+}
+
+export async function setChatTheme(partnerId: string, themeId: string): Promise<void> {
+  await apiClient.put(`/messages/${partnerId}/theme`, { themeId });
+}
+
+export async function setNickname(partnerId: string, nickname: string): Promise<void> {
+  await apiClient.put(`/messages/nickname/${partnerId}`, { nickname });
+}
+
+export async function muteConversation(partnerId: string, duration = "always"): Promise<void> {
+  await apiClient.post(`/messages/${partnerId}/mute`, { duration });
+}
+
+export async function unmuteConversation(partnerId: string): Promise<void> {
+  await apiClient.delete(`/messages/${partnerId}/mute`);
+}
+
+export async function globalSearchMessages(query: string): Promise<any[]> {
+  const res = await apiClient.get<any[]>(`/messages/search?q=${encodeURIComponent(query)}`);
+  return res.data || [];
+}
+
+export async function registerDeviceToken(token: string, platform: "android" | "ios", appVersion = "1.0.0"): Promise<void> {
+  await apiClient.post("/device/register", {
+    token,
+    platform,
+    appVersion,
+  });
+}
+

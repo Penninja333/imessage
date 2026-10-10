@@ -102,6 +102,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useChatStore.getState().handleUserStopTyping(data);
     });
 
+    socket.on("messagePinUpdated", (data) => {
+      useChatStore.getState().handleMessagePinUpdated(data);
+    });
+
+    socket.on("messageViewOnceOpened", (data) => {
+      useChatStore.getState().handleMessageViewOnceOpened(data);
+    });
+
+    socket.on("chatThemeUpdated", (data) => {
+      useChatStore.getState().handleChatThemeUpdated(data);
+    });
+
     socket.on("disconnect", (reason) => {
       console.log("[Socket] Disconnected:", reason);
     });

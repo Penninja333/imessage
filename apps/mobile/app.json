@@ -17,7 +17,25 @@
       }
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow iMessage to record voice notes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow iMessage to access your photos to share images."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#007AFF"
+        }
+      ]
     ],
     "extra": {
       "clerkPublishableKey": "pk_test_bXVzaWNhbC1kb3J5LTI2MDQuY2xlcmsuYWNjb3VudHMuZGV2JA",
