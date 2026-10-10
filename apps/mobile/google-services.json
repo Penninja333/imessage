@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "346450338031",
+    "project_id": "chat-9f099",
+    "storage_bucket": "chat-9f099.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:346450338031:android:7069f4a50dd7d1f2d83b1a",
+        "android_client_info": {
+          "package_name": "com.imessage.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE8n0BBXHHkPLEur3slTzY-62BXkQ09ZI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

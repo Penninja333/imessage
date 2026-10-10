@@ -140,8 +140,12 @@ jobs:
       - name: Locate and stage APK
         run: |
           mkdir -p dist-apk
-          APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          fi
           if [ -n "$APK_PATH" ]; then
+            echo "Selected APK: $APK_PATH"
             cp "$APK_PATH" dist-apk/app-debug.apk
             cp "$APK_PATH" dist-apk/imessage-app.apk
             ls -lh dist-apk/*.apk

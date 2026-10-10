@@ -72,8 +72,8 @@ function AppContent() {
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <RootErrorBoundary>
+    <RootErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
           <SafeAreaProvider>
             <ThemeProvider>
@@ -81,7 +81,7 @@ export default function App() {
             </ThemeProvider>
           </SafeAreaProvider>
         </ClerkProvider>
-      </RootErrorBoundary>
-    </GestureHandlerRootView>
+      </GestureHandlerRootView>
+    </RootErrorBoundary>
   );
 }
