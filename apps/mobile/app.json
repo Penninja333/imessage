@@ -2,6 +2,7 @@
   "expo": {
     "name": "iMessage",
     "slug": "imessage",
+    "scheme": "imessage",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -45,7 +46,7 @@
     ],
     "extra": {
       "clerkPublishableKey": "pk_test_bXVzaWNhbC1kb3J5LTI2MDQuY2xlcmsuYWNjb3VudHMuZGV2JA",
-      "apiUrl": "http://10.0.2.2:3000"
+      "apiUrl": "https://imessage-fwxv.onrender.com"
     }
   }
 }

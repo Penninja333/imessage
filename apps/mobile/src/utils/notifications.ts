@@ -3,14 +3,18 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { registerDeviceToken } from "../api/messages";
 
-// Configure foreground notification presentation
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Configure foreground notification presentation safely
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (err) {
+  console.warn("[Push] Error initializing notification handler:", err);
+}
 
 /**
  * Configure Android notification channels and request push notification permissions.

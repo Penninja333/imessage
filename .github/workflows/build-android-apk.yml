@@ -64,6 +64,8 @@ jobs:
           cd apps/mobile
           CI=1 yes | npx expo prebuild --platform android --clean --no-install
         env:
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          EXPO_PUBLIC_API_URL: https://imessage-fwxv.onrender.com
           EXPO_NO_TELEMETRY: 1
 
       - name: Configure Keystore Signing (Conditional)
@@ -92,6 +94,8 @@ jobs:
             ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
           fi
         env:
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          EXPO_PUBLIC_API_URL: https://imessage-fwxv.onrender.com
           ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}

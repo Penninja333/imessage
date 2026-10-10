@@ -2,15 +2,16 @@ import axios from "axios";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-// Resolve default API host: Android emulator uses 10.0.2.2, iOS simulator uses localhost
-const defaultHost = Platform.OS === "android" ? "http://10.0.2.2:3000" : "http://localhost:3000";
-const baseURL =
+// Default production backend on Render
+const defaultHost = "https://imessage-fwxv.onrender.com";
+const rawBaseURL =
   process.env.EXPO_PUBLIC_API_URL ||
   Constants.expoConfig?.extra?.apiUrl ||
-  `${defaultHost}/api`;
+  defaultHost;
+const baseURL = rawBaseURL.endsWith("/api") ? rawBaseURL : `${rawBaseURL}/api`;
 
 export const apiClient = axios.create({
-  baseURL: baseURL.endsWith("/api") ? baseURL : `${baseURL}/api`,
+  baseURL,
   timeout: 20000,
   headers: {
     "Content-Type": "application/json",

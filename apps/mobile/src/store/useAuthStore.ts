@@ -5,7 +5,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { useChatStore } from "./useChatStore";
 
-const defaultHost = Platform.OS === "android" ? "http://10.0.2.2:3000" : "http://localhost:3000";
+const defaultHost = "https://imessage-fwxv.onrender.com";
 const socketBaseURL =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/api$/, "") ||
   Constants.expoConfig?.extra?.apiUrl?.replace(/\/api$/, "") ||

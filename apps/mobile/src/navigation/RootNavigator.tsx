@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "@clerk/clerk-expo";
 import { View, ActivityIndicator } from "react-native";
@@ -67,26 +67,24 @@ export const RootNavigator: React.FC = () => {
     );
   }
 
+  const baseTheme = isDark ? DarkTheme : DefaultTheme;
+  const navTheme = {
+    ...baseTheme,
+    colors: {
+      ...baseTheme.colors,
+      primary: colors.accent,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.accent,
+    },
+  };
+
   return (
     <NavigationContainer
       ref={navigationRef}
-      theme={{
-        dark: isDark,
-        colors: {
-          primary: colors.accent,
-          background: colors.background,
-          card: colors.surface,
-          text: colors.text,
-          border: colors.border,
-          notification: colors.accent,
-        },
-        fonts: {
-          regular: { fontFamily: "System", fontWeight: "400" },
-          medium: { fontFamily: "System", fontWeight: "500" },
-          bold: { fontFamily: "System", fontWeight: "700" },
-          heavy: { fontFamily: "System", fontWeight: "900" },
-        },
-      }}
+      theme={navTheme}
     >
       <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
         {!isSignedIn ? (
