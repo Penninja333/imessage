@@ -31,6 +31,18 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, E
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[RootErrorBoundary caught error]", error, errorInfo);
+    try {
+      fetch("https://imessage-fwxv.onrender.com/api/debug/crash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "REACT_RENDER_ERROR",
+          message: error?.message,
+          stack: error?.stack,
+          componentStack: errorInfo?.componentStack,
+        }),
+      }).catch(() => {});
+    } catch {}
   }
 
   handleRestart = () => {

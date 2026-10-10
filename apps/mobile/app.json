@@ -25,6 +25,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withCrashReporter.js",
       "expo-secure-store",
       [
         "expo-av",

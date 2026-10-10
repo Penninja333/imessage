@@ -88,6 +88,16 @@ app.use(
 );
 app.use(clerkMiddleware());
 
+let lastMobileCrash = null;
+app.post("/api/debug/crash", (req, res) => {
+  lastMobileCrash = { ...req.body, receivedAt: new Date().toISOString() };
+  console.error("🔥 [MOBILE CRASH REPORT RECEIVED] 🔥", JSON.stringify(lastMobileCrash, null, 2));
+  res.status(200).json({ ok: true });
+});
+app.get("/api/debug/crash", (req, res) => {
+  res.status(200).json({ ok: true, crash: lastMobileCrash });
+});
+
 app.get("/health", (req, res) => {
   res.status(200).json({ ok: true });
 });
