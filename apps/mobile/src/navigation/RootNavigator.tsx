@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "@clerk/clerk-expo";
 import { View, ActivityIndicator } from "react-native";
@@ -10,8 +10,10 @@ import { ChatRoomScreen } from "../screens/ChatRoomScreen";
 import { ContactsScreen } from "../screens/ContactsScreen";
 import { useAppTheme } from "../theme/ThemeContext";
 import { setAuthTokenProvider } from "../api/client";
+import { registerForPushNotifications, setupNotificationListeners } from "../utils/notifications";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -28,6 +30,27 @@ export const RootNavigator: React.FC = () => {
       });
     }
   }, [getToken]);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      // Register device for push notifications
+      registerForPushNotifications();
+
+      // Setup response tap listener
+      const unsubscribe = setupNotificationListeners((senderId, senderName) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("ChatRoom", {
+            conversationId: senderId,
+            peerName: senderName || "Friend",
+          });
+        }
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [isSignedIn]);
 
   if (!isLoaded) {
     return (
@@ -46,6 +69,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={{
         dark: isDark,
         colors: {

@@ -14,7 +14,13 @@
       "package": "com.imessage.app",
       "adaptiveIcon": {
         "backgroundColor": "#000000"
-      }
+      },
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
+      ]
     },
     "plugins": [
       "expo-secure-store",
