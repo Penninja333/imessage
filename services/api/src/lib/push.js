@@ -1,4 +1,5 @@
-import admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 import webpush from "web-push";
 import DeviceToken from "../models/deviceToken.model.js";
 
@@ -46,9 +47,13 @@ function initFirebase() {
       );
     }
 
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+    if (serviceAccount.private_key && typeof serviceAccount.private_key === "string") {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    }
+
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert(serviceAccount),
       });
     }
     initialized = true;
@@ -147,7 +152,7 @@ export async function sendPush({ tokens, title, body, data = {} }) {
         tokens: fcmTokens,
       };
 
-      const response = await admin.messaging().sendEachForMulticast(payload);
+      const response = await getMessaging().sendEachForMulticast(payload);
       console.log(
         `[push] FCM Sent: ${response.successCount} ok, ${response.failureCount} failed`,
       );
