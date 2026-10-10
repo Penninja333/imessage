@@ -6,6 +6,7 @@
   "workspaces": [
     "apps/web",
     "apps/landing",
+    "apps/mobile",
     "services/api",
     "packages/design-tokens"
   ],
