@@ -83,6 +83,7 @@ export function useSelectedConversation() {
   const activeConversationId = useChatStore((state) => state.activeConversationId);
   const conversations = useChatStore((state) => state.conversations);
   const users = useChatStore((state) => state.users);
+  const storeSelectedUser = useChatStore((state) => state.selectedUser);
   const messages = useChatStore((state) => state.messages);
 
   const authUser = useAuthStore((state) => state.authUser);
@@ -93,47 +94,68 @@ export function useSelectedConversation() {
   // Resolved user — changes only when activeConversationId, users, or conversations list changes
   const selectedUser = useMemo(() => {
     if (!activeConversationId) return null;
+    const matchUser = (u) =>
+      u && String(u._id || u.id || u.conversationId) === String(activeConversationId);
+
     return (
-      users.find((user) => String(user._id) === String(activeConversationId)) ||
-      conversations.find((user) => String(user._id) === String(activeConversationId)) ||
+      users.find(matchUser) ||
+      conversations.find(matchUser) ||
+      (matchUser(storeSelectedUser) ? storeSelectedUser : null) ||
       null
     );
-  }, [activeConversationId, users, conversations]);
+  }, [activeConversationId, users, conversations, storeSelectedUser]);
 
   // Map raw messages — only re-runs when the messages array or authUser changes.
   // Online status is kept separate to avoid re-mapping messages on every socket ping.
-  const myId = authUser?._id ? String(authUser._id) : "";
+  const myId = String(authUser?._id || authUser?.id || "");
   const mappedMessages = useMemo(
     () => messages.map((m) => getCachedMappedMessage(m, myId)),
     [messages, myId],
   );
 
   const activeConversation = useMemo(() => {
-    if (!selectedUser) return null;
-    const displayName = selectedUser.nickname || selectedUser.fullName;
-    const convData = conversations.find((c) => String(c._id) === String(selectedUser._id));
+    if (!activeConversationId) return null;
+
+    const userObj =
+      selectedUser ||
+      (storeSelectedUser &&
+      String(storeSelectedUser._id || storeSelectedUser.id || storeSelectedUser.conversationId) ===
+        String(activeConversationId)
+        ? storeSelectedUser
+        : null) || {
+        _id: String(activeConversationId),
+        id: String(activeConversationId),
+        fullName: "User",
+        nickname: null,
+        email: "",
+        profilePic: null,
+      };
+
+    const displayName = userObj.nickname || userObj.fullName || userObj.name || "User";
+    const partnerId = String(userObj._id || userObj.id || activeConversationId);
+    const convData = conversations.find((c) => String(c._id || c.id) === partnerId);
     const isMuted = Boolean(convData?.isMuted);
     const mutedUntil = convData?.mutedUntil || null;
 
     return {
-      id: String(selectedUser._id),
+      id: partnerId,
       isMuted,
       mutedUntil,
       peer: {
-        id: String(selectedUser._id),
+        id: partnerId,
         name: displayName,
-        fullName: selectedUser.fullName,
-        nickname: selectedUser.nickname || null,
-        myNickname: selectedUser.myNickname || null,
-        theirNicknameForMe: selectedUser.myNickname || null,
-        subtitle: selectedUser.email,
-        isOnline: onlineUsers.some((id) => String(id) === String(selectedUser._id)),
-        avatarUrl: selectedUser.profilePic,
+        fullName: userObj.fullName || displayName,
+        nickname: userObj.nickname || null,
+        myNickname: userObj.myNickname || null,
+        theirNicknameForMe: userObj.myNickname || null,
+        subtitle: userObj.email || "",
+        isOnline: onlineUsers.some((id) => String(id) === partnerId),
+        avatarUrl: userObj.profilePic || userObj.avatarUrl || null,
         initials: getInitials(displayName),
       },
       messages: mappedMessages,
     };
-  }, [selectedUser, mappedMessages, onlineUsers, conversations]);
+  }, [activeConversationId, selectedUser, storeSelectedUser, mappedMessages, onlineUsers, conversations]);
 
   return {
     activeConversation,

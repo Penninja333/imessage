@@ -13,13 +13,19 @@ import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 import { usePermissionsStore } from "../../store/usePermissionsStore";
 
 function mapUserForList(user, onlineUsers) {
-  const displayName = user.nickname || user.fullName;
-  const isOnline = onlineUsers.some((id) => String(id) === String(user._id));
+  const userId = String(user._id || user.id || user.conversationId || "");
+  const displayName = user.nickname || user.fullName || user.name || "User";
+  const isOnline = Boolean(userId && onlineUsers.some((id) => String(id) === userId));
   return {
-    conversationId: String(user._id),
-    id: String(user._id),
+    ...user,
+    conversationId: userId,
+    id: userId,
+    _id: userId,
     name: displayName,
-    avatarUrl: user.profilePic,
+    fullName: user.fullName || displayName,
+    nickname: user.nickname || null,
+    profilePic: user.profilePic || user.avatarUrl || null,
+    avatarUrl: user.profilePic || user.avatarUrl || null,
     initials: getInitials(displayName),
     isOnline,
     hasNickname: Boolean(user.nickname),
@@ -29,8 +35,9 @@ function mapUserForList(user, onlineUsers) {
     isMuted: Boolean(user.isMuted),
     mutedUntil: user.mutedUntil || null,
     peer: {
+      id: userId,
       name: displayName,
-      avatarUrl: user.profilePic,
+      avatarUrl: user.profilePic || user.avatarUrl || null,
       initials: getInitials(displayName),
       isOnline,
     },
@@ -219,7 +226,7 @@ function ChatSidebar() {
                 key={conversation.id}
                 user={conversation}
                 selected={conversation.id === activeConversationId}
-                onSelect={() => setActiveConversationId(conversation.id)}
+                onSelect={() => setActiveConversationId(conversation.id, conversation)}
               />
             ))
           )}
@@ -234,7 +241,11 @@ function ChatSidebar() {
                 key={user.conversationId}
                 user={user}
                 selected={user.conversationId === activeConversationId}
-                onSelect={() => setActiveConversationId(user.conversationId)}
+                onSelect={() => {
+                  setActiveConversationId(user.conversationId, user);
+                  setSidebarTab("chats");
+                  setSearchQuery("");
+                }}
               />
             ))
           )}

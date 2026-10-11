@@ -37,21 +37,23 @@ export function ForwardMessageModal({ isOpen, message, onClose }) {
   const contactList = useMemo(() => {
     const map = new Map();
     for (const c of conversations) {
-      const id = String(c._id);
+      const id = String(c._id || c.id || c.conversationId || "");
+      if (!id) continue;
       map.set(id, {
         id,
-        name: c.nickname || c.fullName,
-        avatar: c.profilePic,
+        name: c.nickname || c.fullName || c.name || "User",
+        avatar: c.profilePic || c.avatarUrl || null,
         isConversation: true,
       });
     }
     for (const u of users) {
-      const id = String(u._id);
+      const id = String(u._id || u.id || u.conversationId || "");
+      if (!id) continue;
       if (!map.has(id)) {
         map.set(id, {
           id,
-          name: u.nickname || u.fullName,
-          avatar: u.profilePic,
+          name: u.nickname || u.fullName || u.name || "User",
+          avatar: u.profilePic || u.avatarUrl || null,
           isConversation: false,
         });
       }

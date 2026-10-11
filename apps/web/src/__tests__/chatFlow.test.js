@@ -1,0 +1,367 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// Mock dependencies before importing store
+vi.mock("../lib/axios", () => ({
+  axiosInstance: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+vi.mock("../lib/notifications", () => ({
+  showWebNotification: vi.fn(),
+}));
+
+vi.mock("react-hot-toast", () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
+import { axiosInstance } from "../lib/axios";
+
+describe("useChatStore User Flow & Edge Cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useChatStore.setState({
+      users: [],
+      conversations: [],
+      messages: [],
+      selectedUser: null,
+      activeConversationId: null,
+      sidebarTab: "users",
+      composerText: "",
+      drafts: {},
+      replyingTo: null,
+    });
+    useAuthStore.setState({
+      authUser: { _id: "my-id-123", fullName: "Me" },
+      socket: null,
+      onlineUsers: [],
+    });
+  });
+
+  it("1. setActiveConversationId switches sidebarTab to 'chats'", () => {
+    useChatStore.setState({ sidebarTab: "users" });
+    useChatStore.getState().setActiveConversationId("user-abc");
+    expect(useChatStore.getState().sidebarTab).toBe("chats");
+    expect(useChatStore.getState().activeConversationId).toBe("user-abc");
+  });
+
+  it("2. setActiveConversationId resolves selectedUser matching _id or id", () => {
+    // User with _id
+    useChatStore.setState({
+      users: [
+        { _id: "user-mongo-1", fullName: "Alice Mongo" },
+        { id: "user-id-2", fullName: "Bob Standard" },
+      ],
+    });
+
+    useChatStore.getState().setActiveConversationId("user-mongo-1");
+    expect(useChatStore.getState().selectedUser).toEqual(
+      expect.objectContaining({ _id: "user-mongo-1", fullName: "Alice Mongo" }),
+    );
+
+    useChatStore.getState().setActiveConversationId("user-id-2");
+    expect(useChatStore.getState().selectedUser).toEqual(
+      expect.objectContaining({ id: "user-id-2", fullName: "Bob Standard" }),
+    );
+  });
+
+  it("3. setActiveConversationId accepts userHint when state.users is not yet loaded", () => {
+    expect(useChatStore.getState().users).toEqual([]);
+    const userHint = {
+      conversationId: "user-hint-1",
+      name: "Charlie Hint",
+      avatarUrl: "https://example.com/charlie.png",
+    };
+
+    useChatStore.getState().setActiveConversationId("user-hint-1", userHint);
+
+    const selectedUser = useChatStore.getState().selectedUser;
+    expect(selectedUser).not.toBeNull();
+    expect(selectedUser.fullName).toBe("Charlie Hint");
+    expect(selectedUser._id).toBe("user-hint-1");
+    expect(selectedUser.profilePic).toBe("https://example.com/charlie.png");
+  });
+
+  it("4. setActiveConversationId generates fallback selectedUser if user is completely unknown", () => {
+    useChatStore.getState().setActiveConversationId("unknown-user-id");
+    const selectedUser = useChatStore.getState().selectedUser;
+    expect(selectedUser).not.toBeNull();
+    expect(selectedUser._id).toBe("unknown-user-id");
+  });
+
+  it("5. sendMessage resolves recipient from activeConversationId if selectedUser was null", async () => {
+    axiosInstance.post.mockResolvedValueOnce({
+      data: {
+        _id: "msg-1",
+        text: "Hello there!",
+        senderId: "my-id-123",
+        receiverId: "target-user-999",
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    useChatStore.setState({
+      selectedUser: null,
+      activeConversationId: "target-user-999",
+    });
+
+    const result = await useChatStore.getState().sendMessage({ text: "Hello there!" });
+    expect(result).toBe(true);
+    expect(axiosInstance.post).toHaveBeenCalledWith(
+      "/messages/send/target-user-999",
+      expect.anything(),
+    );
+  });
+
+  it("6. sendMessage prepends new conversation optimistically if user was not in conversations list", async () => {
+    axiosInstance.post.mockResolvedValueOnce({
+      data: {
+        _id: "msg-2",
+        text: "First message to new friend",
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    useChatStore.setState({
+      conversations: [],
+      selectedUser: { _id: "new-friend", fullName: "New Friend" },
+      activeConversationId: "new-friend",
+    });
+
+    await useChatStore.getState().sendMessage({ text: "First message to new friend" });
+    const conversations = useChatStore.getState().conversations;
+    expect(conversations.length).toBe(1);
+    expect(conversations[0]._id).toBe("new-friend");
+    expect(conversations[0].fullName).toBe("New Friend");
+    expect(conversations[0].lastMessage).toBe("First message to new friend");
+  });
+
+  it("7. sendTextMessage preserves composerText and drafts when sending fails", async () => {
+    axiosInstance.post.mockRejectedValueOnce(new Error("Network timeout"));
+
+    useChatStore.setState({
+      activeConversationId: "target-user-1",
+      selectedUser: { _id: "target-user-1", fullName: "Target" },
+      composerText: "Important message that shouldn't disappear",
+    });
+
+    const success = await useChatStore.getState().sendTextMessage("target-user-1");
+    expect(success).toBe(false);
+
+    // Composer text and draft MUST be preserved
+    expect(useChatStore.getState().composerText).toBe(
+      "Important message that shouldn't disappear",
+    );
+    expect(useChatStore.getState().drafts["target-user-1"]).toBe(
+      "Important message that shouldn't disappear",
+    );
+  });
+
+  it("8. sendTextMessage clears composerText and draft when sending succeeds", async () => {
+    axiosInstance.post.mockResolvedValueOnce({
+      data: {
+        _id: "msg-success",
+        text: "Will be sent",
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    useChatStore.setState({
+      activeConversationId: "target-user-1",
+      selectedUser: { _id: "target-user-1", fullName: "Target" },
+      composerText: "Will be sent",
+    });
+
+    const success = await useChatStore.getState().sendTextMessage("target-user-1");
+    expect(success).toBe(true);
+    expect(useChatStore.getState().composerText).toBe("");
+    expect(useChatStore.getState().drafts["target-user-1"]).toBeUndefined();
+  });
+
+  it("9. getUsers resolves selectedUser if activeConversationId was set while selectedUser was null", async () => {
+    useChatStore.setState({
+      activeConversationId: "delayed-user-456",
+      selectedUser: null,
+    });
+
+    axiosInstance.get.mockResolvedValueOnce({
+      data: [
+        { _id: "other-user", fullName: "Other" },
+        { _id: "delayed-user-456", fullName: "Delayed Arrival" },
+      ],
+    });
+
+    await useChatStore.getState().getUsers();
+    expect(useChatStore.getState().selectedUser).toEqual(
+      expect.objectContaining({
+        _id: "delayed-user-456",
+        fullName: "Delayed Arrival",
+      }),
+    );
+  });
+
+  it("10. getConversations resolves selectedUser if activeConversationId was set while selectedUser was null", async () => {
+    useChatStore.setState({
+      activeConversationId: "conv-user-789",
+      selectedUser: null,
+    });
+
+    axiosInstance.get.mockResolvedValueOnce({
+      data: [
+        { _id: "conv-user-789", fullName: "Conversation Partner" },
+      ],
+    });
+
+    await useChatStore.getState().getConversations();
+    expect(useChatStore.getState().selectedUser).toEqual(
+      expect.objectContaining({
+        _id: "conv-user-789",
+        fullName: "Conversation Partner",
+      }),
+    );
+  });
+
+  it("11. setActiveConversationId(null) clears conversation without mutating drafts unexpectedly", () => {
+    useChatStore.setState({
+      activeConversationId: "conv-1",
+      composerText: "Draft text in progress",
+    });
+
+    useChatStore.getState().setActiveConversationId(null);
+    expect(useChatStore.getState().activeConversationId).toBeNull();
+    expect(useChatStore.getState().selectedUser).toBeNull();
+    expect(useChatStore.getState().drafts["conv-1"]).toBe("Draft text in progress");
+  });
+
+  it("12. setActiveConversationId immediately prepends pending conversation to conversations list", () => {
+    useChatStore.setState({
+      conversations: [
+        { _id: "existing-partner", fullName: "Existing Friend" },
+      ],
+    });
+
+    const userHint = {
+      id: "brand-new-user",
+      fullName: "Brand New User",
+      profilePic: "https://example.com/pic.jpg",
+    };
+
+    useChatStore.getState().setActiveConversationId("brand-new-user", userHint);
+
+    const convs = useChatStore.getState().conversations;
+    expect(convs.length).toBe(2);
+    expect(convs[0]._id).toBe("brand-new-user");
+    expect(convs[0].fullName).toBe("Brand New User");
+    expect(convs[0].lastMessage).toBe("");
+  });
+
+  it("13. getConversations preserves active pending conversation if not yet persisted on backend", async () => {
+    useChatStore.setState({
+      activeConversationId: "brand-new-active",
+      selectedUser: {
+        _id: "brand-new-active",
+        fullName: "Active In Progress",
+      },
+      conversations: [
+        { _id: "brand-new-active", fullName: "Active In Progress", lastMessage: "" },
+      ],
+    });
+
+    axiosInstance.get.mockResolvedValueOnce({
+      data: [
+        { _id: "server-conv-1", fullName: "Server Friend 1" },
+        { _id: "server-conv-2", fullName: "Server Friend 2" },
+      ],
+    });
+
+    await useChatStore.getState().getConversations();
+
+    const convs = useChatStore.getState().conversations;
+    expect(convs.length).toBe(3);
+    expect(convs[0]._id).toBe("brand-new-active");
+    expect(convs[0].fullName).toBe("Active In Progress");
+  });
+
+  it("14. getUsers syncs user metadata to pending conversation in conversations list", async () => {
+    useChatStore.setState({
+      activeConversationId: "pending-user-id",
+      selectedUser: {
+        _id: "pending-user-id",
+        fullName: "User",
+        profilePic: null,
+      },
+      conversations: [
+        { _id: "pending-user-id", fullName: "User", profilePic: null, lastMessage: "" },
+      ],
+    });
+
+    axiosInstance.get.mockResolvedValueOnce({
+      data: [
+        {
+          _id: "pending-user-id",
+          fullName: "Alice Full Real Name",
+          profilePic: "https://example.com/alice.jpg",
+        },
+      ],
+    });
+
+    await useChatStore.getState().getUsers();
+
+    const convs = useChatStore.getState().conversations;
+    expect(convs[0].fullName).toBe("Alice Full Real Name");
+    expect(convs[0].profilePic).toBe("https://example.com/alice.jpg");
+    expect(useChatStore.getState().selectedUser.fullName).toBe("Alice Full Real Name");
+  });
+
+  it("15. markMessagesAsSeen handles conversations identified by id instead of _id", async () => {
+    axiosInstance.post.mockResolvedValueOnce({ data: { success: true } });
+
+    useChatStore.setState({
+      conversations: [
+        { id: "conv-with-id-only", unreadCount: 5 },
+      ],
+    });
+
+    await useChatStore.getState().markMessagesAsSeen("conv-with-id-only");
+
+    const convs = useChatStore.getState().conversations;
+    expect(convs[0].unreadCount).toBe(0);
+    expect(axiosInstance.post).toHaveBeenCalledWith("/messages/conv-with-id-only/seen");
+  });
+
+  it("16. sendMessage handles authUser with id instead of _id", async () => {
+    useAuthStore.setState({
+      authUser: { id: "my-custom-id", fullName: "Me Without Underscore" },
+    });
+
+    axiosInstance.post.mockResolvedValueOnce({
+      data: {
+        _id: "msg-test-16",
+        text: "Hello from id user",
+        senderId: "my-custom-id",
+        receiverId: "target-user-1",
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    useChatStore.setState({
+      activeConversationId: "target-user-1",
+      selectedUser: { _id: "target-user-1", fullName: "Target" },
+    });
+
+    const success = await useChatStore.getState().sendMessage({ text: "Hello from id user" });
+    expect(success).toBe(true);
+    expect(axiosInstance.post).toHaveBeenCalledWith(
+      "/messages/send/target-user-1",
+      expect.anything(),
+    );
+  });
+});

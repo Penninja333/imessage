@@ -105,7 +105,7 @@ function ChatPage() {
           <ChatHeader />
           <MessageList />
 
-          {activeConversation ? <ChatComposer /> : null}
+          {activeConversation || activeConversationId ? <ChatComposer /> : null}
         </div>
       </div>
       <EmojiParticleCanvas />

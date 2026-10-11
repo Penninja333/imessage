@@ -63,7 +63,7 @@ function MessageBubbleComponent({
   const retrySendMessage = useChatStore((state) => state.retrySendMessage);
   const openViewOnceMessage = useChatStore((state) => state.openViewOnceMessage);
   const authUser = useAuthStore((state) => state.authUser);
-  const myId = authUser?._id ? String(authUser._id) : "";
+  const myId = String(authUser?._id || authUser?.id || "");
   const now = useSyncExternalStore(subscribeClock, getClockSnapshot, getClockSnapshot);
 
   const [showTapback, setShowTapback] = useState(false);
@@ -192,8 +192,9 @@ function MessageBubbleComponent({
       // Trigger reply
       const chatState = useChatStore.getState();
       const activePartner =
-        chatState.users.find((u) => String(u._id) === String(chatState.activeConversationId)) ||
-        chatState.conversations.find((c) => String(c._id) === String(chatState.activeConversationId));
+        chatState.selectedUser ||
+        chatState.users.find((u) => String(u._id || u.id) === String(chatState.activeConversationId)) ||
+        chatState.conversations.find((c) => String(c._id || c.id) === String(chatState.activeConversationId));
       const peerName = activePartner?.nickname || activePartner?.fullName || "Friend";
 
       setReplyingTo({

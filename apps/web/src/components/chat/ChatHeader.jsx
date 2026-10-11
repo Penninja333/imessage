@@ -70,7 +70,7 @@ export function ChatHeader() {
   const conversations = useChatStore((state) => state.conversations);
   const otherPendingCount = conversations.reduce(
     (acc, c) =>
-      String(c._id) !== String(activeConversationId) ? acc + (c.unreadCount || 0) : acc,
+      String(c._id || c.id) !== String(activeConversationId) ? acc + (c.unreadCount || 0) : acc,
     0,
   );
 
@@ -79,10 +79,10 @@ export function ChatHeader() {
       <header className="flex shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-md px-2 py-2 sm:px-3 sm:py-2.5">
       {/* Left side: Back button (mobile) + Contact info */}
       <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
-        {activeConversation && !isLargeScreen ? (
+        {!isLargeScreen && (activeConversation || activeConversationId) ? (
           <Button
             variant="ghost"
-            className="flex items-center gap-0.5 text-accent hover:bg-accent/10 active:scale-95 px-1 py-1 rounded-full h-9 shrink-0"
+            className="flex lg:hidden items-center gap-0.5 text-accent hover:bg-accent/10 active:scale-95 px-1 py-1 rounded-full h-9 shrink-0"
             onPress={() => setActiveConversationId(null)}
             aria-label="Back to conversations"
           >
@@ -277,7 +277,7 @@ export function ChatHeader() {
             </Button>
           ) : null}
 
-          {activeConversation ? (
+          {activeConversation || activeConversationId ? (
             <Button
               variant="ghost"
               isIconOnly

@@ -65,12 +65,48 @@ export const useChatStore = create(
         set({ isUsersLoading: true });
         try {
           const res = await axiosInstance.get("/messages/users");
-          set((state) => ({
-            users: res.data,
-            selectedUser: state.selectedUser
-              ? res.data.find((user) => String(user._id) === String(state.selectedUser._id)) || state.selectedUser
-              : null,
-          }));
+          const userList = Array.isArray(res.data) ? res.data : [];
+          set((state) => {
+            const activeId = state.activeConversationId;
+            const targetId = activeId || state.selectedUser?._id || state.selectedUser?.id;
+            const matchUser = (u) =>
+              u && targetId && String(u._id || u.id || u.conversationId) === String(targetId);
+            const foundUser = userList.find(matchUser);
+
+            let updatedSelected = state.selectedUser;
+            let updatedConversations = state.conversations;
+
+            if (foundUser) {
+              const uid = String(foundUser._id || foundUser.id || targetId);
+              updatedSelected = {
+                ...foundUser,
+                _id: uid,
+                id: uid,
+                fullName: foundUser.fullName || foundUser.name || state.selectedUser?.fullName || "User",
+                nickname: foundUser.nickname || state.selectedUser?.nickname || null,
+                profilePic: foundUser.profilePic || foundUser.avatarUrl || state.selectedUser?.profilePic || null,
+              };
+
+              // Keep placeholder conversations in sync with fetched user info
+              updatedConversations = state.conversations.map((c) => {
+                if (String(c._id || c.id) === uid) {
+                  return {
+                    ...c,
+                    fullName: updatedSelected.fullName,
+                    nickname: updatedSelected.nickname,
+                    profilePic: updatedSelected.profilePic,
+                  };
+                }
+                return c;
+              });
+            }
+
+            return {
+              users: userList,
+              selectedUser: updatedSelected || foundUser || null,
+              conversations: updatedConversations,
+            };
+          });
         } catch (error) {
           console.log("Error in getUsers:", error.message);
         } finally {
@@ -82,12 +118,47 @@ export const useChatStore = create(
         set({ isConversationsLoading: true });
         try {
           const res = await axiosInstance.get("/messages/conversations");
-          set((state) => ({
-            conversations: res.data,
-            selectedUser: state.selectedUser
-              ? res.data.find((user) => String(user._id) === String(state.selectedUser._id)) || state.selectedUser
-              : null,
-          }));
+          const convList = Array.isArray(res.data) ? res.data : [];
+          set((state) => {
+            const activeId = state.activeConversationId;
+            const targetId = activeId || state.selectedUser?._id || state.selectedUser?.id;
+            const matchUser = (u) =>
+              u && targetId && String(u._id || u.id || u.conversationId) === String(targetId);
+            const foundUser = convList.find(matchUser);
+
+            // If active conversation is not yet in the backend convList (brand new conversation started from Users tab),
+            // preserve the active conversation at the top of the list so it doesn't vanish
+            const hasActiveInConvList =
+              activeId && convList.some((c) => String(c._id || c.id) === String(activeId));
+            const existingPending =
+              activeId && state.conversations.find((c) => String(c._id || c.id) === String(activeId));
+            const activePendingConv =
+              !hasActiveInConvList && activeId
+                ? existingPending ||
+                  (state.selectedUser
+                    ? {
+                        _id: String(activeId),
+                        id: String(activeId),
+                        fullName: state.selectedUser.fullName || state.selectedUser.name || "User",
+                        nickname: state.selectedUser.nickname || null,
+                        profilePic:
+                          state.selectedUser.profilePic || state.selectedUser.avatarUrl || null,
+                        lastMessage: "",
+                        lastMessageAt: null,
+                        unreadCount: 0,
+                      }
+                    : null)
+                : null;
+
+            const finalConversations = activePendingConv
+              ? [activePendingConv, ...convList]
+              : convList;
+
+            return {
+              conversations: finalConversations,
+              selectedUser: state.selectedUser || foundUser || null,
+            };
+          });
           get().syncBadge();
         } catch (error) {
           console.log("Error in getConversations:", error.message);
@@ -138,7 +209,7 @@ export const useChatStore = create(
         // Clear unread count locally immediately
         set((state) => ({
           conversations: state.conversations.map((c) =>
-            String(c._id) === String(partnerId) ? { ...c, unreadCount: 0 } : c,
+            String(c._id || c.id) === String(partnerId) ? { ...c, unreadCount: 0 } : c,
           ),
         }));
         get().syncBadge();
@@ -155,11 +226,26 @@ export const useChatStore = create(
       },
 
       sendMessage: async (messageData, existingTempId = null) => {
-        const selectedUser = get().selectedUser;
+        let selectedUser = get().selectedUser;
+        const activeId = get().activeConversationId;
+
+        if ((!selectedUser || (!selectedUser._id && !selectedUser.id)) && activeId) {
+          const matchUser = (u) =>
+            u && String(u._id || u.id || u.conversationId) === String(activeId);
+          selectedUser =
+            get().users.find(matchUser) ||
+            get().conversations.find(matchUser) ||
+            { _id: String(activeId), id: String(activeId), fullName: "User" };
+          set({ selectedUser });
+        }
+
         if (!selectedUser) return false;
 
+        const partnerUserId = String(selectedUser._id || selectedUser.id || activeId || "");
+        if (!partnerUserId) return false;
+
         const authUser = useAuthStore.getState().authUser;
-        const myId = authUser?._id ? String(authUser._id) : "";
+        const myId = String(authUser?._id || authUser?.id || "");
         const tempId =
           existingTempId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const isFormData = typeof FormData !== "undefined" && messageData instanceof FormData;
@@ -177,7 +263,7 @@ export const useChatStore = create(
             _id: tempId,
             tempId,
             senderId: myId,
-            receiverId: selectedUser._id,
+            receiverId: partnerUserId,
             text: textVal,
             status: "sending",
             createdAt: new Date().toISOString(),
@@ -187,7 +273,7 @@ export const useChatStore = create(
             replyTo: replyingTo
               ? {
                   messageId: replyingTo.id,
-                  senderId: replyingTo.role === "me" ? myId : selectedUser._id,
+                  senderId: replyingTo.role === "me" ? myId : partnerUserId,
                   text: replyingTo.text || "",
                   image: replyingTo.imageUrl || null,
                   video: replyingTo.videoUrl || null,
@@ -230,9 +316,9 @@ export const useChatStore = create(
                     : "New message");
 
           set((state) => {
-            const partnerId = String(selectedUser._id);
+            const partnerId = partnerUserId;
             const existingIndex = state.conversations.findIndex(
-              (c) => String(c._id) === partnerId,
+              (c) => String(c._id || c.id) === partnerId,
             );
 
             if (existingIndex !== -1) {
@@ -244,8 +330,19 @@ export const useChatStore = create(
               };
               const rest = state.conversations.filter((_, idx) => idx !== existingIndex);
               return { conversations: [updated, ...rest] };
+            } else {
+              const newConv = {
+                _id: partnerId,
+                id: partnerId,
+                fullName: selectedUser.fullName || selectedUser.name || "User",
+                nickname: selectedUser.nickname || null,
+                profilePic: selectedUser.profilePic || selectedUser.avatarUrl || null,
+                lastMessage: previewText,
+                lastMessageAt: optimisticMsg.createdAt,
+                unreadCount: 0,
+              };
+              return { conversations: [newConv, ...state.conversations] };
             }
-            return state;
           });
         } else {
           // Re-attempting previously failed message
@@ -257,7 +354,7 @@ export const useChatStore = create(
         }
 
         try {
-          const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+          const res = await axiosInstance.post(`/messages/send/${partnerUserId}`, messageData);
           const sentMessage = res.data;
 
           // Swap optimistic message for the persisted server message
@@ -287,9 +384,9 @@ export const useChatStore = create(
                     : "New message");
 
           set((state) => {
-            const partnerId = String(selectedUser._id);
+            const partnerId = partnerUserId;
             const existingIndex = state.conversations.findIndex(
-              (c) => String(c._id) === partnerId,
+              (c) => String(c._id || c.id) === partnerId,
             );
 
             if (existingIndex !== -1) {
@@ -367,7 +464,7 @@ export const useChatStore = create(
 
         socket.on("newMessage", (newMessage) => {
           const authUser = useAuthStore.getState().authUser;
-          const myId = String(authUser?._id);
+          const myId = String(authUser?._id || authUser?.id || "");
           const currentActiveId = get().activeConversationId;
 
           const isCurrentChat =
@@ -394,8 +491,8 @@ export const useChatStore = create(
               }
 
               const partner =
-                get().conversations.find((c) => String(c._id) === String(newMessage.senderId)) ||
-                get().users.find((u) => String(u._id) === String(newMessage.senderId));
+                get().conversations.find((c) => String(c._id || c.id) === String(newMessage.senderId)) ||
+                get().users.find((u) => String(u._id || u.id) === String(newMessage.senderId));
               const senderName = partner?.nickname || partner?.fullName || "iMessage";
 
               // Privacy rule: Only show sender name and notification count notice
@@ -429,7 +526,7 @@ export const useChatStore = create(
 
           set((state) => {
             const existingIndex = state.conversations.findIndex(
-              (c) => String(c._id) === partnerId,
+              (c) => String(c._id || c.id) === partnerId,
             );
 
             if (existingIndex !== -1) {
@@ -536,10 +633,12 @@ export const useChatStore = create(
           const myId = String(authUser?._id);
 
           const applyNickname = (u) => {
-            if (String(u._id) === String(data.forUserId) && String(data.withUserId) === myId) {
+            if (!u) return u;
+            const uid = String(u._id || u.id || "");
+            if (uid === String(data.forUserId) && String(data.withUserId) === myId) {
               return { ...u, nickname: data.nickname };
             }
-            if (String(u._id) === String(data.withUserId) && String(data.forUserId) === myId) {
+            if (uid === String(data.withUserId) && String(data.forUserId) === myId) {
               return { ...u, myNickname: data.nickname };
             }
             return u;
@@ -619,7 +718,7 @@ export const useChatStore = create(
 
       setSelectedUser: (selectedUser) => set({ selectedUser }),
 
-      setActiveConversationId: (activeConversationId) => {
+      setActiveConversationId: (activeConversationId, userHint = null) => {
         // Save current composerText as draft for the outgoing conversation
         const prevConvId = get().activeConversationId;
         const currentText = get().composerText;
@@ -630,28 +729,90 @@ export const useChatStore = create(
         // Restore draft for the incoming conversation
         const restoredDraft = activeConversationId ? (get().drafts[String(activeConversationId)] || "") : "";
 
-        set((state) => ({
-          activeConversationId,
-          composerText: restoredDraft,
-          selectedUser:
-            state.users.find((user) => String(user._id) === String(activeConversationId)) ||
-            state.conversations.find((user) => String(user._id) === String(activeConversationId)) ||
-            null,
-          messages: [], // always clear immediately — never show stale messages from previous convo
-          hasMoreMessages: false,
-          isLoadingMoreMessages: false,
-          typingUser: null,
-          replyingTo: null,
-          editingMessage: null,
-          isInChatSearchOpen: false,
-          inChatSearchQuery: "",
-          activeMatchId: null,
-        }));
+        let resolvedUser = null;
+        if (activeConversationId) {
+          const matchUser = (u) =>
+            u && String(u._id || u.id || u.conversationId) === String(activeConversationId);
+          const state = get();
+          const candidate =
+            state.users.find(matchUser) ||
+            state.conversations.find(matchUser) ||
+            (userHint && matchUser(userHint) ? userHint : null) ||
+            (state.selectedUser && matchUser(state.selectedUser) ? state.selectedUser : null) ||
+            userHint ||
+            null;
+
+          if (candidate) {
+            resolvedUser = {
+              ...candidate,
+              _id: String(candidate._id || candidate.id || candidate.conversationId || activeConversationId),
+              id: String(candidate._id || candidate.id || candidate.conversationId || activeConversationId),
+              fullName: candidate.fullName || candidate.name || "User",
+              nickname: candidate.nickname || null,
+              profilePic: candidate.profilePic || candidate.avatarUrl || null,
+            };
+          } else {
+            resolvedUser = {
+              _id: String(activeConversationId),
+              id: String(activeConversationId),
+              fullName: "User",
+              nickname: null,
+              profilePic: null,
+            };
+          }
+        }
+
+        set((state) => {
+          let updatedConversations = state.conversations;
+          if (activeConversationId && resolvedUser) {
+            const partnerId = String(activeConversationId);
+            const exists = state.conversations.some(
+              (c) => String(c._id || c.id) === partnerId,
+            );
+            if (!exists) {
+              const newConv = {
+                _id: partnerId,
+                id: partnerId,
+                fullName: resolvedUser.fullName || resolvedUser.name || "User",
+                nickname: resolvedUser.nickname || null,
+                profilePic: resolvedUser.profilePic || resolvedUser.avatarUrl || null,
+                lastMessage: "",
+                lastMessageAt: null,
+                unreadCount: 0,
+              };
+              updatedConversations = [newConv, ...state.conversations];
+            }
+          }
+
+          return {
+            activeConversationId,
+            sidebarTab: activeConversationId ? "chats" : state.sidebarTab,
+            composerText: restoredDraft,
+            selectedUser: resolvedUser,
+            conversations: updatedConversations,
+            messages: [], // always clear immediately — never show stale messages from previous convo
+            hasMoreMessages: false,
+            isLoadingMoreMessages: false,
+            typingUser: null,
+            replyingTo: null,
+            editingMessage: null,
+            isInChatSearchOpen: false,
+            inChatSearchQuery: "",
+            activeMatchId: null,
+          };
+        });
 
         if (activeConversationId) {
           get().getMessages(activeConversationId);
           get().getConversationTheme(activeConversationId);
           get().markMessagesAsSeen(activeConversationId);
+
+          if (get().users.length === 0) {
+            get().getUsers();
+          }
+          if (get().conversations.length === 0) {
+            get().getConversations();
+          }
 
           if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({
@@ -727,13 +888,13 @@ export const useChatStore = create(
         // Optimistically update local state immediately so UI updates with zero lag
         set((state) => {
           const updateObj = (u) =>
-            String(u._id) === targetIdStr ? { ...u, nickname: newNickname } : u;
+            u && String(u._id || u.id) === targetIdStr ? { ...u, nickname: newNickname } : u;
 
           return {
             users: state.users.map(updateObj),
             conversations: state.conversations.map(updateObj),
             selectedUser:
-              state.selectedUser && String(state.selectedUser._id) === targetIdStr
+              state.selectedUser && String(state.selectedUser._id || state.selectedUser.id) === targetIdStr
                 ? { ...state.selectedUser, nickname: newNickname }
                 : state.selectedUser,
           };
@@ -765,22 +926,43 @@ export const useChatStore = create(
 
       sendTextMessage: async (conversationId) => {
         const messageText = get().composerText.trim();
-        if (!conversationId || !messageText) return false;
+        const targetId = conversationId || get().activeConversationId;
+        if (!targetId || !messageText) return false;
+
+        // Ensure activeConversationId is aligned
+        if (!get().activeConversationId || String(get().activeConversationId) !== String(targetId)) {
+          get().setActiveConversationId(targetId);
+        }
 
         const replyingTo = get().replyingTo;
+        const prevText = messageText;
+        const prevReplyingTo = replyingTo;
 
-        // Clear composer, reply state, and persisted draft immediately
+        // Optimistically clear composer, reply state, and persisted draft
         set({ composerText: "", replyingTo: null });
-        get().clearDraft(conversationId);
+        get().clearDraft(targetId);
 
         const payload = { text: messageText };
         if (replyingTo?.id) payload.replyToId = replyingTo.id;
 
-        return get().sendMessage(payload);
+        const success = await get().sendMessage(payload);
+        if (!success) {
+          // Restore text and replyingTo if sending failed so input is not lost
+          set({ composerText: prevText, replyingTo: prevReplyingTo });
+          get().setDraft(targetId, prevText);
+          return false;
+        }
+
+        return true;
       },
 
       sendMediaMessage: async ({ conversationId, file, caption, viewOnce = false }) => {
-        if (!conversationId || !file) return false;
+        const targetId = conversationId || get().activeConversationId;
+        if (!targetId || !file) return false;
+
+        if (!get().activeConversationId || String(get().activeConversationId) !== String(targetId)) {
+          get().setActiveConversationId(targetId);
+        }
 
         const formData = new FormData();
         formData.append("media", file);
@@ -1060,7 +1242,7 @@ export const useChatStore = create(
           const { mutedUntil } = res.data;
           set((state) => ({
             conversations: state.conversations.map((c) =>
-              String(c._id) === String(partnerId)
+              String(c._id || c.id) === String(partnerId)
                 ? { ...c, isMuted: true, mutedUntil }
                 : c,
             ),
@@ -1080,7 +1262,7 @@ export const useChatStore = create(
           await axiosInstance.delete(`/messages/${partnerId}/mute`);
           set((state) => ({
             conversations: state.conversations.map((c) =>
-              String(c._id) === String(partnerId)
+              String(c._id || c.id) === String(partnerId)
                 ? { ...c, isMuted: false, mutedUntil: null }
                 : c,
             ),
