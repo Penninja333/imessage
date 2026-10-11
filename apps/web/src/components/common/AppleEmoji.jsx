@@ -124,13 +124,15 @@ function AppleEmojiTextComponent({
   disableBigEmoji = false,
   interactive,
 }) {
-  if (!text) return null;
+  if (!text && text !== 0) return null;
+  const str = typeof text === "string" ? text : String(text);
+  if (!str) return null;
 
   const isInteractive = interactive !== undefined ? interactive : !disableBigEmoji;
 
   // 1. Check for Apple iMessage Big Emoji mode (1 to 3 lone emojis)
   if (!disableBigEmoji) {
-    const bigEmojiInfo = getBigEmojiInfo(text);
+    const bigEmojiInfo = getBigEmojiInfo(str);
     if (bigEmojiInfo.isBigEmoji) {
       const sizeMap = { 1: 46, 2: 40, 3: 34 };
       const emojiSize = sizeMap[bigEmojiInfo.count] || 38;
@@ -153,7 +155,7 @@ function AppleEmojiTextComponent({
   }
 
   // 2. Standard inline text rendering
-  const segments = parseEmojiSegments(text);
+  const segments = parseEmojiSegments(str);
 
   return (
     <span className={`inline break-words ${className}`}>

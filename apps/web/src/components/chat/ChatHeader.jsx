@@ -68,9 +68,9 @@ export function ChatHeader() {
     typingUser && String(typingUser) === String(activeConversationId);
 
   const conversations = useChatStore((state) => state.conversations);
-  const otherPendingCount = conversations.reduce(
+  const otherPendingCount = (conversations || []).reduce(
     (acc, c) =>
-      String(c._id || c.id) !== String(activeConversationId) ? acc + (c.unreadCount || 0) : acc,
+      c && String(c._id || c.id) !== String(activeConversationId) ? acc + (c.unreadCount || 0) : acc,
     0,
   );
 
@@ -100,14 +100,14 @@ export function ChatHeader() {
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 hover:opacity-90 transition-opacity"
             onClick={() => setShowNicknameModal(true)}
           >
-            <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? false}>
+            <AvatarWithOnlineIndicator isOnline={activeConversation.peer?.isOnline ?? false}>
               <Avatar className="size-9 shrink-0">
                 <Avatar.Image
-                  alt={activeConversation.peer.name}
-                  src={activeConversation.peer.avatarUrl}
+                  alt={activeConversation.peer?.name || "User"}
+                  src={activeConversation.peer?.avatarUrl}
                 />
                 <Avatar.Fallback className="text-sm font-medium">
-                  {activeConversation.peer.initials}
+                  {activeConversation.peer?.initials || "??"}
                 </Avatar.Fallback>
               </Avatar>
             </AvatarWithOnlineIndicator>
@@ -115,12 +115,12 @@ export function ChatHeader() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h2 className="truncate text-[15px] sm:text-base font-bold leading-tight">
-                  <AppleEmojiText text={activeConversation.peer.name} disableBigEmoji />
+                  <AppleEmojiText text={activeConversation.peer?.name || "User"} disableBigEmoji />
                 </h2>
                 {currentChatTheme?.emoji ? (
                   <span
                     className="shrink-0 select-none cursor-pointer hover:scale-125 transition-transform inline-flex items-center"
-                    title={`Theme: ${currentChatTheme.label}`}
+                    title={`Theme: ${currentChatTheme?.label || "Custom"}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowThemePicker(true);
@@ -129,9 +129,9 @@ export function ChatHeader() {
                     <AppleEmoji char={currentChatTheme.emoji} size={14} />
                   </span>
                 ) : null}
-                {activeConversation.peer.nickname ? (
+                {activeConversation.peer?.nickname ? (
                   <span className="hidden lg:inline truncate text-[11px] text-muted font-normal">
-                    ({activeConversation.peer.fullName})
+                    ({activeConversation.peer?.fullName})
                   </span>
                 ) : null}
               </div>
@@ -139,13 +139,13 @@ export function ChatHeader() {
               <div className="flex items-center gap-1 text-[11px] sm:text-xs">
                 {isPartnerTyping ? (
                   <span className="text-accent font-medium animate-pulse">typing…</span>
-                ) : activeConversation.peer.isOnline ? (
+                ) : activeConversation.peer?.isOnline ? (
                   <span className="text-success font-medium">Online</span>
                 ) : (
                   <span className="text-muted">Offline</span>
                 )}
 
-                {activeConversation.peer.theirNicknameForMe ? (
+                {activeConversation.peer?.theirNicknameForMe ? (
                   <span className="hidden lg:inline text-muted text-[11px] truncate">
                     • Calls you "{activeConversation.peer.theirNicknameForMe}"
                   </span>
@@ -519,7 +519,7 @@ export function ChatHeader() {
       {isInChatSearchOpen && activeConversation ? <InChatSearch /> : null}
 
       {/* Nicknames & Contact details modal */}
-      {activeConversation ? (
+      {activeConversation && activeConversation.peer ? (
         <NicknameDetailsModal
           isOpen={showNicknameModal}
           onClose={() => setShowNicknameModal(false)}
@@ -528,12 +528,12 @@ export function ChatHeader() {
       ) : null}
 
       {/* Chat Theme modal */}
-      {activeConversation ? (
+      {activeConversation && activeConversation.peer ? (
         <ChatThemePicker
           isOpen={showThemePicker}
           onClose={() => setShowThemePicker(false)}
           partnerId={activeConversation.peer.id}
-          partnerName={activeConversation.peer.name}
+          partnerName={activeConversation.peer.name || "Friend"}
         />
       ) : null}
 

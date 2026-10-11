@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 
 interface Props {
@@ -16,7 +17,7 @@ export const ViewOnceModal: React.FC<Props> = ({ visible, imageUrl, onClose }) =
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
           <View style={styles.header}>
             <View style={styles.badge}>
               <View style={styles.badgeCircle}>

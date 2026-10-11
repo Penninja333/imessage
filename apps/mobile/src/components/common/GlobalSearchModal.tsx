@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../theme/ThemeContext";
 import { Avatar } from "./Avatar";
 import { globalSearchMessages } from "../../api/messages";
@@ -68,7 +69,10 @@ export const GlobalSearchModal: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top", "bottom", "left", "right"]}
+      >
         {/* Search Header */}
         <View style={[styles.header, { borderBottomColor: isDark ? "#2C2C2E" : "#E5E5EA" }]}>
           <View
@@ -157,7 +161,7 @@ export const GlobalSearchModal: React.FC<Props> = ({
             ) : null
           }
         />
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };

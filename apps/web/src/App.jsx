@@ -5,6 +5,7 @@ import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
 import { useAuth } from "@clerk/react";
 import PageLoader from "./components/PageLoader";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { useAuthStore } from "./store/useAuthStore";
 import { useEffect } from "react";
 
@@ -96,13 +97,15 @@ function App() {
   return (
     <ThemeProvider>
       <WallpaperProvider>
-        <Routes>
-          <Route path="/" element={isSignedIn ? <ChatPage /> : <Navigate to={"/auth"} replace />} />
-          <Route
-            path="/auth"
-            element={!isSignedIn ? <AuthPage /> : <Navigate to={"/"} replace />}
-          />
-        </Routes>
+        <ErrorBoundary fallbackTitle="iMessage Unavailable">
+          <Routes>
+            <Route path="/" element={isSignedIn ? <ChatPage /> : <Navigate to={"/auth"} replace />} />
+            <Route
+              path="/auth"
+              element={!isSignedIn ? <AuthPage /> : <Navigate to={"/"} replace />}
+            />
+          </Routes>
+        </ErrorBoundary>
         <PermissionsModal />
         <MediaLightboxModal />
         <InstallPwaBanner />

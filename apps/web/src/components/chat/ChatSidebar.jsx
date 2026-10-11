@@ -12,10 +12,13 @@ import { WallpaperPicker } from "../WallpaperPicker";
 import { usePwaUpdateStore } from "../../store/usePwaUpdateStore";
 import { usePermissionsStore } from "../../store/usePermissionsStore";
 
-function mapUserForList(user, onlineUsers) {
+function mapUserForList(user, onlineUsers = []) {
+  if (!user) return null;
   const userId = String(user._id || user.id || user.conversationId || "");
   const displayName = user.nickname || user.fullName || user.name || "User";
-  const isOnline = Boolean(userId && onlineUsers.some((id) => String(id) === userId));
+  const isOnline = Boolean(
+    userId && Array.isArray(onlineUsers) && onlineUsers.some((id) => String(id) === userId),
+  );
   return {
     ...user,
     conversationId: userId,
@@ -70,29 +73,35 @@ function ChatSidebar() {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
   const conversationUsers = useMemo(() => {
-    return conversations.map((user) => mapUserForList(user, onlineUsers));
+    return (conversations || [])
+      .filter(Boolean)
+      .map((user) => mapUserForList(user, onlineUsers))
+      .filter(Boolean);
   }, [conversations, onlineUsers]);
 
   const allUsers = useMemo(() => {
-    return users.map((user) => mapUserForList(user, onlineUsers));
+    return (users || [])
+      .filter(Boolean)
+      .map((user) => mapUserForList(user, onlineUsers))
+      .filter(Boolean);
   }, [users, onlineUsers]);
 
   const filteredConversations = useMemo(() => {
     if (!normalizedSearchQuery) return conversationUsers;
     return conversationUsers.filter((conversation) =>
-      conversation.peer.name.toLowerCase().includes(normalizedSearchQuery),
+      conversation?.peer?.name?.toLowerCase().includes(normalizedSearchQuery),
     );
   }, [conversationUsers, normalizedSearchQuery]);
 
   const filteredUsers = useMemo(() => {
     if (!normalizedSearchQuery) return allUsers;
     return allUsers.filter((user) =>
-      user.name.toLowerCase().includes(normalizedSearchQuery),
+      user?.name?.toLowerCase().includes(normalizedSearchQuery),
     );
   }, [allUsers, normalizedSearchQuery]);
 
   const totalUnread = useMemo(() => {
-    return conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    return (conversations || []).reduce((sum, c) => sum + (c?.unreadCount || 0), 0);
   }, [conversations]);
 
   return (

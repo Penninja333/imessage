@@ -10,6 +10,7 @@ import { ChatComposer } from "../components/chat/ChatComposer";
 import { GlobalSearchModal } from "../components/chat/GlobalSearchModal";
 import { ForwardMessageModal } from "../components/chat/ForwardMessageModal";
 import { EmojiParticleCanvas } from "../components/common/EmojiParticleCanvas";
+import { ErrorBoundary } from "../components/common/ErrorBoundary";
 
 function ChatPage() {
   const { frameStyle } = useWallpaper();
@@ -102,10 +103,12 @@ function ChatPage() {
             !isLargeScreen && !activeConversationId ? "hidden lg:flex" : "flex"
           }`}
         >
-          <ChatHeader />
-          <MessageList />
+          <ErrorBoundary fallbackTitle="Chat Unavailable">
+            <ChatHeader />
+            <MessageList />
 
-          {activeConversation || activeConversationId ? <ChatComposer /> : null}
+            {activeConversation || activeConversationId ? <ChatComposer /> : null}
+          </ErrorBoundary>
         </div>
       </div>
       <EmojiParticleCanvas />

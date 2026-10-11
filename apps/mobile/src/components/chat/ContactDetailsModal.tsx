@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useAppTheme } from "../../theme/ThemeContext";
@@ -121,7 +122,10 @@ export const ContactDetailsModal: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top", "bottom", "left", "right"]}
+      >
         {/* Top Header */}
         <View style={[styles.header, { borderBottomColor: isDark ? "#2C2C2E" : "#E5E5EA" }]}>
           <TouchableOpacity onPress={onClose} style={styles.backBtn}>
@@ -376,7 +380,7 @@ export const ContactDetailsModal: React.FC<Props> = ({
             </View>
           </Pressable>
         </Modal>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };

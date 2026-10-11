@@ -54,8 +54,8 @@ export const useChatStore = create(
       linkPreviews: {},
 
       syncBadge: () => {
-        const total = get().conversations.reduce(
-          (sum, c) => sum + (c.unreadCount || 0),
+        const total = (get().conversations || []).reduce(
+          (sum, c) => sum + (c?.unreadCount || 0),
           0,
         );
         updateAppBadge(total);
@@ -65,7 +65,7 @@ export const useChatStore = create(
         set({ isUsersLoading: true });
         try {
           const res = await axiosInstance.get("/messages/users");
-          const userList = Array.isArray(res.data) ? res.data : [];
+          const userList = Array.isArray(res?.data) ? res.data : [];
           set((state) => {
             const activeId = state.activeConversationId;
             const targetId = activeId || state.selectedUser?._id || state.selectedUser?.id;
@@ -74,7 +74,7 @@ export const useChatStore = create(
             const foundUser = userList.find(matchUser);
 
             let updatedSelected = state.selectedUser;
-            let updatedConversations = state.conversations;
+            let updatedConversations = state.conversations || [];
 
             if (foundUser) {
               const uid = String(foundUser._id || foundUser.id || targetId);
@@ -88,8 +88,8 @@ export const useChatStore = create(
               };
 
               // Keep placeholder conversations in sync with fetched user info
-              updatedConversations = state.conversations.map((c) => {
-                if (String(c._id || c.id) === uid) {
+              updatedConversations = (state.conversations || []).map((c) => {
+                if (c && String(c._id || c.id) === uid) {
                   return {
                     ...c,
                     fullName: updatedSelected.fullName,
@@ -118,7 +118,7 @@ export const useChatStore = create(
         set({ isConversationsLoading: true });
         try {
           const res = await axiosInstance.get("/messages/conversations");
-          const convList = Array.isArray(res.data) ? res.data : [];
+          const convList = Array.isArray(res?.data) ? res.data : [];
           set((state) => {
             const activeId = state.activeConversationId;
             const targetId = activeId || state.selectedUser?._id || state.selectedUser?.id;
@@ -129,9 +129,9 @@ export const useChatStore = create(
             // If active conversation is not yet in the backend convList (brand new conversation started from Users tab),
             // preserve the active conversation at the top of the list so it doesn't vanish
             const hasActiveInConvList =
-              activeId && convList.some((c) => String(c._id || c.id) === String(activeId));
+              activeId && convList.some((c) => c && String(c._id || c.id) === String(activeId));
             const existingPending =
-              activeId && state.conversations.find((c) => String(c._id || c.id) === String(activeId));
+              activeId && (state.conversations || []).find((c) => c && String(c._id || c.id) === String(activeId));
             const activePendingConv =
               !hasActiveInConvList && activeId
                 ? existingPending ||
@@ -173,9 +173,14 @@ export const useChatStore = create(
         get().getPinnedMessages(userId);
         try {
           const res = await axiosInstance.get(`/messages/${userId}?limit=50`);
-          // API now returns { messages, hasMore }
-          const { messages, hasMore } = res.data;
-          set({ messages: messages || [], hasMoreMessages: Boolean(hasMore) });
+          const raw = res?.data;
+          const messages = Array.isArray(raw?.messages)
+            ? raw.messages
+            : Array.isArray(raw)
+            ? raw
+            : [];
+          const hasMore = Boolean(raw?.hasMore);
+          set({ messages, hasMoreMessages: hasMore });
         } catch (error) {
           toast.error(error.response?.data?.message || "Failed to load messages");
         } finally {
@@ -191,10 +196,16 @@ export const useChatStore = create(
         try {
           const before = firstMessage.createdAt;
           const res = await axiosInstance.get(`/messages/${userId}?limit=50&before=${encodeURIComponent(before)}`);
-          const { messages: older, hasMore } = res.data;
+          const raw = res?.data;
+          const older = Array.isArray(raw?.messages)
+            ? raw.messages
+            : Array.isArray(raw)
+            ? raw
+            : [];
+          const hasMore = Boolean(raw?.hasMore);
           set((state) => ({
-            messages: [...(older || []), ...state.messages],
-            hasMoreMessages: Boolean(hasMore),
+            messages: [...older, ...state.messages],
+            hasMoreMessages: hasMore,
           }));
         } catch (error) {
           console.warn("loadMoreMessages error:", error.message);
@@ -208,8 +219,8 @@ export const useChatStore = create(
 
         // Clear unread count locally immediately
         set((state) => ({
-          conversations: state.conversations.map((c) =>
-            String(c._id || c.id) === String(partnerId) ? { ...c, unreadCount: 0 } : c,
+          conversations: (state.conversations || []).map((c) =>
+            c && String(c._id || c.id) === String(partnerId) ? { ...c, unreadCount: 0 } : c,
           ),
         }));
         get().syncBadge();
@@ -763,11 +774,11 @@ export const useChatStore = create(
         }
 
         set((state) => {
-          let updatedConversations = state.conversations;
+          let updatedConversations = state.conversations || [];
           if (activeConversationId && resolvedUser) {
             const partnerId = String(activeConversationId);
-            const exists = state.conversations.some(
-              (c) => String(c._id || c.id) === partnerId,
+            const exists = (state.conversations || []).some(
+              (c) => c && String(c._id || c.id) === partnerId,
             );
             if (!exists) {
               const newConv = {
@@ -780,7 +791,7 @@ export const useChatStore = create(
                 lastMessageAt: null,
                 unreadCount: 0,
               };
-              updatedConversations = [newConv, ...state.conversations];
+              updatedConversations = [newConv, ...(state.conversations || [])];
             }
           }
 

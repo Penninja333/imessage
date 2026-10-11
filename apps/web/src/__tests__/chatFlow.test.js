@@ -364,4 +364,110 @@ describe("useChatStore User Flow & Edge Cases", () => {
       expect.anything(),
     );
   });
+
+  it("17. getInitials safely handles null, undefined, non-strings, and whitespace", async () => {
+    const { getInitials } = await import("../hooks/useSelectedConversation");
+    expect(getInitials(null)).toBe("??");
+    expect(getInitials(undefined)).toBe("??");
+    expect(getInitials("")).toBe("??");
+    expect(getInitials("   ")).toBe("??");
+    expect(getInitials(12345)).toBe("??");
+    expect(getInitials({})).toBe("??");
+    expect(getInitials("Alice")).toBe("A");
+    expect(getInitials("Alice Smith")).toBe("AS");
+    expect(getInitials("  John   William   Doe  ")).toBe("JWD");
+  });
+
+  it("18. newly created user opened from Users tab maintains conversation when getConversations returns empty array", async () => {
+    const newRegisteredUser = {
+      _id: "new-user-999",
+      fullName: "Brand New User",
+      profilePic: "https://example.com/avatar.jpg",
+    };
+
+    useChatStore.setState({
+      users: [newRegisteredUser],
+      conversations: [],
+      activeConversationId: null,
+      selectedUser: null,
+    });
+
+    // User clicks the new user in Users tab
+    useChatStore.getState().setActiveConversationId(newRegisteredUser._id, newRegisteredUser);
+
+    expect(useChatStore.getState().activeConversationId).toBe("new-user-999");
+    expect(useChatStore.getState().sidebarTab).toBe("chats");
+    expect(useChatStore.getState().selectedUser).toMatchObject({
+      _id: "new-user-999",
+      fullName: "Brand New User",
+    });
+    expect(useChatStore.getState().conversations.length).toBe(1);
+    expect(useChatStore.getState().conversations[0]._id).toBe("new-user-999");
+
+    // Backend returns empty array because no messages exist yet
+    axiosInstance.get.mockResolvedValueOnce({ data: [] });
+    await useChatStore.getState().getConversations();
+
+    // Pending conversation must NOT be erased or cause a null crash
+    expect(useChatStore.getState().conversations.length).toBe(1);
+    expect(useChatStore.getState().conversations[0]._id).toBe("new-user-999");
+    expect(useChatStore.getState().selectedUser).not.toBeNull();
+  });
+
+  it("19. getMessages handles both { messages, hasMore } and bare array responses safely", async () => {
+    // 1. Bare array
+    axiosInstance.get.mockImplementation(async (url) => {
+      if (url.includes("/pinned")) return { data: [] };
+      return { data: [{ _id: "m-1", text: "Hi", senderId: "u-1", receiverId: "me" }] };
+    });
+
+    await useChatStore.getState().getMessages("u-1");
+    expect(useChatStore.getState().messages.length).toBe(1);
+    expect(useChatStore.getState().messages[0].text).toBe("Hi");
+
+    // 2. { messages, hasMore } object
+    axiosInstance.get.mockImplementation(async (url) => {
+      if (url.includes("/pinned")) return { data: [] };
+      return {
+        data: {
+          messages: [{ _id: "m-2", text: "Hello again" }],
+          hasMore: true,
+        },
+      };
+    });
+
+    await useChatStore.getState().getMessages("u-1");
+    expect(useChatStore.getState().messages.length).toBe(1);
+    expect(useChatStore.getState().messages[0].text).toBe("Hello again");
+    expect(useChatStore.getState().hasMoreMessages).toBe(true);
+
+    // 3. Null response
+    axiosInstance.get.mockImplementation(async (url) => {
+      if (url.includes("/pinned")) return { data: [] };
+      return { data: null };
+    });
+
+    await useChatStore.getState().getMessages("u-1");
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("20. store functions tolerate null or undefined elements in conversations/users arrays", async () => {
+    useChatStore.setState({
+      conversations: [null, undefined, { _id: "valid-1", unreadCount: 3 }],
+      users: [null, undefined, { _id: "user-1", fullName: "User One" }],
+      activeConversationId: "valid-1",
+    });
+
+    // markMessagesAsSeen should not throw on null items
+    axiosInstance.post.mockResolvedValueOnce({});
+    await expect(useChatStore.getState().markMessagesAsSeen("valid-1")).resolves.not.toThrow();
+
+    // getConversations should not throw on null items
+    axiosInstance.get.mockResolvedValueOnce({ data: [null, { _id: "valid-2" }] });
+    await expect(useChatStore.getState().getConversations()).resolves.not.toThrow();
+
+    // getUsers should not throw on null items
+    axiosInstance.get.mockResolvedValueOnce({ data: [null, { _id: "valid-3", fullName: "Three" }] });
+    await expect(useChatStore.getState().getUsers()).resolves.not.toThrow();
+  });
 });

@@ -6,6 +6,9 @@ import { formatConversationTime } from "../../lib/utils";
 import { AppleEmojiText } from "../common/AppleEmoji";
 
 function ConversationRowComponent({ user, selected, onSelect }) {
+  if (!user) return null;
+  const displayName = user.nickname || user.fullName || user.name || "User";
+  const initials = user.initials || "?";
   const hasUnread = Boolean(user.unreadCount && user.unreadCount > 0);
   const formattedTime = formatConversationTime(user.lastMessageAt);
 
@@ -20,8 +23,8 @@ function ConversationRowComponent({ user, selected, onSelect }) {
     >
       <AvatarWithOnlineIndicator isOnline={user.isOnline ?? false}>
         <Avatar className="size-12 shrink-0">
-          <Avatar.Image alt={user.name} src={user.avatarUrl} />
-          <Avatar.Fallback className="text-sm font-medium">{user.initials}</Avatar.Fallback>
+          <Avatar.Image alt={displayName} src={user.avatarUrl} />
+          <Avatar.Fallback className="text-sm font-medium">{initials}</Avatar.Fallback>
         </Avatar>
       </AvatarWithOnlineIndicator>
 
@@ -87,6 +90,7 @@ function ConversationRowComponent({ user, selected, onSelect }) {
 }
 
 export const ConversationRow = memo(ConversationRowComponent, (prev, next) => {
+  if (!prev?.user || !next?.user) return false;
   return (
     prev.selected === next.selected &&
     String(prev.user._id || prev.user.id || prev.user.conversationId) ===

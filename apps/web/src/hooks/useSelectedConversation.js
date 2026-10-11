@@ -6,18 +6,21 @@ import { useAuthStore } from "../store/useAuthStore";
 
 // John Doe -> JD
 export function getInitials(name) {
-  if (!name) return "??";
-  return name
-    .split(" ")
+  if (!name || typeof name !== "string") return "??";
+  const initials = name
+    .trim()
+    .split(/\s+/)
     .filter(Boolean)
     .map((namePart) => namePart[0])
     .join("")
     .toUpperCase();
+  return initials || "??";
 }
 
 const messageCache = new WeakMap();
 
 function getCachedMappedMessage(message, myId) {
+  if (!message || typeof message !== "object") return null;
   let cached = messageCache.get(message);
   if (!cached || cached.myId !== myId) {
     cached = {
@@ -98,8 +101,8 @@ export function useSelectedConversation() {
       u && String(u._id || u.id || u.conversationId) === String(activeConversationId);
 
     return (
-      users.find(matchUser) ||
-      conversations.find(matchUser) ||
+      (users || []).find(matchUser) ||
+      (conversations || []).find(matchUser) ||
       (matchUser(storeSelectedUser) ? storeSelectedUser : null) ||
       null
     );
@@ -109,7 +112,13 @@ export function useSelectedConversation() {
   // Online status is kept separate to avoid re-mapping messages on every socket ping.
   const myId = String(authUser?._id || authUser?.id || "");
   const mappedMessages = useMemo(
-    () => messages.map((m) => getCachedMappedMessage(m, myId)),
+    () =>
+      Array.isArray(messages)
+        ? messages
+            .filter(Boolean)
+            .map((m) => getCachedMappedMessage(m, myId))
+            .filter(Boolean)
+        : [],
     [messages, myId],
   );
 
@@ -131,11 +140,14 @@ export function useSelectedConversation() {
         profilePic: null,
       };
 
-    const displayName = userObj.nickname || userObj.fullName || userObj.name || "User";
-    const partnerId = String(userObj._id || userObj.id || activeConversationId);
-    const convData = conversations.find((c) => String(c._id || c.id) === partnerId);
+    const displayName = userObj?.nickname || userObj?.fullName || userObj?.name || "User";
+    const partnerId = String(userObj?._id || userObj?.id || activeConversationId);
+    const convData = (conversations || []).find((c) => c && String(c._id || c.id) === partnerId);
     const isMuted = Boolean(convData?.isMuted);
     const mutedUntil = convData?.mutedUntil || null;
+    const isOnline = Boolean(
+      Array.isArray(onlineUsers) && onlineUsers.some((id) => String(id) === partnerId),
+    );
 
     return {
       id: partnerId,
@@ -144,13 +156,13 @@ export function useSelectedConversation() {
       peer: {
         id: partnerId,
         name: displayName,
-        fullName: userObj.fullName || displayName,
-        nickname: userObj.nickname || null,
-        myNickname: userObj.myNickname || null,
-        theirNicknameForMe: userObj.myNickname || null,
-        subtitle: userObj.email || "",
-        isOnline: onlineUsers.some((id) => String(id) === partnerId),
-        avatarUrl: userObj.profilePic || userObj.avatarUrl || null,
+        fullName: userObj?.fullName || displayName,
+        nickname: userObj?.nickname || null,
+        myNickname: userObj?.myNickname || null,
+        theirNicknameForMe: userObj?.myNickname || null,
+        subtitle: userObj?.email || "",
+        isOnline,
+        avatarUrl: userObj?.profilePic || userObj?.avatarUrl || null,
         initials: getInitials(displayName),
       },
       messages: mappedMessages,

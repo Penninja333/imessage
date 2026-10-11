@@ -59,13 +59,14 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
 
   // Extract shared media (images & videos)
   const mediaList = useMemo(() => {
+    if (!isOpen || !peer || !Array.isArray(messages)) return [];
     return messages
-      .filter((m) => !m.deleted && (m.image || m.video))
+      .filter((m) => m && !m.deleted && (m.image || m.video))
       .map((m) => {
         const isMine = String(m.senderId) === myId;
         const type = m.image ? "image" : "video";
         return {
-          id: String(m._id),
+          id: String(m._id || m.id || Math.random()),
           type,
           url: m.image || m.video,
           text: m.text || "",
@@ -74,16 +75,17 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
         };
       })
       .reverse(); // most recent first
-  }, [messages, myId, peer]);
+  }, [messages, myId, peer, isOpen]);
 
   // Extract shared voice memos
   const voiceList = useMemo(() => {
+    if (!isOpen || !peer || !Array.isArray(messages)) return [];
     return messages
-      .filter((m) => !m.deleted && m.audio)
+      .filter((m) => m && !m.deleted && m.audio)
       .map((m) => {
         const isMine = String(m.senderId) === myId;
         return {
-          id: String(m._id),
+          id: String(m._id || m.id || Math.random()),
           audioUrl: m.audio,
           time: formatMessageTime(m.createdAt),
           senderName: isMine ? "You" : peer?.name || "Friend",
@@ -91,13 +93,14 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
         };
       })
       .reverse();
-  }, [messages, myId, peer]);
+  }, [messages, myId, peer, isOpen]);
 
   // Extract shared links
   const linksList = useMemo(() => {
+    if (!isOpen || !peer || !Array.isArray(messages)) return [];
     const links = [];
     messages.forEach((m) => {
-      if (m.deleted || !m.text) return;
+      if (!m || m.deleted || !m.text) return;
       const matches = m.text.match(URL_REGEX);
       if (matches) {
         const isMine = String(m.senderId) === myId;
@@ -105,7 +108,7 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
           try {
             const parsed = new URL(url);
             links.push({
-              id: `${m._id}-${url}`,
+              id: `${m._id || m.id || Math.random()}-${url}`,
               url,
               hostname: parsed.hostname.replace(/^www\./, ""),
               time: formatMessageTime(m.createdAt),
@@ -118,16 +121,17 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
       }
     });
     return links.reverse();
-  }, [messages, myId, peer]);
+  }, [messages, myId, peer, isOpen]);
 
   // Extract starred messages
   const starredList = useMemo(() => {
+    if (!isOpen || !peer || !Array.isArray(messages)) return [];
     return messages
-      .filter((m) => !m.deleted && m.starredBy && m.starredBy.some((uid) => String(uid) === myId))
+      .filter((m) => m && !m.deleted && m.starredBy && m.starredBy.some((uid) => String(uid) === myId))
       .map((m) => {
         const isMine = String(m.senderId) === myId;
         return {
-          id: String(m._id),
+          id: String(m._id || m.id || Math.random()),
           text: m.text || "",
           image: m.image,
           video: m.video,
@@ -138,7 +142,7 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
         };
       })
       .reverse();
-  }, [messages, myId, peer]);
+  }, [messages, myId, peer, isOpen]);
 
   if (!isOpen || !peer || typeof document === "undefined") return null;
 
