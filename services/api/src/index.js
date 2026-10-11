@@ -22,7 +22,13 @@ const PORT = process.env.PORT || 3001;
 const rawFrontend = process.env.FRONTEND_URL || "";
 const normalizedFrontend = rawFrontend.replace(/\/+$/, "");
 
-const publicDir = path.join(process.cwd(), "public");
+const candidatePublicDirs = [
+  path.join(process.cwd(), "public"),
+  path.join(process.cwd(), "services", "api", "public"),
+  path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "public"),
+  path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..", "..", "apps", "web", "dist"),
+];
+const publicDir = candidatePublicDirs.find((dir) => fs.existsSync(dir)) || candidatePublicDirs[0];
 
 // it's important that you don't parse the webhook event data, it should be in the raw format
 app.use("/api/webhooks/clerk", express.raw({ type: "application/json" }), clerkWebhook);
@@ -110,9 +116,11 @@ app.use("/api/device", deviceRoutes);
 // if the public directory exists, serve the static files
 // this is for the production build
 if (fs.existsSync(publicDir)) {
+  console.log(`Serving static files from: ${publicDir}`);
   app.use(express.static(publicDir));
 
   app.get("/{*any}", (req, res, next) => {
+    if (req.path.startsWith("/api/")) return next();
     res.sendFile(path.join(publicDir, "index.html"), (err) => next(err));
   });
 }

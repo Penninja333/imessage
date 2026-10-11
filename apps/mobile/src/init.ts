@@ -1,3 +1,16 @@
+// Polyfill React 19 transitional element symbol into React 18 element symbol
+// This completely prevents "Objects are not valid as a React child" symbol mismatch
+if (typeof Symbol !== "undefined" && typeof Symbol.for === "function") {
+  const originalSymbolFor = Symbol.for.bind(Symbol);
+  const reactElementSymbol = originalSymbolFor("react.element");
+  Symbol.for = function (key: string) {
+    if (key === "react.transitional.element") {
+      return reactElementSymbol;
+    }
+    return originalSymbolFor(key);
+  };
+}
+
 import "react-native-gesture-handler";
 
 function reportCrashToServer(type: string, error: any, extra?: any) {
