@@ -117,10 +117,25 @@ app.use("/api/device", deviceRoutes);
 // this is for the production build
 if (fs.existsSync(publicDir)) {
   console.log(`Serving static files from: ${publicDir}`);
-  app.use(express.static(publicDir));
+  app.use(
+    express.static(publicDir, {
+      setHeaders: (res, filePath) => {
+        if (
+          filePath.endsWith("index.html") ||
+          filePath.endsWith("sw.js") ||
+          filePath.endsWith("manifest.webmanifest")
+        ) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        } else if (filePath.includes("/assets/")) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    }),
+  );
 
   app.get("/{*any}", (req, res, next) => {
     if (req.path.startsWith("/api/")) return next();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.join(publicDir, "index.html"), (err) => next(err));
   });
 }

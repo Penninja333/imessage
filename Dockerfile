@@ -10,7 +10,7 @@ COPY apps/web/ ./
 # Empty = browser calls /api on the same host as the page.
 ENV VITE_API_URL=
 # Public Clerk key is embedded in client JS.
-ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_CLERK_PUBLISHABLE_KEY=pk_test_bXVzaWNhbC1kb3J5LTI2MDQuY2xlcmsuYWNjb3VudHMuZGV2JA
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 RUN npm run build
 
