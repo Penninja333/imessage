@@ -44,11 +44,6 @@ function ChatPage() {
     getConversations();
   }, [getConversations, getUsers]);
 
-  useEffect(() => {
-    if (!activeConversationId) return;
-    getMessages(activeConversationId);
-    getConversationTheme(activeConversationId);
-  }, [getMessages, getConversationTheme, activeConversationId]);
 
   // ─── Back-button / back-gesture interception ───────────────────────────────
   // On mobile PWA, the OS back button fires a browser "popstate" event.
@@ -103,7 +98,7 @@ function ChatPage() {
             !isLargeScreen && !activeConversationId ? "hidden lg:flex" : "flex"
           }`}
         >
-          <ErrorBoundary fallbackTitle="Chat Unavailable">
+          <ErrorBoundary resetKey={activeConversationId} fallbackTitle="Chat Unavailable">
             <ChatHeader />
             <MessageList />
 

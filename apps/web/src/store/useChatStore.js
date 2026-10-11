@@ -180,11 +180,17 @@ export const useChatStore = create(
             ? raw
             : [];
           const hasMore = Boolean(raw?.hasMore);
-          set({ messages, hasMoreMessages: hasMore });
+          const currentActive = get().activeConversationId;
+          if (!currentActive || String(currentActive) === String(userId)) {
+            set({ messages, hasMoreMessages: hasMore });
+          }
         } catch (error) {
           toast.error(error.response?.data?.message || "Failed to load messages");
         } finally {
-          set({ isMessagesLoading: false });
+          const currentActive = get().activeConversationId;
+          if (!currentActive || String(currentActive) === String(userId)) {
+            set({ isMessagesLoading: false });
+          }
         }
       },
 

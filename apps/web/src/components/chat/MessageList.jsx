@@ -61,25 +61,19 @@ export function MessageList() {
   const isCustomTheme = Boolean(theme && theme.id !== "default" && resolvedBgStyle);
   const wallpaperStyle = frameStyle || {};
 
-  const scrollRef = useRef(null);
   const sentinelRef = useRef(null); // top sentinel for loading more
   const bottomAnchorRef = useRef(null);
   const isLoadingMoreRef = useRef(false);
 
   // Unread jump button
-  const [prevConvId, setPrevConvId] = useState(activeConversationId);
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [unreadBelowCount, setUnreadBelowCount] = useState(0);
   const bottomSentinelRef = useRef(null); // watch if bottom is visible
 
-  // Reset when switching conversations
-  if (activeConversationId !== prevConvId) {
-    setPrevConvId(activeConversationId);
+  // Reset state when switching conversations
+  useEffect(() => {
     setShowJumpButton(false);
     setUnreadBelowCount(0);
-  }
-
-  useEffect(() => {
     isLoadingMoreRef.current = false;
   }, [activeConversationId]);
 
@@ -92,11 +86,6 @@ export function MessageList() {
   // Scroll to bottom on first load and when new messages arrive
   const lastMessageId = allMessages.at(-1)?.id;
   const messagesScrollRef = useScrollToBottom(activeConversationId, lastMessageId, isPartnerTyping);
-
-  // Keep the same scroll ref for both scrollToBottom and our local use
-  useEffect(() => {
-    scrollRef.current = messagesScrollRef.current;
-  });
 
   // Scroll to bottom when partner types
   useEffect(() => {

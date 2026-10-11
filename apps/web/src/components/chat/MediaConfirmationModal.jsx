@@ -30,17 +30,15 @@ export function MediaConfirmationModal({
   onClose,
   onSend,
 }) {
-  const [prevFile, setPrevFile] = useState(file);
-  const [caption, setCaption] = useState(initialCaption);
+  const [caption, setCaption] = useState(initialCaption || "");
   const [isViewOnce, setIsViewOnce] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef(null);
 
-  if (file !== prevFile) {
-    setPrevFile(file);
+  useEffect(() => {
     setCaption(initialCaption || "");
     setIsViewOnce(false);
-  }
+  }, [file, initialCaption]);
 
   const previewUrl = useMemo(() => {
     if (!file) return null;

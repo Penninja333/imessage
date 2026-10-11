@@ -10,19 +10,17 @@ export function ForwardMessageModal({ isOpen, message, onClose }) {
   const users = useChatStore((state) => state.users);
   const forwardMessage = useChatStore((state) => state.forwardMessage);
 
-  const [prevOpen, setPrevOpen] = useState(isOpen);
   const [search, setSearch] = useState("");
   const [forwardingToId, setForwardingToId] = useState(null);
   const [forwardedIds, setForwardedIds] = useState(() => new Set());
 
-  if (isOpen !== prevOpen) {
-    setPrevOpen(isOpen);
+  useEffect(() => {
     if (!isOpen) {
       setSearch("");
       setForwardingToId(null);
       setForwardedIds(new Set());
     }
-  }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;

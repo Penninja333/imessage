@@ -15,6 +15,12 @@ export class ErrorBoundary extends Component {
     console.error("[ErrorBoundary caught error]", error, errorInfo);
   }
 
+  componentDidUpdate(prevProps) {
+    if (this.props.resetKey !== prevProps.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
   handleReturnToChats = () => {
     try {
       useChatStore.getState().setActiveConversationId(null);

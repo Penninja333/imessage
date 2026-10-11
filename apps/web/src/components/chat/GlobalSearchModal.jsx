@@ -16,15 +16,13 @@ export function GlobalSearchModal() {
 
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
-  const [prevOpen, setPrevOpen] = useState(isOpen);
   const [query, setQuery] = useState("");
 
-  if (isOpen !== prevOpen) {
-    setPrevOpen(isOpen);
+  useEffect(() => {
     if (!isOpen) {
       setQuery("");
     }
-  }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {

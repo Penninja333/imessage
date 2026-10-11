@@ -470,4 +470,68 @@ describe("useChatStore User Flow & Edge Cases", () => {
     axiosInstance.get.mockResolvedValueOnce({ data: [null, { _id: "valid-3", fullName: "Three" }] });
     await expect(useChatStore.getState().getUsers()).resolves.not.toThrow();
   });
+
+  it("21. newly created user flow seamlessly configures selectedUser, pending convo and resets composer", () => {
+    const newUser = {
+      _id: "new-user-777",
+      conversationId: "new-user-777",
+      fullName: "Brand New User",
+      email: "brandnew@example.com",
+    };
+
+    useChatStore.setState({
+      users: [newUser],
+      conversations: [],
+      activeConversationId: null,
+      selectedUser: null,
+    });
+
+    useChatStore.getState().setActiveConversationId("new-user-777", newUser);
+
+    const state = useChatStore.getState();
+    expect(state.activeConversationId).toBe("new-user-777");
+    expect(state.selectedUser).toEqual(
+      expect.objectContaining({
+        _id: "new-user-777",
+        fullName: "Brand New User",
+      }),
+    );
+    expect(state.conversations.length).toBe(1);
+    expect(state.conversations[0]._id).toBe("new-user-777");
+    expect(state.conversations[0].fullName).toBe("Brand New User");
+  });
+
+  it("22. rapid conversation switching does not overwrite messages from a subsequent conversation", async () => {
+    useChatStore.setState({
+      activeConversationId: "user-A",
+      messages: [],
+    });
+
+    axiosInstance.get.mockImplementation(async (url) => {
+      if (url.includes("/pinned")) return { data: [] };
+      if (url.includes("/messages/user-A")) {
+        // Slow response for user A
+        await new Promise((r) => setTimeout(r, 50));
+        return { data: { messages: [{ _id: "msg-A", text: "From A" }] } };
+      }
+      if (url.includes("/messages/user-B")) {
+        // Fast response for user B
+        return { data: { messages: [{ _id: "msg-B", text: "From B" }] } };
+      }
+      return { data: [] };
+    });
+
+    const promiseA = useChatStore.getState().getMessages("user-A");
+    // User switches to B while A is in flight
+    useChatStore.setState({ activeConversationId: "user-B" });
+    const promiseB = useChatStore.getState().getMessages("user-B");
+
+    await Promise.all([promiseA, promiseB]);
+
+    // Active conversation is B, so messages must be from B, not overwritten by stale A
+    expect(useChatStore.getState().messages).toEqual([
+      expect.objectContaining({ _id: "msg-B", text: "From B" }),
+    ]);
+  });
 });
+
