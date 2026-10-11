@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
+import { useAppSafeArea } from "../../hooks/useAppSafeArea";
 
 interface Props {
   visible: boolean;
@@ -12,12 +13,13 @@ interface Props {
 const { width, height } = Dimensions.get("window");
 
 export const Lightbox: React.FC<Props> = ({ visible, imageUrl, onClose }) => {
+  const { topInset } = useAppSafeArea();
   if (!visible || !imageUrl) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
+        <SafeAreaView style={[styles.safeArea, { paddingTop: topInset }]} edges={["bottom", "left", "right"]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.closeText}>✕ Done</Text>

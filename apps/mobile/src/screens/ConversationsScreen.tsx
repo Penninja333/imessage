@@ -21,6 +21,7 @@ import { ErrorBoundary } from "../components/common/ErrorBoundary";
 import { GlobalSearchModal } from "../components/common/GlobalSearchModal";
 import { ConversationItem } from "../utils/normalize";
 import { useOutboxStore } from "../store/useOutboxStore";
+import { useAppSafeArea } from "../hooks/useAppSafeArea";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Conversations">;
 
@@ -28,6 +29,7 @@ function ConversationsContent({ navigation }: Props) {
   const { signOut } = useAuth();
   const { user } = useUser();
   const { colors } = useAppTheme();
+  const { topInset } = useAppSafeArea();
 
   const { authUser, onlineUsers, syncAuthUser, clearAuth } = useAuthStore();
   const {
@@ -79,8 +81,8 @@ function ConversationsContent({ navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top", "bottom", "left", "right"]}
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}
+      edges={["bottom", "left", "right"]}
     >
       {/* iOS Large Title Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>

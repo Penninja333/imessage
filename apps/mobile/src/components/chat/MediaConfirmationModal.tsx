@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
+import { useAppSafeArea } from "../../hooks/useAppSafeArea";
 
 interface Props {
   visible: boolean;
@@ -30,6 +31,7 @@ export const MediaConfirmationModal: React.FC<Props> = ({
   onSend,
   onCancel,
 }) => {
+  const { topInset } = useAppSafeArea();
   const [caption, setCaption] = useState("");
   const [isViewOnce, setIsViewOnce] = useState(false);
 
@@ -53,7 +55,7 @@ export const MediaConfirmationModal: React.FC<Props> = ({
         style={styles.backdrop}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
+        <SafeAreaView style={[styles.safeArea, { paddingTop: topInset }]} edges={["bottom", "left", "right"]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.headerButton} onPress={handleCancel}>
               <Text style={styles.headerButtonText}>Cancel</Text>

@@ -23,12 +23,14 @@ import { ChatThemePicker } from "../components/chat/ChatThemePicker";
 import { ContactDetailsModal } from "../components/chat/ContactDetailsModal";
 import { ErrorBoundary } from "../components/common/ErrorBoundary";
 import { resolveChatTheme } from "../theme/chatThemes";
+import { useAppSafeArea } from "../hooks/useAppSafeArea";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChatRoom">;
 
 function ChatRoomContent({ route, navigation }: Props) {
   const { conversationId, peerName: initialPeerName } = route.params;
   const { colors, isDark } = useAppTheme();
+  const { topInset } = useAppSafeArea();
 
   const authUser = useAuthStore((s) => s.authUser);
   const onlineUsers = useAuthStore((s) => s.onlineUsers);
@@ -87,8 +89,8 @@ function ChatRoomContent({ route, navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top", "bottom", "left", "right"]}
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}
+      edges={["bottom", "left", "right"]}
     >
       <KeyboardAvoidingView
         style={styles.keyboardContainer}

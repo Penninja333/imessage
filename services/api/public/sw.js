@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v8";
+const CACHE_NAME = "imessage-v9";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -30,6 +30,7 @@ const STATIC_ASSETS = [
 
 // Install: Cache core static assets
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches
       .open(CACHE_NAME)

@@ -14,6 +14,7 @@ import { useAppTheme } from "../../theme/ThemeContext";
 import { Avatar } from "./Avatar";
 import { globalSearchMessages } from "../../api/messages";
 import { PeerProfile } from "../../utils/normalize";
+import { useAppSafeArea } from "../../hooks/useAppSafeArea";
 
 interface Props {
   visible: boolean;
@@ -30,6 +31,7 @@ export const GlobalSearchModal: React.FC<Props> = ({
   onClose,
 }) => {
   const { colors, isDark } = useAppTheme();
+  const { topInset } = useAppSafeArea();
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [messageResults, setMessageResults] = useState<any[]>([]);
@@ -70,8 +72,8 @@ export const GlobalSearchModal: React.FC<Props> = ({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        edges={["top", "bottom", "left", "right"]}
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}
+        edges={["bottom", "left", "right"]}
       >
         {/* Search Header */}
         <View style={[styles.header, { borderBottomColor: isDark ? "#2C2C2E" : "#E5E5EA" }]}>

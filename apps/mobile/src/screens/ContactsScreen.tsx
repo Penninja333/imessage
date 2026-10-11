@@ -18,11 +18,13 @@ import { useAuthStore } from "../store/useAuthStore";
 import { Avatar } from "../components/common/Avatar";
 import { ErrorBoundary } from "../components/common/ErrorBoundary";
 import { PeerProfile } from "../utils/normalize";
+import { useAppSafeArea } from "../hooks/useAppSafeArea";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Contacts">;
 
 function ContactsContent({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
+  const { topInset } = useAppSafeArea();
   const { users, isLoadingUsers, loadUsers } = useChatStore();
   const { onlineUsers, authUser } = useAuthStore();
   const [search, setSearch] = useState("");
@@ -85,8 +87,8 @@ function ContactsContent({ navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top", "bottom", "left", "right"]}
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}
+      edges={["bottom", "left", "right"]}
     >
       {/* Modal Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>

@@ -12,12 +12,15 @@ import {
   Keyboard,
 } from "react-native";
 import { useSignIn, useSignUp } from "@clerk/clerk-expo";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../theme/ThemeContext";
+import { useAppSafeArea } from "../hooks/useAppSafeArea";
 
 export const AuthScreen: React.FC = () => {
   const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSignIn();
   const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
   const { colors } = useAppTheme();
+  const { topInset } = useAppSafeArea();
 
   const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [email, setEmail] = useState("");
@@ -93,67 +96,41 @@ export const AuthScreen: React.FC = () => {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}
+        edges={["bottom", "left", "right"]}
       >
-        <View style={styles.innerContainer}>
-          <View style={styles.header}>
-            <View style={[styles.logoBadge, { backgroundColor: colors.accent }]}>
-              <Text style={styles.logoText}>💬</Text>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.innerContainer}>
+            <View style={styles.header}>
+              <View style={[styles.logoBadge, { backgroundColor: colors.accent }]}>
+                <Text style={styles.logoText}>💬</Text>
+              </View>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {pendingVerification
+                  ? "Verify Email"
+                  : isSignUpMode
+                  ? "Create Account"
+                  : "Welcome Back"}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+                {pendingVerification
+                  ? "Enter the code sent to your email"
+                  : "iMessage Real-Time Chat"}
+              </Text>
             </View>
-            <Text style={[styles.title, { color: colors.text }]}>
-              {pendingVerification
-                ? "Verify Email"
-                : isSignUpMode
-                ? "Create Account"
-                : "Welcome Back"}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-              {pendingVerification
-                ? "Enter the code sent to your email"
-                : "iMessage Real-Time Chat"}
-            </Text>
-          </View>
 
-          {errorMessage ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorBannerText}>{errorMessage}</Text>
-            </View>
-          ) : null}
+            {errorMessage ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{errorMessage}</Text>
+              </View>
+            ) : null}
 
-          {pendingVerification ? (
-            <View style={styles.form}>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="6-digit verification code"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="number-pad"
-                value={verificationCode}
-                onChangeText={setVerificationCode}
-              />
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                onPress={handleVerifyCode}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>Verify & Continue</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.form}>
-              {isSignUpMode ? (
+            {pendingVerification ? (
+              <View style={styles.form}>
                 <TextInput
                   style={[
                     styles.input,
@@ -163,79 +140,110 @@ export const AuthScreen: React.FC = () => {
                       color: colors.text,
                     },
                   ]}
-                  placeholder="Full name"
+                  placeholder="6-digit verification code"
                   placeholderTextColor={colors.textMuted}
-                  autoCapitalize="words"
-                  value={fullName}
-                  onChangeText={setFullName}
+                  keyboardType="number-pad"
+                  value={verificationCode}
+                  onChangeText={setVerificationCode}
                 />
-              ) : null}
+                <TouchableOpacity
+                  style={[styles.primaryButton, { backgroundColor: colors.accent }]}
+                  onPress={handleVerifyCode}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Verify & Continue</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.form}>
+                {isSignUpMode ? (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder="Full name"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="words"
+                    value={fullName}
+                    onChangeText={setFullName}
+                  />
+                ) : null}
 
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="Email address"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
-              />
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="Email address"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={email}
+                  onChangeText={setEmail}
+                />
 
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="Password"
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="Password"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                />
 
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                onPress={isSignUpMode ? handleSignUp : handleSignIn}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>
-                    {isSignUpMode ? "Sign Up" : "Sign In"}
+                <TouchableOpacity
+                  style={[styles.primaryButton, { backgroundColor: colors.accent }]}
+                  onPress={isSignUpMode ? handleSignUp : handleSignIn}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>
+                      {isSignUpMode ? "Sign Up" : "Sign In"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.switchButton}
+                  onPress={() => {
+                    setErrorMessage("");
+                    setIsSignUpMode(!isSignUpMode);
+                  }}
+                >
+                  <Text style={[styles.switchText, { color: colors.accent }]}>
+                    {isSignUpMode
+                      ? "Already have an account? Sign in"
+                      : "Don't have an account? Create one"}
                   </Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.switchButton}
-                onPress={() => {
-                  setErrorMessage("");
-                  setIsSignUpMode(!isSignUpMode);
-                }}
-              >
-                <Text style={[styles.switchText, { color: colors.accent }]}>
-                  {isSignUpMode
-                    ? "Already have an account? Sign in"
-                    : "Don't have an account? Create one"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </KeyboardAvoidingView>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </TouchableWithoutFeedback>
   );
 };
