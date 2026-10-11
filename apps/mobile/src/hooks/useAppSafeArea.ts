@@ -8,8 +8,12 @@ import { useSafeAreaInsets, EdgeInsets } from "react-native-safe-area-context";
  */
 export function useAppSafeArea(): EdgeInsets & { topInset: number } {
   const insets = useSafeAreaInsets();
+  const androidBarHeight =
+    typeof StatusBar.currentHeight === "number" && StatusBar.currentHeight > 0
+      ? StatusBar.currentHeight
+      : 24;
   const topInset =
-    Platform.OS === "android" ? Math.max(insets.top, StatusBar.currentHeight ?? 0) : insets.top;
+    Platform.OS === "android" ? Math.max(insets.top, androidBarHeight) : insets.top;
 
   return {
     ...insets,
@@ -19,5 +23,9 @@ export function useAppSafeArea(): EdgeInsets & { topInset: number } {
 }
 
 export function getTopInset(insetsTop = 0): number {
-  return Platform.OS === "android" ? Math.max(insetsTop, StatusBar.currentHeight ?? 0) : insetsTop;
+  const androidBarHeight =
+    typeof StatusBar.currentHeight === "number" && StatusBar.currentHeight > 0
+      ? StatusBar.currentHeight
+      : 24;
+  return Platform.OS === "android" ? Math.max(insetsTop, androidBarHeight) : insetsTop;
 }

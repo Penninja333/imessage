@@ -10,6 +10,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  ScrollView,
 } from "react-native";
 import { useSignIn, useSignUp } from "@clerk/clerk-expo";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -102,65 +103,41 @@ export const AuthScreen: React.FC = () => {
       >
         <KeyboardAvoidingView
           style={styles.container}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.innerContainer}>
-            <View style={styles.header}>
-              <View style={[styles.logoBadge, { backgroundColor: colors.accent }]}>
-                <Text style={styles.logoText}>💬</Text>
+          <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.innerContainer}>
+              <View style={styles.header}>
+                <View style={[styles.logoBadge, { backgroundColor: colors.accent }]}>
+                  <Text style={styles.logoText}>💬</Text>
+                </View>
+                <Text style={[styles.title, { color: colors.text }]}>
+                  {pendingVerification
+                    ? "Verify Email"
+                    : isSignUpMode
+                    ? "Create Account"
+                    : "Welcome Back"}
+                </Text>
+                <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+                  {pendingVerification
+                    ? "Enter the code sent to your email"
+                    : "iMessage Real-Time Chat"}
+                </Text>
               </View>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {pendingVerification
-                  ? "Verify Email"
-                  : isSignUpMode
-                  ? "Create Account"
-                  : "Welcome Back"}
-              </Text>
-              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-                {pendingVerification
-                  ? "Enter the code sent to your email"
-                  : "iMessage Real-Time Chat"}
-              </Text>
-            </View>
 
-            {errorMessage ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>{errorMessage}</Text>
-              </View>
-            ) : null}
+              {errorMessage ? (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorBannerText}>{errorMessage}</Text>
+                </View>
+              ) : null}
 
-            {pendingVerification ? (
-              <View style={styles.form}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="6-digit verification code"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="number-pad"
-                  value={verificationCode}
-                  onChangeText={setVerificationCode}
-                />
-                <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                  onPress={handleVerifyCode}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Verify & Continue</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.form}>
-                {isSignUpMode ? (
+              {pendingVerification ? (
+                <View style={styles.form}>
                   <TextInput
                     style={[
                       styles.input,
@@ -170,78 +147,109 @@ export const AuthScreen: React.FC = () => {
                         color: colors.text,
                       },
                     ]}
-                    placeholder="Full name"
+                    placeholder="6-digit verification code"
                     placeholderTextColor={colors.textMuted}
-                    autoCapitalize="words"
-                    value={fullName}
-                    onChangeText={setFullName}
+                    keyboardType="number-pad"
+                    value={verificationCode}
+                    onChangeText={setVerificationCode}
                   />
-                ) : null}
+                  <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: colors.accent }]}
+                    onPress={handleVerifyCode}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Verify & Continue</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.form}>
+                  {isSignUpMode ? (
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      placeholder="Full name"
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="words"
+                      value={fullName}
+                      onChangeText={setFullName}
+                    />
+                  ) : null}
 
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="Email address"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={setEmail}
-                />
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder="Email address"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={email}
+                    onChangeText={setEmail}
+                  />
 
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="Password"
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder="Password"
+                    placeholderTextColor={colors.textMuted}
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
 
-                <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                  onPress={isSignUpMode ? handleSignUp : handleSignIn}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>
-                      {isSignUpMode ? "Sign Up" : "Sign In"}
+                  <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: colors.accent }]}
+                    onPress={isSignUpMode ? handleSignUp : handleSignIn}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>
+                        {isSignUpMode ? "Sign Up" : "Sign In"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.switchButton}
+                    onPress={() => {
+                      setErrorMessage("");
+                      setIsSignUpMode(!isSignUpMode);
+                    }}
+                  >
+                    <Text style={[styles.switchText, { color: colors.accent }]}>
+                      {isSignUpMode
+                        ? "Already have an account? Sign in"
+                        : "Don't have an account? Create one"}
                     </Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.switchButton}
-                  onPress={() => {
-                    setErrorMessage("");
-                    setIsSignUpMode(!isSignUpMode);
-                  }}
-                >
-                  <Text style={[styles.switchText, { color: colors.accent }]}>
-                    {isSignUpMode
-                      ? "Already have an account? Sign in"
-                      : "Don't have an account? Create one"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </TouchableWithoutFeedback>
@@ -251,6 +259,10 @@ export const AuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   innerContainer: {
     flex: 1,

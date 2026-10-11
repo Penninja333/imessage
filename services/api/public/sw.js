@@ -94,7 +94,21 @@ self.addEventListener("fetch", (event) => {
   // Handle SPA navigation: return cached index.html if offline
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/index.html") || caches.match("/"))
+      fetch(request).catch(async () => {
+        const cached =
+          (await caches.match("/index.html")) ||
+          (await caches.match("/"));
+        return (
+          cached ||
+          new Response(
+            "<!doctype html><html><head><meta charset='utf-8'><title>iMessage Offline</title></head><body style='background:#000;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;'><div style='text-align:center;'><h2>iMessage is Offline</h2><p>Please check your connection and reload.</p></div></body></html>",
+            {
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+              status: 200,
+            }
+          )
+        );
+      })
     );
     return;
   }
