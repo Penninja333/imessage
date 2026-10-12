@@ -1,4 +1,4 @@
-import React, { Component } from "react";
+import { Component } from "react";
 import { useChatStore } from "../../store/useChatStore";
 
 export class ErrorBoundary extends Component {
@@ -24,7 +24,9 @@ export class ErrorBoundary extends Component {
   handleReturnToChats = () => {
     try {
       useChatStore.getState().setActiveConversationId(null);
-    } catch {}
+    } catch {
+      // ignore state reset error
+    }
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();

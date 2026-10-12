@@ -318,7 +318,9 @@ export function ChatComposer() {
     if (typeof recorder.requestData === "function" && recorder.state === "recording") {
       try {
         recorder.requestData();
-      } catch {}
+      } catch {
+        // Ignore requestData error if already flushed
+      }
     }
 
     recorder.onstop = async () => {

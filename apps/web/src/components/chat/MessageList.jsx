@@ -69,6 +69,8 @@ export function MessageList() {
     [wallpaper, defaultFrameStyle],
   );
 
+  const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
+
   // Custom chat theme tints the chat wallpaper while preserving theme bubble colors and emoji
   const isCustomTheme = Boolean(theme && theme.id !== "default" && resolvedBgStyle);
   const wallpaperStyle = frameStyle || {};
@@ -81,13 +83,6 @@ export function MessageList() {
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [unreadBelowCount, setUnreadBelowCount] = useState(0);
   const bottomSentinelRef = useRef(null); // watch if bottom is visible
-
-  // Reset state when switching conversations
-  useEffect(() => {
-    setShowJumpButton(false);
-    setUnreadBelowCount(0);
-    isLoadingMoreRef.current = false;
-  }, [activeConversationId]);
 
   const isPartnerTyping =
     Boolean(typingUser && String(typingUser) === String(activeConversationId));

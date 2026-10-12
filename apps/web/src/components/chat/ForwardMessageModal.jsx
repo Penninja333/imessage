@@ -5,7 +5,7 @@ import { useChatStore } from "../../store/useChatStore";
 import { AppleEmojiText } from "../common/AppleEmoji";
 import { withTransform } from "../../lib/imagekit";
 
-export function ForwardMessageModal({ isOpen, message, onClose }) {
+function ForwardMessageDialog({ message, onClose }) {
   const conversations = useChatStore((state) => state.conversations);
   const users = useChatStore((state) => state.users);
   const forwardMessage = useChatStore((state) => state.forwardMessage);
@@ -15,21 +15,12 @@ export function ForwardMessageModal({ isOpen, message, onClose }) {
   const [forwardedIds, setForwardedIds] = useState(() => new Set());
 
   useEffect(() => {
-    if (!isOpen) {
-      setSearch("");
-      setForwardingToId(null);
-      setForwardedIds(new Set());
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [onClose]);
 
   // Combine conversations and users into a deduped list
   const contactList = useMemo(() => {
@@ -64,8 +55,6 @@ export function ForwardMessageModal({ isOpen, message, onClose }) {
     if (!q) return contactList;
     return contactList.filter((c) => c.name.toLowerCase().includes(q));
   }, [contactList, search]);
-
-  if (!isOpen || !message) return null;
 
   const handleForward = async (targetId) => {
     if (forwardingToId || forwardedIds.has(targetId)) return;
@@ -224,4 +213,9 @@ export function ForwardMessageModal({ isOpen, message, onClose }) {
   return typeof document !== "undefined"
     ? createPortal(modalContent, document.body)
     : null;
+}
+
+export function ForwardMessageModal({ isOpen, message, onClose }) {
+  if (!isOpen || !message) return null;
+  return <ForwardMessageDialog message={message} onClose={onClose} />;
 }

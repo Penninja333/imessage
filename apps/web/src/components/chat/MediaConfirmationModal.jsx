@@ -21,8 +21,7 @@ import { formatFileSize } from "../../lib/fileUtils";
  * 3. Add an optional caption text or view reply context
  * 4. Explicitly confirm ("Send") or reject ("Cancel" / "Don't Send")
  */
-export function MediaConfirmationModal({
-  isOpen,
+function MediaConfirmationDialog({
   file,
   recipientName,
   replyingTo,
@@ -34,11 +33,6 @@ export function MediaConfirmationModal({
   const [isViewOnce, setIsViewOnce] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef(null);
-
-  useEffect(() => {
-    setCaption(initialCaption || "");
-    setIsViewOnce(false);
-  }, [file, initialCaption]);
 
   const previewUrl = useMemo(() => {
     if (!file) return null;
@@ -55,27 +49,24 @@ export function MediaConfirmationModal({
 
   // Lock body scroll when modal is open
   useEffect(() => {
-    if (!isOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [isOpen]);
+  }, []);
 
   // Auto-focus caption input when opened
   useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
-    if (!isOpen || isSending) return;
+    if (isSending) return;
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         onClose();
@@ -83,9 +74,7 @@ export function MediaConfirmationModal({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isSending, onClose]);
-
-  if (!isOpen || !file) return null;
+  }, [isSending, onClose]);
 
   const isImage = file.type.startsWith("image/");
   const isVideo = file.type.startsWith("video/");
@@ -314,5 +303,16 @@ export function MediaConfirmationModal({
       </div>
     </div>,
     document.body
+  );
+}
+
+export function MediaConfirmationModal({ isOpen, file, ...rest }) {
+  if (!isOpen || !file) return null;
+  return (
+    <MediaConfirmationDialog
+      key={`${file.name || "media"}-${file.size || 0}-${file.lastModified || 0}`}
+      file={file}
+      {...rest}
+    />
   );
 }

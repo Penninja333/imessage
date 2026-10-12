@@ -30,11 +30,13 @@ export function InChatSearch({ onNavigateMatch }) {
 
   const totalMatches = matchingMessageIds.length;
 
+  const [prevQuery, setPrevQuery] = useState(query);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
-  useEffect(() => {
+  if (prevQuery !== query) {
+    setPrevQuery(query);
     setCurrentMatchIndex(totalMatches > 0 ? 0 : -1);
-  }, [query, totalMatches]);
+  }
 
   // Sync active match id with chat store & view when matches change
   useEffect(() => {

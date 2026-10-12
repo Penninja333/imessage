@@ -125,7 +125,7 @@ export async function subscribeToWebPush(forceRefresh = false) {
           token: JSON.stringify(subscription),
           appVersion: "1.0.0",
         });
-      } catch (err) {
+      } catch {
         // Fallback to /devices/register
         await axiosInstance.post("/devices/register", {
           platform: "web",

@@ -65,7 +65,9 @@ export function MessageAudio({ src, isOwnMessage }) {
           }
           try {
             audio.currentTime = 0;
-          } catch {}
+          } catch {
+            // Ignore seek error if audio not ready
+          }
         };
         probeTimer = setTimeout(() => {
           audio.removeEventListener("timeupdate", onProbe);
@@ -74,12 +76,16 @@ export function MessageAudio({ src, isOwnMessage }) {
           }
           try {
             audio.currentTime = 0;
-          } catch {}
+          } catch {
+            // Ignore seek error if audio not ready
+          }
         }, 350);
         audio.addEventListener("timeupdate", onProbe, { once: true });
         try {
           audio.currentTime = 1e10;
-        } catch {}
+        } catch {
+          // Probe seek unsupported or failed
+        }
       } else if (isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }

@@ -62,11 +62,11 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
     if (!isOpen || !peer || !Array.isArray(messages)) return [];
     return messages
       .filter((m) => m && !m.deleted && (m.image || m.video))
-      .map((m) => {
+      .map((m, index) => {
         const isMine = String(m.senderId) === myId;
         const type = m.image ? "image" : "video";
         return {
-          id: String(m._id || m.id || Math.random()),
+          id: String(m._id || m.id || `media-${index}`),
           type,
           url: m.image || m.video,
           text: m.text || "",
@@ -82,10 +82,10 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
     if (!isOpen || !peer || !Array.isArray(messages)) return [];
     return messages
       .filter((m) => m && !m.deleted && m.audio)
-      .map((m) => {
+      .map((m, index) => {
         const isMine = String(m.senderId) === myId;
         return {
-          id: String(m._id || m.id || Math.random()),
+          id: String(m._id || m.id || `voice-${index}`),
           audioUrl: m.audio,
           time: formatMessageTime(m.createdAt),
           senderName: isMine ? "You" : peer?.name || "Friend",
@@ -99,16 +99,16 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
   const linksList = useMemo(() => {
     if (!isOpen || !peer || !Array.isArray(messages)) return [];
     const links = [];
-    messages.forEach((m) => {
+    messages.forEach((m, msgIndex) => {
       if (!m || m.deleted || !m.text) return;
       const matches = m.text.match(URL_REGEX);
       if (matches) {
         const isMine = String(m.senderId) === myId;
-        matches.forEach((url) => {
+        matches.forEach((url, urlIndex) => {
           try {
             const parsed = new URL(url);
             links.push({
-              id: `${m._id || m.id || Math.random()}-${url}`,
+              id: `${m._id || m.id || `link-${msgIndex}`}-${urlIndex}`,
               url,
               hostname: parsed.hostname.replace(/^www\./, ""),
               time: formatMessageTime(m.createdAt),
@@ -128,10 +128,10 @@ export function ContactDetailsModal({ isOpen, onClose, peer }) {
     if (!isOpen || !peer || !Array.isArray(messages)) return [];
     return messages
       .filter((m) => m && !m.deleted && m.starredBy && m.starredBy.some((uid) => String(uid) === myId))
-      .map((m) => {
+      .map((m, index) => {
         const isMine = String(m.senderId) === myId;
         return {
-          id: String(m._id || m.id || Math.random()),
+          id: String(m._id || m.id || `starred-${index}`),
           text: m.text || "",
           image: m.image,
           video: m.video,

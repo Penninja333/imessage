@@ -17,9 +17,7 @@ function ChatPage() {
   const viewportHeight = useVisualViewport();
 
   const getConversations = useChatStore((state) => state.getConversations);
-  const getMessages = useChatStore((state) => state.getMessages);
   const getUsers = useChatStore((state) => state.getUsers);
-  const getConversationTheme = useChatStore((state) => state.getConversationTheme);
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
 
   const forwardingMessage = useChatStore((state) => state.forwardingMessage);
@@ -100,7 +98,7 @@ function ChatPage() {
         >
           <ErrorBoundary resetKey={activeConversationId} fallbackTitle="Chat Unavailable">
             <ChatHeader />
-            <MessageList />
+            <MessageList key={activeConversationId || "none"} />
 
             {activeConversation || activeConversationId ? <ChatComposer /> : null}
           </ErrorBoundary>

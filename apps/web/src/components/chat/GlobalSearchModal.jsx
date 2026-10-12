@@ -5,8 +5,7 @@ import { formatMessageTime } from "../../lib/utils";
 import { AppleEmojiText } from "../common/AppleEmoji";
 import { withTransform } from "../../lib/imagekit";
 
-export function GlobalSearchModal() {
-  const isOpen = useChatStore((state) => state.isGlobalSearchOpen);
+function GlobalSearchDialog() {
   const setGlobalSearchOpen = useChatStore((state) => state.setGlobalSearchOpen);
   const globalSearch = useChatStore((state) => state.globalSearch);
   const results = useChatStore((state) => state.globalSearchResults);
@@ -19,26 +18,18 @@ export function GlobalSearchModal() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (!isOpen) {
-      setQuery("");
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
+    const timer = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Close on Escape
   useEffect(() => {
-    if (!isOpen) return;
     const handler = (e) => {
       if (e.key === "Escape") setGlobalSearchOpen(false);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, setGlobalSearchOpen]);
+  }, [setGlobalSearchOpen]);
 
   const handleInput = useCallback(
     (e) => {
@@ -60,8 +51,6 @@ export function GlobalSearchModal() {
       setActiveMatchId(result.messageId);
     }, 500);
   };
-
-  if (!isOpen) return null;
 
   return (
     <div
@@ -154,4 +143,10 @@ export function GlobalSearchModal() {
       </div>
     </div>
   );
+}
+
+export function GlobalSearchModal() {
+  const isOpen = useChatStore((state) => state.isGlobalSearchOpen);
+  if (!isOpen) return null;
+  return <GlobalSearchDialog />;
 }
