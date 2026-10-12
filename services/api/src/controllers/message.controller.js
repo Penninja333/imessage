@@ -284,9 +284,18 @@ export async function sendMessage(req, res) {
       }
 
       const url = await uploadChatMedia(req.file);
-      if (req.file.mimetype.startsWith("video/")) videoUrl = url;
-      else if (req.file.mimetype.startsWith("audio/")) audioUrl = url;
-      else if (req.file.mimetype.startsWith("image/")) imageUrl = url;
+      const isAudio =
+        req.body.mediaType === "audio" ||
+        req.file.mimetype.startsWith("audio/") ||
+        (req.file.originalname && req.file.originalname.startsWith("voice-")) ||
+        /\.(mp3|wav|ogg|m4a|aac|opus|flac)$/i.test(req.file.originalname || "");
+
+      const isVideo = !isAudio && req.file.mimetype.startsWith("video/");
+      const isImage = !isAudio && !isVideo && req.file.mimetype.startsWith("image/");
+
+      if (isAudio) audioUrl = url;
+      else if (isVideo) videoUrl = url;
+      else if (isImage) imageUrl = url;
       else {
         fileUrl = url;
         fileName = req.file.originalname;
@@ -798,6 +807,101 @@ export async function setChatTheme(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+
+// ─── Chat Wallpaper (shared per-conversation) ────────────────────────────────
+
+const WALLPAPER_LABELS = {
+  "sonoma-horizon": "Sonoma Horizon",
+  "redwoods": "Redwoods",
+  "utah-evening": "Utah Evening",
+  "san-francisco-bay": "San Francisco Bay",
+  "iceland-coast": "Iceland Coast",
+  "new-york-midtown": "New York Midtown",
+  "macos-graphic": "macOS Graphic",
+  "radial-yellow": "Radial Yellow",
+  "radial-purple": "Radial Purple",
+  "radial-green": "Radial Green",
+  "radial-blue": "Radial Blue",
+  "ventura-light": "Ventura",
+  "ventura-dark": "Ventura Dark",
+};
+
+export async function getChatWallpaper(req, res) {
+  try {
+    const myId = req.user._id;
+    const partnerId = req.params.id;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(200).json({ wallpaperId: null });
+    }
+
+    const [userA, userB] = sortedPair(myId, partnerId);
+    const doc = await ChatTheme.findOne({ userA, userB }).lean();
+    res.status(200).json({ wallpaperId: doc?.wallpaperId ?? null });
+  } catch (error) {
+    console.error("Error in getChatWallpaper:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function setChatWallpaper(req, res) {
+  try {
+    const myId = req.user._id;
+    const partnerId = req.params.id;
+    const { wallpaperId } = req.body;
+
+    if (!partnerId || partnerId === "undefined" || partnerId === "null") {
+      return res.status(400).json({ message: "Invalid partner ID" });
+    }
+
+    if (wallpaperId !== null && typeof wallpaperId !== "string") {
+      return res.status(400).json({ message: "Invalid wallpaper ID" });
+    }
+
+    const [userA, userB] = sortedPair(myId, partnerId);
+
+    // Upsert the shared wallpaper document
+    await ChatTheme.findOneAndUpdate(
+      { userA, userB },
+      { wallpaperId: wallpaperId || null, wallpaperSetBy: myId },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    // System message in chat — visible to both users
+    const wallpaperLabel = wallpaperId ? (WALLPAPER_LABELS[wallpaperId] || wallpaperId) : "Default";
+    const systemText = `${req.user.fullName} changed the chat wallpaper to ${wallpaperLabel} 🖼️`;
+    let systemMessage = null;
+    try {
+      systemMessage = new Message({
+        senderId: myId,
+        receiverId: partnerId,
+        text: systemText,
+        isSystem: true,
+      });
+      await systemMessage.save();
+    } catch (msgErr) {
+      console.warn("Failed to create wallpaper system message:", msgErr.message);
+    }
+
+    // Broadcast wallpaper change to BOTH users in real-time
+    const toPartner = { partnerId: String(myId), wallpaperId: wallpaperId || null, setByName: req.user.fullName };
+    const toMe = { partnerId: String(partnerId), wallpaperId: wallpaperId || null, setByName: req.user.fullName };
+
+    io.to(String(partnerId)).emit("chatWallpaperChanged", toPartner);
+    io.to(String(myId)).emit("chatWallpaperChanged", toMe);
+
+    if (systemMessage) {
+      io.to(String(partnerId)).emit("newMessage", systemMessage);
+      io.to(String(myId)).emit("newMessage", systemMessage);
+    }
+
+    res.status(200).json({ wallpaperId: wallpaperId || null, systemMessage });
+  } catch (error) {
+    console.error("Error in setChatWallpaper:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
 
 // ─── Global Search ────────────────────────────────────────────────────────────
 

@@ -47,7 +47,9 @@ export function MessageAudio({ src, isOwnMessage }) {
     const handleDuration = () => {
       if (audio.duration === Infinity) {
         // MediaRecorder WebM files don't have header duration; seek probe trick discovers it
+        let probeTimer = null;
         const onProbe = () => {
+          if (probeTimer) clearTimeout(probeTimer);
           audio.removeEventListener("timeupdate", onProbe);
           if (isFinite(audio.duration) && audio.duration > 0) {
             setDuration(audio.duration);
@@ -56,6 +58,13 @@ export function MessageAudio({ src, isOwnMessage }) {
           }
           audio.currentTime = 0;
         };
+        probeTimer = setTimeout(() => {
+          audio.removeEventListener("timeupdate", onProbe);
+          if (audio.currentTime > 0 && isFinite(audio.currentTime)) {
+            setDuration(audio.currentTime);
+          }
+          audio.currentTime = 0;
+        }, 350);
         audio.addEventListener("timeupdate", onProbe, { once: true });
         audio.currentTime = 1e10;
       } else if (isFinite(audio.duration) && audio.duration > 0) {
@@ -148,6 +157,12 @@ export function MessageAudio({ src, isOwnMessage }) {
           audio.load();
         }
 
+        // If audio finished playing or is near end, reset to beginning before play
+        if (audio.ended || (isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.2)) {
+          audio.currentTime = 0;
+          setCurrentTime(0);
+        }
+
         await audio.play();
       } catch (err) {
         console.error("Audio playback error:", err);
@@ -197,7 +212,7 @@ export function MessageAudio({ src, isOwnMessage }) {
 
   return (
     <div className="flex min-w-[210px] sm:min-w-[250px] max-w-full flex-col gap-1.5 py-1">
-      <audio ref={audioRef} src={src} preload="metadata" playsInline />
+      <audio ref={audioRef} src={src} preload="auto" playsInline />
 
       <div className="flex items-center gap-2.5">
         {/* Play/Pause Button */}

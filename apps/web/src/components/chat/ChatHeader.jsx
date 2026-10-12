@@ -172,7 +172,7 @@ export function ChatHeader() {
       <div className="flex shrink-0 items-center gap-1">
         {/* Desktop Controls (hidden on mobile) */}
         <div className="hidden md:flex items-center gap-1">
-          <WallpaperPicker />
+          <WallpaperPicker partnerId={activeConversationId} />
           <ThemePresetPicker />
           <ThemeToggle />
 
@@ -541,6 +541,7 @@ export function ChatHeader() {
       <WallpaperPicker
         isOpen={showWallpaperModal}
         onClose={() => setShowWallpaperModal(false)}
+        partnerId={activeConversationId}
       />
     </div>
   );

@@ -48,3 +48,42 @@ export async function registerDevice(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+
+export async function registerWebPushSubscription(req, res) {
+  try {
+    const userId = req.user._id;
+    const { subscription, token, appVersion } = req.body;
+    const sub = subscription || token || req.body;
+
+    if (!sub) {
+      return res.status(400).json({ message: "Subscription is required" });
+    }
+
+    const tokenStr = typeof sub === "object" ? JSON.stringify(sub) : String(sub);
+
+    if (!tokenStr.includes('"endpoint"') && !tokenStr.startsWith("http")) {
+      return res.status(400).json({ message: "Invalid push subscription format" });
+    }
+
+    // Remove any previous associations of this endpoint with other users
+    await DeviceToken.deleteMany({ token: tokenStr, userId: { $ne: userId } });
+
+    await DeviceToken.findOneAndUpdate(
+      { userId, token: tokenStr },
+      {
+        userId,
+        token: tokenStr,
+        platform: "web",
+        appVersion: appVersion || "1.0.0",
+        lastSeen: new Date(),
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("Error in registerWebPushSubscription:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+

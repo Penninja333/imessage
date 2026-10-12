@@ -223,19 +223,19 @@ export function ChatComposer() {
       }
 
       // Check supported MIME type across mobile browsers (Chrome, Safari, Firefox)
-      // Prioritize audio/mp4 for universal playback compatibility across iOS Safari and Android
       let mimeType = "";
       if (typeof MediaRecorder !== "undefined") {
         const types = [
-          "audio/mp4",
-          "audio/mp4;codecs=aac",
           "audio/webm;codecs=opus",
           "audio/webm",
+          "audio/mp4",
+          "audio/mp4;codecs=aac",
           "audio/ogg;codecs=opus",
+          "audio/ogg",
           "audio/wav",
         ];
         for (const t of types) {
-          if (MediaRecorder.isTypeSupported(t)) {
+          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
             mimeType = t;
             break;
           }
@@ -245,8 +245,16 @@ export function ChatComposer() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
 
-      const options = mimeType ? { mimeType } : undefined;
-      const mediaRecorder = new MediaRecorder(stream, options);
+      let mediaRecorder;
+      if (mimeType) {
+        try {
+          mediaRecorder = new MediaRecorder(stream, { mimeType });
+        } catch {
+          mediaRecorder = new MediaRecorder(stream);
+        }
+      } else {
+        mediaRecorder = new MediaRecorder(stream);
+      }
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -305,10 +313,17 @@ export function ChatComposer() {
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
 
+    if (typeof recorder.requestData === "function" && recorder.state === "recording") {
+      try {
+        recorder.requestData();
+      } catch {}
+    }
+
     recorder.onstop = async () => {
       try {
-        const mimeType = recorder.mimeType || "audio/webm";
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const rawMime = recorder.mimeType || "audio/webm";
+        const cleanMime = rawMime.split(";")[0].trim() || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: cleanMime });
 
         if (audioBlob.size > 0 && activeConversationId) {
           const didSend = await sendVoiceMessage({

@@ -80,3 +80,23 @@ body {
   --breakpoint-md: 768px;
   --breakpoint-lg: 1440px;
 }
+
+@keyframes msgReplyPulse {
+  0% {
+    background-color: rgb(0 122 255 / 0.35);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgb(0 122 255 / 0.18);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+.msg-reply-highlight {
+  animation: msgReplyPulse 1.8s ease-out;
+  border-radius: 1.25rem;
+}
+

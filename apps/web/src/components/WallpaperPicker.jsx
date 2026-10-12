@@ -44,12 +44,20 @@ function WallpaperThumb({ wallpaper, selected, onSelect }) {
   );
 }
 
-export function WallpaperPicker({ isOpen, onClose }) {
+import { useChatStore } from "../store/useChatStore";
+
+export function WallpaperPicker({ isOpen, onClose, partnerId }) {
   const isControlled = isOpen !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
   const isModalOpen = isControlled ? Boolean(isOpen) : internalOpen;
 
   const { wallpaperId, setWallpaperId } = useWallpaper();
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const conversationWallpapers = useChatStore((s) => s.conversationWallpapers);
+  const activePartnerId = partnerId || activeConversationId;
+  const currentWallpaperId =
+    (activePartnerId && conversationWallpapers[String(activePartnerId)]) || wallpaperId;
+
   const [, startTransition] = useTransition();
 
   const handleClose = useCallback(() => {
@@ -62,7 +70,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
 
   const handleSelect = (id) => {
     startTransition(() => {
-      setWallpaperId(id);
+      setWallpaperId(id, activePartnerId);
     });
     handleClose();
   };
@@ -100,7 +108,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
                   <div>
                     <h3 className="text-base font-bold text-white leading-tight">Chat Wallpaper</h3>
                     <p className="text-[11px] text-zinc-400 leading-none mt-0.5">
-                      Applied inside your chat conversations
+                      {activePartnerId ? "Shared between both participants in this chat" : "Applied inside your chat conversations"}
                     </p>
                   </div>
                 </div>
@@ -127,7 +135,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
                         <WallpaperThumb
                           key={w.id}
                           wallpaper={w}
-                          selected={wallpaperId === w.id}
+                          selected={currentWallpaperId === w.id}
                           onSelect={handleSelect}
                         />
                       ))}

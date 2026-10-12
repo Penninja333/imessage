@@ -20,9 +20,10 @@ function createFileName(originalName = "upload") {
  */
 async function uploadChatMedia(file) {
   const fileName = createFileName(file.originalname);
+  const cleanMime = (file.mimetype || "application/octet-stream").split(";")[0].trim();
 
   const result = await imagekit.files.upload({
-    file: await toFile(file.buffer, fileName, { type: file.mimetype }),
+    file: await toFile(file.buffer, fileName, { type: cleanMime }),
     fileName,
     folder: "/chat",
   });

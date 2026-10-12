@@ -313,6 +313,25 @@ function MessageBubbleComponent({
     message.createdAt &&
     now - new Date(message.createdAt).getTime() < 15 * 60 * 1000;
 
+  const handleReplyQuoteClick = (e) => {
+    e.stopPropagation();
+    const replyTargetId = message.replyTo?.messageId;
+    if (!replyTargetId) return;
+
+    const el = document.getElementById(`msg-${replyTargetId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.remove("msg-reply-highlight");
+      void el.offsetWidth; // trigger reflow for smooth animation restart
+      el.classList.add("msg-reply-highlight");
+      setTimeout(() => {
+        el.classList.remove("msg-reply-highlight");
+      }, 1800);
+    } else {
+      toast("Quoted message is earlier in history");
+    }
+  };
+
   return (
     <div
       ref={bubbleRef}
@@ -501,12 +520,14 @@ function MessageBubbleComponent({
         {/* Reply quoted preview — shown inside the bubble above the content */}
         {message.replyTo ? (
           <div
-            className={`mx-1 mt-1.5 mb-1 rounded-lg border-l-[3px] px-2 py-1.5 text-[12px] leading-snug opacity-80 ${
+            onClick={handleReplyQuoteClick}
+            className={`mx-1 mt-1.5 mb-1 cursor-pointer rounded-lg border-l-[3px] px-2 py-1.5 text-[12px] leading-snug opacity-80 hover:opacity-100 active:scale-[0.98] transition-all select-none ${
               isOwnMessage
                 ? "border-white/60 bg-white/15"
                 : "border-accent bg-accent/10 text-foreground/80"
             }`}
             style={isOwnMessage ? { color: bubbleTextColor || "inherit" } : undefined}
+            title="Click to view quoted message"
           >
             <p className="font-semibold text-[11px] mb-0.5 opacity-90">
               {message.replyTo.isOwnSender ? "You" : (message.replyTo.senderName || "Friend")}

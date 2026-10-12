@@ -533,5 +533,53 @@ describe("useChatStore User Flow & Edge Cases", () => {
       expect.objectContaining({ _id: "msg-B", text: "From B" }),
     ]);
   });
+
+  it("23. getConversationWallpaper and setConversationWallpaper manage shared wallpaper per conversation", async () => {
+    axiosInstance.get.mockResolvedValueOnce({ data: { wallpaperId: "redwoods" } });
+    await useChatStore.getState().getConversationWallpaper("user-A");
+    expect(useChatStore.getState().conversationWallpapers["user-A"]).toBe("redwoods");
+
+    axiosInstance.put.mockResolvedValueOnce({
+      data: {
+        wallpaperId: "utah-evening",
+        systemMessage: { _id: "sys-wp", text: "Changed wallpaper to Utah Evening 🖼️", isSystem: true },
+      },
+    });
+
+    useChatStore.setState({ activeConversationId: "user-A", messages: [] });
+    await useChatStore.getState().setConversationWallpaper("user-A", "utah-evening");
+    expect(useChatStore.getState().conversationWallpapers["user-A"]).toBe("utah-evening");
+    expect(useChatStore.getState().messages).toHaveLength(1);
+    expect(useChatStore.getState().messages[0].text).toContain("Utah Evening");
+  });
+
+  it("24. sendVoiceMessage builds FormData with audio file and mediaType and calls sendMessage", async () => {
+    useChatStore.setState({
+      activeConversationId: "user-partner",
+      selectedUser: { _id: "user-partner", fullName: "Partner" },
+    });
+
+    axiosInstance.post.mockResolvedValueOnce({
+      data: {
+        _id: "voice-msg-1",
+        audio: "https://ik.imagekit.io/test/voice.webm",
+        senderId: "my-id-123",
+        receiverId: "user-partner",
+      },
+    });
+
+    const fakeBlob = new Blob(["fake-audio-bytes"], { type: "audio/webm;codecs=opus" });
+    const success = await useChatStore.getState().sendVoiceMessage({
+      conversationId: "user-partner",
+      audioBlob: fakeBlob,
+    });
+
+    expect(success).toBe(true);
+    expect(axiosInstance.post).toHaveBeenCalledWith(
+      "/messages/send/user-partner",
+      expect.any(FormData),
+    );
+  });
 });
+
 

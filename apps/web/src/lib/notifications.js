@@ -118,11 +118,21 @@ export async function subscribeToWebPush(forceRefresh = false) {
     }
 
     if (subscription) {
-      await axiosInstance.post("/devices/register", {
-        platform: "web",
-        token: JSON.stringify(subscription),
-        appVersion: "1.0.0",
-      });
+      try {
+        await axiosInstance.post("/device/web-push-subscription", {
+          subscription: subscription.toJSON ? subscription.toJSON() : subscription,
+          platform: "web",
+          token: JSON.stringify(subscription),
+          appVersion: "1.0.0",
+        });
+      } catch (err) {
+        // Fallback to /devices/register
+        await axiosInstance.post("/devices/register", {
+          platform: "web",
+          token: JSON.stringify(subscription),
+          appVersion: "1.0.0",
+        });
+      }
       console.log("[notifications] Web Push registered successfully ✓");
       return true;
     }

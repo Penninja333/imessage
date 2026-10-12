@@ -12,6 +12,8 @@ import {
   markMessagesAsSeen,
   getChatTheme,
   setChatTheme,
+  getChatWallpaper,
+  setChatWallpaper,
   globalSearchMessages,
   getLinkPreview,
   forwardMessage,
@@ -39,6 +41,8 @@ router.post("/forward", forwardMessage);
 router.put("/nickname/:id", setNickname);
 router.get("/:id/theme", getChatTheme);
 router.put("/:id/theme", setChatTheme);
+router.get("/:id/wallpaper", getChatWallpaper);
+router.put("/:id/wallpaper", setChatWallpaper);
 router.post("/:id/mute", muteConversation);
 router.delete("/:id/mute", unmuteConversation);
 router.get("/:id/starred", getStarredMessages);

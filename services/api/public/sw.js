@@ -1,5 +1,5 @@
 // Service worker for iMessage PWA (offline caching & push notifications)
-const CACHE_NAME = "imessage-v9";
+const CACHE_NAME = "imessage-v10";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -245,10 +245,11 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin) && "focus" in client) {
-          if (event.notification.data && event.notification.data.senderId) {
+          const convoId = event.notification.data?.senderId || event.notification.data?.conversationId;
+          if (convoId) {
             client.postMessage({
               type: "SELECT_CONVERSATION",
-              conversationId: event.notification.data.senderId,
+              conversationId: convoId,
             });
           }
           return client.focus();

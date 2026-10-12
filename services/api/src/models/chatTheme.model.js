@@ -6,7 +6,9 @@ const chatThemeSchema = new mongoose.Schema(
     userA: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     userB: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     themeId: { type: String, default: "default" },
+    wallpaperId: { type: String, default: null },
     setBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    wallpaperSetBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true },
 );

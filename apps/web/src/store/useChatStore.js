@@ -41,6 +41,7 @@ export const useChatStore = create(
       inChatSearchQuery: "",
       activeMatchId: null,
       conversationThemes: {}, // { [partnerId]: themeId } — shared per-conversation, synced via socket
+      conversationWallpapers: {}, // { [partnerId]: wallpaperId } — shared per-conversation, synced via socket
       drafts: {}, // { [conversationId]: string } — persisted per-conversation draft text
       // Global search
       globalSearchResults: [],
@@ -484,6 +485,11 @@ export const useChatStore = create(
           const myId = String(authUser?._id || authUser?.id || "");
           const currentActiveId = get().activeConversationId;
 
+          const isDocumentFocused =
+            typeof document !== "undefined" &&
+            document.visibilityState === "visible" &&
+            (typeof document.hasFocus === "function" ? document.hasFocus() : true);
+
           const isCurrentChat =
             (currentActiveId && String(newMessage.senderId) === String(currentActiveId)) ||
             (currentActiveId && String(newMessage.receiverId) === String(currentActiveId));
@@ -495,29 +501,32 @@ export const useChatStore = create(
               return { messages: [...state.messages, newMessage] };
             });
 
-            // Mark seen if from the other user
-            if (String(newMessage.senderId) === String(currentActiveId)) {
+            // Mark seen if from the other user and window is actively focused
+            if (String(newMessage.senderId) === String(currentActiveId) && isDocumentFocused) {
               get().markMessagesAsSeen(currentActiveId);
             }
-          } else {
-            // 2. Received while looking elsewhere / on another conversation
-            if (String(newMessage.senderId) !== myId && !newMessage.isSystem) {
+          }
+
+          // 2. Play in-app sound or display PWA push/local notification banner
+          if (String(newMessage.senderId) !== myId && !newMessage.isSystem) {
+            if (isDocumentFocused) {
+              // User is actively focused in PWA -> trigger in-app sound indicator
               if (get().isSoundEnabled) {
                 const audio = new Audio("/sounds/keystroke1.mp3");
                 audio.play().catch(() => {});
               }
-
+            } else {
+              // User is NOT active/focused (backgrounded, in other tab, phone locked) -> PWA notification banner
               const partner =
                 get().conversations.find((c) => String(c._id || c.id) === String(newMessage.senderId)) ||
                 get().users.find((u) => String(u._id || u.id) === String(newMessage.senderId));
               const senderName = partner?.nickname || partner?.fullName || "iMessage";
 
-              // Privacy rule: Only show sender name and notification count notice
               showWebNotification(senderName, {
                 body: "1 new notification • Open application to view",
                 tag: `chat-${newMessage.senderId}`,
                 renotify: true,
-                data: { conversationId: newMessage.senderId },
+                data: { conversationId: newMessage.senderId, senderId: newMessage.senderId },
               });
             }
           }
@@ -683,6 +692,18 @@ export const useChatStore = create(
           }));
         });
 
+        // ── Shared conversation wallpaper — synced to both participants ──────
+        socket.off("chatWallpaperChanged");
+        socket.on("chatWallpaperChanged", ({ partnerId, wallpaperId }) => {
+          if (!partnerId) return;
+          set((state) => ({
+            conversationWallpapers: {
+              ...state.conversationWallpapers,
+              [String(partnerId)]: wallpaperId,
+            },
+          }));
+        });
+
         // ── Pinned messages sync across participants ─────────────────────────
         socket.off("messagePinUpdated");
         socket.on("messagePinUpdated", ({ messageId, pinned, pinnedAt, pinnedBy, conversationPartnerId }) => {
@@ -822,6 +843,7 @@ export const useChatStore = create(
         if (activeConversationId) {
           get().getMessages(activeConversationId);
           get().getConversationTheme(activeConversationId);
+          get().getConversationWallpaper(activeConversationId);
           get().markMessagesAsSeen(activeConversationId);
 
           if (get().users.length === 0) {
@@ -889,6 +911,49 @@ export const useChatStore = create(
           toast.error("Could not change theme");
           // Revert optimistic update
           get().getConversationTheme(partnerId);
+        }
+      },
+
+      // ── Shared conversation wallpaper ─────────────────────────────────────
+      getConversationWallpaper: async (partnerId) => {
+        if (!partnerId || partnerId === "undefined" || partnerId === "null") return;
+        try {
+          const res = await axiosInstance.get(`/messages/${partnerId}/wallpaper`);
+          const wallpaperId = res.data?.wallpaperId ?? null;
+          set((state) => ({
+            conversationWallpapers: {
+              ...state.conversationWallpapers,
+              [String(partnerId)]: wallpaperId,
+            },
+          }));
+        } catch {
+          // silently fall back to null/default
+        }
+      },
+
+      setConversationWallpaper: async (partnerId, wallpaperId) => {
+        if (!partnerId) return;
+        // Optimistic update so our own UI updates immediately
+        set((state) => ({
+          conversationWallpapers: {
+            ...state.conversationWallpapers,
+            [String(partnerId)]: wallpaperId,
+          },
+        }));
+        try {
+          const res = await axiosInstance.put(`/messages/${partnerId}/wallpaper`, { wallpaperId });
+          if (res.data?.systemMessage) {
+            const activeId = get().activeConversationId;
+            if (String(activeId) === String(partnerId)) {
+              set((state) => {
+                if (state.messages.some((m) => m._id === res.data.systemMessage._id)) return state;
+                return { messages: [...state.messages, res.data.systemMessage] };
+              });
+            }
+          }
+        } catch {
+          toast.error("Could not change wallpaper");
+          get().getConversationWallpaper(partnerId);
         }
       },
 
@@ -1029,12 +1094,26 @@ export const useChatStore = create(
       sendVoiceMessage: async ({ conversationId, audioBlob }) => {
         if (!conversationId || !audioBlob) return false;
 
-        const mime = audioBlob.type || "audio/mp4";
-        const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : mime.includes("wav") ? "wav" : "webm";
-        const file = new File([audioBlob], `voice-${Date.now()}.${ext}`, { type: mime });
+        const rawMime = audioBlob.type || "audio/webm";
+        const cleanMime = rawMime.split(";")[0].trim() || "audio/webm";
+        let ext = "webm";
+        if (cleanMime.includes("mp4") || cleanMime.includes("m4a") || cleanMime.includes("aac")) ext = "mp4";
+        else if (cleanMime.includes("ogg") || cleanMime.includes("opus")) ext = "ogg";
+        else if (cleanMime.includes("wav")) ext = "wav";
+        else if (cleanMime.includes("mpeg") || cleanMime.includes("mp3")) ext = "mp3";
+
+        const fileName = `voice-${Date.now()}.${ext}`;
+        let file;
+        try {
+          file = new File([audioBlob], fileName, { type: cleanMime });
+        } catch {
+          file = audioBlob;
+          file.name = fileName;
+        }
 
         const formData = new FormData();
-        formData.append("media", file);
+        formData.append("media", file, fileName);
+        formData.append("mediaType", "audio");
         const replyingTo = get().replyingTo;
         if (replyingTo?.id) {
           formData.append("replyToId", replyingTo.id);

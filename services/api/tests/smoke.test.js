@@ -18,6 +18,7 @@ vi.mock("../src/models/deviceToken.model.js", () => ({
   default: {
     find: vi.fn().mockResolvedValue([]),
     findOneAndUpdate: vi.fn().mockResolvedValue({}),
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }),
   },
 }));
 
@@ -115,6 +116,7 @@ vi.mock("@clerk/express", () => ({
 const { protectRoute } = await import("../src/middleware/auth.middleware.js");
 const authRoutes = (await import("../src/routes/auth.route.js")).default;
 const messageRoutes = (await import("../src/routes/message.route.js")).default;
+const deviceRoutes = (await import("../src/routes/device.route.js")).default;
 
 // Build test app
 const testApp = express();
@@ -127,6 +129,8 @@ testApp.use((req, res, next) => {
 testApp.get("/health", (req, res) => res.status(200).json({ ok: true }));
 testApp.use("/api/auth", authRoutes);
 testApp.use("/api/messages", messageRoutes);
+testApp.use("/api/device", deviceRoutes);
+testApp.use("/api/devices", deviceRoutes);
 
 describe("Health endpoint", () => {
   it("GET /health returns { ok: true }", async () => {
@@ -295,6 +299,50 @@ describe("Messages routes (authenticated)", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.themeId).toBe("custom-#8b5cf6");
+  });
+
+  it("PUT /api/messages/:id/wallpaper supports setting shared wallpaper", async () => {
+    mockChatThemeFindOneAndUpdate.mockResolvedValue({
+      userA: "user123",
+      userB: "user456",
+      wallpaperId: "redwoods",
+    });
+
+    const res = await request(testApp)
+      .put("/api/messages/user456/wallpaper")
+      .send({ wallpaperId: "redwoods" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.wallpaperId).toBe("redwoods");
+  });
+
+  it("GET /api/messages/:id/wallpaper returns wallpaperId", async () => {
+    mockChatThemeFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        userA: "user123",
+        userB: "user456",
+        wallpaperId: "sonoma-horizon",
+      }),
+    });
+
+    const res = await request(testApp).get("/api/messages/user456/wallpaper");
+
+    expect(res.status).toBe(200);
+    expect(res.body.wallpaperId).toBe("sonoma-horizon");
+  });
+
+  it("POST /api/device/web-push-subscription registers subscription successfully", async () => {
+    const res = await request(testApp)
+      .post("/api/device/web-push-subscription")
+      .send({
+        subscription: {
+          endpoint: "https://fcm.googleapis.com/fcm/send/fake-sub",
+          keys: { p256dh: "key1", auth: "auth1" },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
   });
 
   it("POST /api/messages/send/:id supports viewOnce flag for photos", async () => {

@@ -45,23 +45,28 @@ function App() {
 
       navigator.serviceWorker.addEventListener("message", handleSwMessage);
 
-      const handleVisibilityChange = () => {
+      const handleActiveState = () => {
         if (document.visibilityState === "visible") {
           const activeId = useChatStore.getState().activeConversationId;
-          if (activeId && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: "CLEAR_NOTIFICATIONS",
-              senderId: activeId,
-            });
+          if (activeId) {
+            useChatStore.getState().markMessagesAsSeen(activeId);
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: "CLEAR_NOTIFICATIONS",
+                senderId: activeId,
+              });
+            }
           }
         }
       };
 
-      document.addEventListener("visibilitychange", handleVisibilityChange);
+      document.addEventListener("visibilitychange", handleActiveState);
+      window.addEventListener("focus", handleActiveState);
 
       return () => {
         navigator.serviceWorker.removeEventListener("message", handleSwMessage);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener("visibilitychange", handleActiveState);
+        window.removeEventListener("focus", handleActiveState);
       };
     }
   }, []);
