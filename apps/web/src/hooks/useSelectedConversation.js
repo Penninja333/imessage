@@ -19,12 +19,14 @@ export function getInitials(name) {
 
 const messageCache = new WeakMap();
 
-function getCachedMappedMessage(message, myId) {
+function getCachedMappedMessage(message, myId, partnerName = "Friend") {
   if (!message || typeof message !== "object") return null;
   let cached = messageCache.get(message);
-  if (!cached || cached.myId !== myId) {
+  if (!cached || cached.myId !== myId || cached.partnerName !== partnerName) {
+    const isReplyOwn = message.replyTo && String(message.replyTo.senderId) === String(myId);
     cached = {
       myId,
+      partnerName,
       mapped: {
         id: message._id || message.tempId,
         tempId: message.tempId || null,
@@ -65,7 +67,8 @@ function getCachedMappedMessage(message, myId) {
           ? {
               messageId: String(message.replyTo.messageId),
               senderId: String(message.replyTo.senderId),
-              isOwnSender: String(message.replyTo.senderId) === String(myId),
+              isOwnSender: Boolean(isReplyOwn),
+              senderName: isReplyOwn ? "You" : (message.replyTo.senderName || partnerName || "Friend"),
               text: message.replyTo.text || "",
               imageUrl: message.replyTo.image || null,
               videoUrl: message.replyTo.video || null,
@@ -110,15 +113,16 @@ export function useSelectedConversation() {
 
   // Map raw messages — only re-runs when the messages array or authUser changes.
   const myId = String(authUser?._id || authUser?.id || "");
+  const partnerName = selectedUser?.nickname || selectedUser?.fullName || selectedUser?.name || "Friend";
   const mappedMessages = useMemo(
     () =>
       Array.isArray(messages)
         ? messages
             .filter(Boolean)
-            .map((m) => getCachedMappedMessage(m, myId))
+            .map((m) => getCachedMappedMessage(m, myId, partnerName))
             .filter(Boolean)
         : [],
-    [messages, myId],
+    [messages, myId, partnerName],
   );
 
   const partnerId = String(activeConversationId || "");

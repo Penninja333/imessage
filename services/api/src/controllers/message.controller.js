@@ -288,7 +288,7 @@ export async function sendMessage(req, res) {
         req.body.mediaType === "audio" ||
         req.file.mimetype.startsWith("audio/") ||
         (req.file.originalname && req.file.originalname.startsWith("voice-")) ||
-        /\.(mp3|wav|ogg|m4a|aac|opus|flac)$/i.test(req.file.originalname || "");
+        /\.(mp3|wav|ogg|m4a|aac|opus|flac|webm)$/i.test(req.file.originalname || "");
 
       const isVideo = !isAudio && req.file.mimetype.startsWith("video/");
       const isImage = !isAudio && !isVideo && req.file.mimetype.startsWith("image/");
@@ -854,7 +854,11 @@ export async function setChatWallpaper(req, res) {
       return res.status(400).json({ message: "Invalid partner ID" });
     }
 
-    if (wallpaperId !== null && typeof wallpaperId !== "string") {
+    if (
+      wallpaperId !== null &&
+      (typeof wallpaperId !== "string" ||
+        (!WALLPAPER_LABELS[wallpaperId] && !/^[a-z0-9_-]{1,60}$/i.test(wallpaperId)))
+    ) {
       return res.status(400).json({ message: "Invalid wallpaper ID" });
     }
 
@@ -868,8 +872,12 @@ export async function setChatWallpaper(req, res) {
     );
 
     // System message in chat — visible to both users
+    const actorName = req.user.fullName || req.user.name || "Friend";
     const wallpaperLabel = wallpaperId ? (WALLPAPER_LABELS[wallpaperId] || wallpaperId) : "Default";
-    const systemText = `${req.user.fullName} changed the chat wallpaper to ${wallpaperLabel} 🖼️`;
+    const systemText = wallpaperId
+      ? `${actorName} changed the chat wallpaper to ${wallpaperLabel} 🖼️`
+      : `${actorName} reset the chat wallpaper to Default 🖼️`;
+
     let systemMessage = null;
     try {
       systemMessage = new Message({
@@ -884,8 +892,8 @@ export async function setChatWallpaper(req, res) {
     }
 
     // Broadcast wallpaper change to BOTH users in real-time
-    const toPartner = { partnerId: String(myId), wallpaperId: wallpaperId || null, setByName: req.user.fullName };
-    const toMe = { partnerId: String(partnerId), wallpaperId: wallpaperId || null, setByName: req.user.fullName };
+    const toPartner = { partnerId: String(myId), wallpaperId: wallpaperId || null, setByName: actorName };
+    const toMe = { partnerId: String(partnerId), wallpaperId: wallpaperId || null, setByName: actorName };
 
     io.to(String(partnerId)).emit("chatWallpaperChanged", toPartner);
     io.to(String(myId)).emit("chatWallpaperChanged", toMe);

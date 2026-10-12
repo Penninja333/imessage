@@ -6,6 +6,7 @@ import { useSelectedConversation } from "../../hooks/useSelectedConversation";
 import { useChatStore } from "../../store/useChatStore";
 import { useChatTheme } from "../../hooks/useChatTheme";
 import { useWallpaper } from "../../context/wallpaper";
+import { frameStyleFromUrl, getWallpaperById } from "../../data/wallpapers";
 import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 
 function formatDateSeparator(dateStr) {
@@ -54,8 +55,19 @@ export function MessageList() {
   const hasMoreMessages = useChatStore((state) => state.hasMoreMessages);
   const activeMatchId = useChatStore((state) => state.activeMatchId);
   const loadMoreMessages = useChatStore((state) => state.loadMoreMessages);
-  const { theme, resolvedBgStyle } = useChatTheme(activeConversationId);
-  const { frameStyle, wallpaper } = useWallpaper();
+  const conversationWallpapers = useChatStore((state) => state.conversationWallpapers);
+  const { frameStyle: defaultFrameStyle, wallpaper: defaultWallpaper } = useWallpaper();
+
+  const conversationWallpaperId =
+    activeConversationId ? conversationWallpapers[String(activeConversationId)] : null;
+  const wallpaper = useMemo(
+    () => (conversationWallpaperId ? getWallpaperById(conversationWallpaperId) : defaultWallpaper),
+    [conversationWallpaperId, defaultWallpaper],
+  );
+  const frameStyle = useMemo(
+    () => (wallpaper?.url ? frameStyleFromUrl(wallpaper.url) : defaultFrameStyle),
+    [wallpaper, defaultFrameStyle],
+  );
 
   // Custom chat theme tints the chat wallpaper while preserving theme bubble colors and emoji
   const isCustomTheme = Boolean(theme && theme.id !== "default" && resolvedBgStyle);

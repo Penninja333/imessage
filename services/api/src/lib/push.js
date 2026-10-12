@@ -110,7 +110,8 @@ export async function sendPush({ tokens, title, body, data = {} }) {
             console.warn(
               `[push] Web Push delivery failed for endpoint: ${sub.endpoint} (${err.statusCode || "ERR"}: ${err.body ? err.body.trim() : err.message})`,
             );
-            if ([400, 401, 403, 404, 410].includes(err.statusCode)) {
+            // 404 (Not Found) or 410 (Gone) indicate the client subscription has expired/unsubscribed per RFC 8030
+            if ([404, 410].includes(err.statusCode)) {
               if (sub.endpoint) {
                 const escaped = sub.endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                 DeviceToken.deleteMany({ token: { $regex: escaped } }).catch(() => {});

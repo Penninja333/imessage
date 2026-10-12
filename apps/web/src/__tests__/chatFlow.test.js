@@ -580,6 +580,26 @@ describe("useChatStore User Flow & Edge Cases", () => {
       expect.any(FormData),
     );
   });
+
+  it("25. chatWallpaperChanged socket event updates conversationWallpapers state in real-time", () => {
+    const mockSocket = {
+      handlers: {},
+      on(event, handler) {
+        this.handlers[event] = handler;
+      },
+      off: vi.fn(),
+    };
+
+    useChatStore.getState().initSocketListeners(mockSocket);
+    expect(mockSocket.handlers["chatWallpaperChanged"]).toBeDefined();
+
+    mockSocket.handlers["chatWallpaperChanged"]({
+      partnerId: "partner-999",
+      wallpaperId: "iceland-coast",
+    });
+
+    expect(useChatStore.getState().conversationWallpapers["partner-999"]).toBe("iceland-coast");
+  });
 });
 
 

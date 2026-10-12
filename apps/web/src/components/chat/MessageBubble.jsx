@@ -313,12 +313,12 @@ function MessageBubbleComponent({
     message.createdAt &&
     now - new Date(message.createdAt).getTime() < 15 * 60 * 1000;
 
-  const handleReplyQuoteClick = (e) => {
+  const handleReplyQuoteClick = async (e) => {
     e.stopPropagation();
     const replyTargetId = message.replyTo?.messageId;
     if (!replyTargetId) return;
 
-    const el = document.getElementById(`msg-${replyTargetId}`);
+    let el = document.getElementById(`msg-${replyTargetId}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.classList.remove("msg-reply-highlight");
@@ -327,6 +327,34 @@ function MessageBubbleComponent({
       setTimeout(() => {
         el.classList.remove("msg-reply-highlight");
       }, 1800);
+      return;
+    }
+
+    const state = useChatStore.getState();
+    const activeId = state.activeConversationId;
+    if (state.hasMoreMessages && activeId) {
+      const toastId = toast.loading("Loading earlier messages...");
+      try {
+        await state.loadMoreMessages(activeId);
+        toast.dismiss(toastId);
+        setTimeout(() => {
+          const retryEl = document.getElementById(`msg-${replyTargetId}`);
+          if (retryEl) {
+            retryEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            retryEl.classList.remove("msg-reply-highlight");
+            void retryEl.offsetWidth;
+            retryEl.classList.add("msg-reply-highlight");
+            setTimeout(() => {
+              retryEl.classList.remove("msg-reply-highlight");
+            }, 1800);
+          } else {
+            toast("Quoted message is earlier in history");
+          }
+        }, 120);
+      } catch {
+        toast.dismiss(toastId);
+        toast("Quoted message is earlier in history");
+      }
     } else {
       toast("Quoted message is earlier in history");
     }

@@ -31,6 +31,7 @@ const PLAYBACK_RATES = [1, 1.5, 2];
 export function MessageAudio({ src, isOwnMessage }) {
   const audioRef = useRef(null);
   const waveformRef = useRef(null);
+  const hasProbedRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -40,12 +41,18 @@ export function MessageAudio({ src, isOwnMessage }) {
   const bars = useMemo(() => getWaveformBars(src || "audio", 26), [src]);
 
   useEffect(() => {
+    hasProbedRef.current = false;
+  }, [src]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !src) return;
 
     // Detect and handle audio duration (including Chromium WebM Infinity duration bug)
     const handleDuration = () => {
       if (audio.duration === Infinity) {
+        if (hasProbedRef.current) return;
+        hasProbedRef.current = true;
         // MediaRecorder WebM files don't have header duration; seek probe trick discovers it
         let probeTimer = null;
         const onProbe = () => {
@@ -56,17 +63,23 @@ export function MessageAudio({ src, isOwnMessage }) {
           } else if (isFinite(audio.currentTime) && audio.currentTime > 0) {
             setDuration(audio.currentTime);
           }
-          audio.currentTime = 0;
+          try {
+            audio.currentTime = 0;
+          } catch {}
         };
         probeTimer = setTimeout(() => {
           audio.removeEventListener("timeupdate", onProbe);
           if (audio.currentTime > 0 && isFinite(audio.currentTime)) {
             setDuration(audio.currentTime);
           }
-          audio.currentTime = 0;
+          try {
+            audio.currentTime = 0;
+          } catch {}
         }, 350);
         audio.addEventListener("timeupdate", onProbe, { once: true });
-        audio.currentTime = 1e10;
+        try {
+          audio.currentTime = 1e10;
+        } catch {}
       } else if (isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }

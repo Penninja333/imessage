@@ -1,143 +1,95 @@
-# Comprehensive PWA & API Audit Report
+# Comprehensive PWA & Backend Audit Report
 
 **Date:** October 12, 2026  
-**Repository:** `imessage` (`apps/web` & `services/api`)  
-**Scope:** PWA Client, Web Push & In-App Notifications, Shared Conversation Wallpapers, Voice Message Recording/Playback, Message Quoting & Reply Navigation.
+**Auditor:** Antigravity Engineering Review Team  
+**Scope:** `apps/web` (Progressive Web Application), `services/api` (Backend & Web Push Services)
 
 ---
 
-## 1. Executive Summary
+## 1. Executive Summary & Repo State
 
-This audit and stabilization initiative focused entirely on the Progressive Web Application (`apps/web`) and the supporting backend API (`services/api`) without modifying any native mobile configurations. The platform required comprehensive fixes across several core real-time messaging workflows:
-1. **Web Push & In-App Notifications**: End-to-end alignment between browser push subscriptions, API registration, and contextual notification delivery (sound and visual badges when active/focused; PWA push banners when inactive/backgrounded).
-2. **Shared Conversation Wallpapers**: Transitioning wallpapers from single-device local storage to synchronised per-conversation state stored in the backend and propagated via Socket.io.
-3. **Voice Message Recording & Playback**: Cross-browser codec handling, ImageKit MIME parameter sanitization, and fixing WebM duration metadata freeze bugs during playback.
-4. **Interactive Quoted Replies**: Adding WhatsApp-style smooth scroll and pulse highlight animations when tapping quoted messages.
-5. **Production Build & Service Worker Cache Bumping**: Clean asset compilation, stale asset pruning in `services/api/public`, and cache version bumping (`imessage-v10`) for clean client-side activation.
+The iMessage codebase features a modern real-time messaging stack:
+- **Frontend PWA (`apps/web`)**: Built on React 19, Tailwind CSS v4, HeroUI, Lucide Icons, and Zustand with persistent storage. Includes Service Worker caching (`sw.js` v10), PushManager integration, and Web Audio/MediaRecorder support.
+- **Backend API (`services/api`)**: Node.js/Express with MongoDB/Mongoose, Socket.io for bidirectional communication, ImageKit for media storage, and Web Push (VAPID) / Firebase Admin FCM for background push notifications.
 
-Both automated test suites (`services/api` with 34 tests and `apps/web` with 24 tests) pass with 100% green status.
+A prior implementation attempt established initial endpoints and components for shared wallpapers, web push, and voice notes. However, a deep skeptical audit uncovered multiple runtime bugs, edge-case regressions, and missing requirements across browser environments (especially Chromium, mobile Android, and WebKit/Safari).
 
 ---
 
-## 2. Issues Identified & Resolutions Applied
+## 2. Issues Discovered, Root Causes, and Applied Fixes
 
-### 2.1 Web Push & Notification Dispatch
+### Issue 1: Shared Conversation Wallpaper Leaking into Global Defaults & Unbound in `MessageList.jsx`
+- **Symptom:** Setting a conversation wallpaper in one chat leaked that wallpaper to other chats that had no wallpaper set. Additionally, `MessageList.jsx` was not updated to react directly to conversation wallpaper changes from `useChatStore`.
+- **Root Cause:** In `WallpaperContext.jsx`, `setWallpaperId` unconditionally invoked `setDefaultWallpaperIdState(id)`, persisting the specific conversation's wallpaper into `localStorage[chat-wallpaper-id]`. Furthermore, `MessageList.jsx` did not subscribe to `conversationWallpapers`.
+- **Fix Applied:** 
+  1. Updated `WallpaperContext.jsx` to scope `setDefaultWallpaperIdState(id)` strictly when no active conversation or partner is targeted.
+  2. Updated `MessageList.jsx` to directly subscribe to `conversationWallpapers[activeConversationId]` with graceful fallback to `useWallpaper()` default presets.
 
-#### Problem
-- The frontend push registration logic attempted to send browser Web Push subscription objects (`endpoint`, `keys.p256dh`, `keys.auth`) to `/api/device/web-push-subscription`, but the backend route expected mobile device tokens (Expo push tokens) rather than standard W3C Web Push subscription payloads.
-- When messages arrived while the active conversation was focused, web notification banners were erroneously queued instead of relying strictly on in-app auditory/visual feedback. Conversely, when the window was minimized or blurred with a conversation selected, incoming messages were marked as "seen" immediately without prompting the user with a desktop notification.
+### Issue 2: Chromium WebM Duration Infinity Seeking Recursion in `MessageAudio.jsx`
+- **Symptom:** When loading voice notes recorded in Chrome/WebM format without container duration headers, setting `audio.currentTime = 1e10` triggered a `durationchange` event that re-executed `handleDuration` repeatedly without an exit flag. Also, setting `currentTime` before `readyState >= 2` could throw `InvalidStateError`.
+- **Root Cause:** Absence of a guard ref (`hasProbedRef`) in `MessageAudio.jsx` allowed recursive seek events whenever Chromium attempted to determine the end of an infinite WebM stream.
+- **Fix Applied:** Introduced `hasProbedRef` to restrict seek probing to at most once per audio `src`, wrapped `currentTime` seek commands in `try/catch`, and ensured probe timers and listeners are cleaned up deterministically.
 
-#### Solution
-- **Backend API (`services/api/src/controllers/device.controller.js` & `device.route.js`)**:
-  - Implemented `registerWebPushSubscription` endpoint (`POST /api/device/web-push-subscription`) accepting `{ endpoint, keys: { p256dh, auth }, platform: "web" }`.
-  - Added schema support and upsert logic in `DeviceToken` to index push subscriptions per user.
-- **Frontend PWA Client (`apps/web/src/lib/notifications.js` & `public/sw.js`)**:
-  - Updated `subscribeToWebPush` to transmit standard Web Push subscription payloads to `/api/device/web-push-subscription`.
-  - Enhanced `sw.js` notification click handler to support both `senderId` and `conversationId`, notifying client windows to switch conversation focus upon click.
-- **Store & Document Focus State (`apps/web/src/store/useChatStore.js` & `apps/web/src/App.jsx`)**:
-  - Attached window `focus`, `blur`, and document `visibilitychange` listeners in `App.jsx` to update `isDocumentFocused`.
-  - In `useChatStore.js` (`newMessage` socket handler):
-    - When `isDocumentFocused` is true and `activeConversationId` matches: audio chime plays, and message is marked as seen immediately.
-    - When the window is unfocused (or blurred): message is NOT marked seen, audio sound plays, and a system web notification banner is displayed with a direct link/tag to that conversation.
-    - Window refocus immediately synchronizes seen status and closes pending notifications via `CLEAR_NOTIFICATIONS` message to `sw.js`.
+### Issue 3: Safari Mobile Audio Recording MIME Type Fallback Bug in `ChatComposer.jsx`
+- **Symptom:** In iOS Safari / WebKit browsers where `audio/webm` is unsupported, voice recordings failed to upload or play back because `recorder.mimeType` evaluated to an empty string upon stopping, falling back to `"audio/webm"`.
+- **Root Cause:** `recorder.mimeType` on Safari is often `""` in `onstop`. The selected supported MIME type (e.g. `audio/mp4`) from `startRecording` was not stored in a component ref.
+- **Fix Applied:** Added `recordingMimeTypeRef` in `ChatComposer.jsx`. It records the detected format from `MediaRecorder.isTypeSupported` (e.g. `audio/mp4;codecs=aac`) and provides the authoritative fallback during Blob construction in `recorder.onstop`.
 
----
+### Issue 4: Backend Audio Extension Missing `.webm` in `message.controller.js`
+- **Symptom:** Uploaded voice notes recorded as `.webm` could be mistakenly classified as video files (`videoUrl`) if the client MIME type was transmitted as `video/webm` or `application/octet-stream`.
+- **Root Cause:** The regular expression checking audio filenames in `message.controller.js` was `/\.(mp3|wav|ogg|m4a|aac|opus|flac)$/i`, missing `webm`.
+- **Fix Applied:** Updated the regex to `/\.(mp3|wav|ogg|m4a|aac|opus|flac|webm)$/i`.
 
-### 2.2 Shared Conversation Wallpapers
+### Issue 5: Mobile Android `Notification` Constructor TypeError on Uncontrolled PWA in `notifications.js`
+- **Symptom:** When a user reloads the PWA or opens it before the Service Worker claims the client (`navigator.serviceWorker.controller === null`), `showWebNotification` attempted `new Notification(...)`, which throws `TypeError: Illegal constructor` on Android Chrome and WebKit.
+- **Root Cause:** Mobile Android Chrome does not permit window-level `new Notification()`; only `ServiceWorkerRegistration.showNotification()` is legal.
+- **Fix Applied:** Updated `showWebNotification` to always check `'serviceWorker' in navigator` and resolve `navigator.serviceWorker.ready.then(reg => reg.showNotification(...))`. Wrapped `new Notification()` fallback in `try/catch`.
 
-#### Problem
-- Previously, wallpapers were saved strictly in browser `localStorage` as a global or local-only setting, so switching between devices or chat partners did not reflect custom per-conversation backgrounds. Chat themes were already shared via the `ChatTheme` model, but wallpapers were omitted.
+### Issue 6: Premature Push Token Deletion on Non-Terminal HTTP Error Status Codes in `push.js`
+- **Symptom:** If the push server experienced temporary authentication issues (401) or bad payload formats (400) when calling Web Push endpoints, valid client push subscriptions were permanently purged from the database.
+- **Root Cause:** Status code check included `[400, 401, 403, 404, 410]`.
+- **Fix Applied:** Refined cleanup to strictly `[404, 410]`, which are the only HTTP status codes specified by RFC 8030 as indicating that a push subscription has expired or unsubscribed.
 
-#### Solution
-- **Database Model (`services/api/src/models/chatTheme.model.js`)**:
-  - Added `wallpaperId` (String, default `"default"`) and `wallpaperSetBy` (ObjectId ref User) fields to `chatThemeSchema`.
-- **API Endpoints (`services/api/src/controllers/message.controller.js` & `message.route.js`)**:
-  - Added `GET /api/messages/:id/wallpaper` returning the active `wallpaperId`.
-  - Added `PUT /api/messages/:id/wallpaper` updating `wallpaperId`, broadcasting `chatWallpaperChanged` to both participants via Socket.io, and generating an in-chat system message (*"X changed the chat wallpaper"*).
-- **Frontend Store & Context (`apps/web/src/store/useChatStore.js` & `apps/web/src/context/WallpaperContext.jsx`)**:
-  - Added `conversationWallpapers: {}` map to `useChatStore`.
-  - Added `chatWallpaperChanged` socket listener updating store state in real time.
-  - Linked `WallpaperProvider` to resolve wallpaper in order: `conversationWallpapers[activeConversationId] -> activeConversation.wallpaperId -> defaultPreset`.
-  - Updated `WallpaperPicker.jsx` and `ChatHeader.jsx` to accept `partnerId` and persist wallpaper changes per-conversation.
+### Issue 7: Quoted Message Preview Missing Sender Name in `useSelectedConversation.js`
+- **Symptom:** In quoted reply previews inside `MessageBubble.jsx`, messages replied to the other participant always displayed `"Friend"` instead of the actual user's name or nickname.
+- **Root Cause:** `getCachedMappedMessage` in `useSelectedConversation.js` omitted `senderName` from the mapped `replyTo` object.
+- **Fix Applied:** Updated `getCachedMappedMessage` and `mappedMessages` memoization to compute `senderName: isReplyOwn ? "You" : (message.replyTo.senderName || partnerName || "Friend")`.
 
----
+### Issue 8: Quoted Reply Navigation Failing on Non-Rendered Paginated Messages in `MessageBubble.jsx`
+- **Symptom:** Clicking a quote referencing an older message outside the current viewport/page resulted in a toast warning with no option to view the message.
+- **Root Cause:** `handleReplyQuoteClick` did not trigger message fetching when `#msg-${id}` was not found in the DOM.
+- **Fix Applied:** Enhanced `handleReplyQuoteClick` to check `hasMoreMessages` and trigger `loadMoreMessages(activeId)`. Upon completion, it locates the newly rendered DOM node and smoothly scrolls to center with the pulse animation.
 
-### 2.3 Voice Message Codecs & Audio Playback
+### Issue 9: Wallpaper ID Validation & System Message Text in `message.controller.js`
+- **Symptom:** Setting `wallpaperId: null` generated system message `"Alice changed the chat wallpaper to Default 🖼️"`, and input IDs were unvalidated.
+- **Root Cause:** Lack of string format / catalog validation and static text template.
+- **Fix Applied:** Validated `wallpaperId` against catalog and alphanumeric IDs; generated polite reset text (`"Alice reset the chat wallpaper to Default 🖼️"`).
 
-#### Problem
-- **Upload Failures**: Browsers record audio in varying formats (`audio/webm`, `audio/webm;codecs=opus`, `audio/mp4`, `audio/ogg`). When passing strings with codecs (e.g., `audio/webm;codecs=opus`) to the backend ImageKit uploader, the SDK rejected the MIME type with an unexpected parameter error.
-- **Audio Playback Freeze**: Chrome's `MediaRecorder` often writes WebM audio chunks without duration metadata. A common workaround is seeking to `currentTime = 1e10` on load. However, if the browser fails to fire `timeupdate` or gets stuck in the seek state, the audio player locks up at duration `0:00` or EOF and refuses to play.
-
-#### Solution
-- **Recording & Upload (`apps/web/src/components/chat/ChatComposer.jsx` & `store/useChatStore.js`)**:
-  - Added prioritized MIME detection checking `isTypeSupported` across `audio/webm`, `audio/mp4`, and `audio/ogg`.
-  - Wrapped `MediaRecorder` creation in try-catch with fallback to standard recording.
-  - Ensured `recorder.requestData()` is called before `recorder.stop()` so the final audio segment is not truncated.
-  - Added MIME sanitization in `sendVoiceMessage` to strip codec parameters (`split(';')[0]`) before constructing FormData.
-- **Backend File Processing (`services/api/src/lib/imagekit.js` & `message.controller.js`)**:
-  - Sanitized MIME types by stripping parameters (`split(';')[0]`) before passing to ImageKit's `toFile()`.
-  - Explicitly classified uploads as `"audio"` when `mediaType === "audio"`, filename starts with `voice-`, or file extension matches known audio formats.
-- **Audio Component Playback (`apps/web/src/components/chat/MessageAudio.jsx`)**:
-  - Added a 350ms safety timer during the `1e10` duration probe. If `timeupdate` fails to fire within 350ms, the player resets `currentTime = 0` and falls back gracefully.
-  - Added EOF detection in `togglePlay()` so clicking play at end-of-track rewinds to `0` instead of remaining frozen.
-  - Added `preload="auto"` to pre-buffer audio data for immediate responsiveness.
+### Issue 10: Artifact Directory Placement Correction
+- **Symptom:** The prior report was placed into an ephemeral directory (`.../brain/298ef36e-74f2-4141-afd5-30f0f7bc0eff/`) instead of the project directory specified in the task (`.../brain/90019017-c21e-4bcb-bd32-52181af902eb/`).
+- **Fix Applied:** Placed comprehensive audit report directly into `/home/wind/.gemini/antigravity-cli/brain/b112c719-01dd-4b0c-8b5e-ef9a45327e2f/pwa-audit-report.md`, mirrored to `/home/wind/.gemini/antigravity-cli/brain/90019017-c21e-4bcb-bd32-52181af902eb/pwa-audit-report.md`, and committed to `PWA_AUDIT_REPORT.md`.
 
 ---
 
-### 2.4 Quoted Reply Navigation & Highlight
+## 3. Verification Record
 
-#### Problem
-- When users quoted an earlier message in a long conversation, clicking on the quote bubble preview in `MessageBubble.jsx` did nothing, leaving users unable to locate the referenced message.
-
-#### Solution
-- Added `handleReplyQuoteClick` in `apps/web/src/components/chat/MessageBubble.jsx`.
-- When clicked, queries the DOM for `#msg-${replyTo.messageId}`:
-  - If present, invokes `scrollIntoView({ behavior: 'smooth', block: 'center' })`.
-  - Applies `.msg-reply-highlight` CSS class for 1200ms.
-- Added keyframe animation `@keyframes msgReplyPulse` and utility class `.msg-reply-highlight` in `apps/web/src/index.css` delivering a smooth subtle highlight pulse.
-
----
-
-### 2.5 Cache Bumping & Static Asset Staging
-
-#### Problem
-- Previous PWA service worker caches remained on `v9`. Without an explicit cache version bump, mobile and desktop browsers using the PWA could continue loading stale cached bundles.
-- Stale, unreferenced bundles existed in `services/api/public/assets`.
-
-#### Solution
-- Bumped `CACHE_NAME` in both `apps/web/public/sw.js` and `services/api/public/sw.js` to `imessage-v10`.
-- Built `apps/web` with Vite and staged output into `services/api/public`.
-- Pruned obsolete asset hashes from `services/api/public/assets` using `git rm`.
-- Rebuilt backend distribution files (`services/api/dist`).
+1. **Backend Automated Tests:**
+   - Command: `npm test -w services/api`
+   - Result: **34/34 tests passed** (100% pass rate).
+2. **Web Automated Tests:**
+   - Command: `npm test -w apps/web`
+   - Result: **25/25 tests passed** (including voice messaging, wallpaper store management, socket listeners, and edge cases).
+3. **Web Production Build & Staging:**
+   - Command: `npm run build -w apps/web`
+   - Result: Built in 536ms. Staged updated bundle (`index-BD3hAgPd.js`, `index-xXZDoohi.css`) to `services/api/public/` and removed stale chunks.
+4. **Backend Build:**
+   - Command: `npm run build -w services/api`
+   - Result: Compiled clean `dist/`.
 
 ---
 
-## 3. Test Verification Matrix
+## 4. Recommendations & Edge Cases
 
-| Suite | Component / Area | Tests | Status |
-|---|---|:---:|:---:|
-| `services/api` | Smoke & Health | 1 | PASS |
-| `services/api` | Auth Routes | 1 | PASS |
-| `services/api` | Unauthenticated Message Routes | 5 | PASS |
-| `services/api` | Authenticated Message & Media Routes | 15 | PASS |
-| `services/api` | Nickname & Conversation Settings | 12 | PASS |
-| `services/api` | **Wallpaper GET/PUT Endpoints** | Included | PASS |
-| `services/api` | **Web Push Subscription Endpoint** | Included | PASS |
-| `apps/web` | Store Initialization & Navigation | 4 | PASS |
-| `apps/web` | Message Dispatch & Optimistic UI | 4 | PASS |
-| `apps/web` | Active Conversation & Users Hydration | 6 | PASS |
-| `apps/web` | State Edge Cases & Id Normalization | 7 | PASS |
-| `apps/web` | **Shared Wallpaper Store & Socket Flow** | 1 | PASS |
-| `apps/web` | **Voice Message MIME & Dispatch Flow** | 1 | PASS |
-| **Total** | | **58 / 58** | **100% PASS** |
-
----
-
-## 4. Recommendations for Next Iterations
-
-1. **Virtualized Message List for Infinite Scroll**:
-   - If a conversation has thousands of messages, jumping to an earlier quoted message via `#msg-${id}` requires that the message has already been rendered or fetched into the store. A pagination fetch hook that loads older chunks if `#msg-${id}` is not found in the current DOM would make the quote scroll feature robust for very long chats.
-2. **Audio Waveform Visualization**:
-   - `MessageAudio.jsx` currently uses an SVG bar representation. Generating client-side audio peaks via Web Audio API `AudioContext.decodeAudioData()` will provide authentic waveforms for recorded voice notes.
-3. **VAPID Key Environment Configuration**:
-   - Verify production environment secrets (`WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_CONTACT`) are loaded in your deployment environment (e.g., Render/Railway/Fly.io) to ensure push notifications reach offline mobile browsers.
+1. **Production VAPID Keys**: Ensure `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` environment variables are configured on hosting providers so external browser push services (FCM Web Push, Mozilla Push Service, Apple Push Service) can dispatch background notifications.
+2. **Audio Chunk Size**: On low-end mobile hardware, `mediaRecorder.start(100)` provides smooth 100ms chunk streaming. If audio buffer pressure occurs, fallback to timeslice 250ms is well tolerated.
+3. **PWA Standalone Mode**: On iOS Safari 16.4+, web push requires the user to "Add to Home Screen" first; our `InstallPwaBanner.jsx` and `PermissionsModal.jsx` guide users cleanly through this workflow.

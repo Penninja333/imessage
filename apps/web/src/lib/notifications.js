@@ -148,7 +148,12 @@ export function showWebNotification(title, options = {}) {
   }
 
   // Only suppress if document is actively focused by the user
-  if (document.visibilityState === "visible" && document.hasFocus()) {
+  if (
+    typeof document !== "undefined" &&
+    document.visibilityState === "visible" &&
+    typeof document.hasFocus === "function" &&
+    document.hasFocus()
+  ) {
     return;
   }
 
@@ -160,10 +165,18 @@ export function showWebNotification(title, options = {}) {
     ...options,
   };
 
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.showNotification(title, defaultOptions);
-    });
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready
+      .then((registration) => {
+        return registration.showNotification(title, defaultOptions);
+      })
+      .catch(() => {
+        try {
+          new Notification(title, defaultOptions);
+        } catch (e) {
+          console.warn("Direct Notification fallback failed:", e);
+        }
+      });
   } else {
     try {
       new Notification(title, defaultOptions);

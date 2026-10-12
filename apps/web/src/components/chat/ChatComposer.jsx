@@ -75,6 +75,7 @@ export function ChatComposer() {
   const audioChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
   const audioStreamRef = useRef(null);
+  const recordingMimeTypeRef = useRef("");
 
   const playSoundIfEnabled = () => {
     if (isSoundEnabled) playRandomKeyStrokeSound();
@@ -241,6 +242,7 @@ export function ChatComposer() {
           }
         }
       }
+      recordingMimeTypeRef.current = mimeType;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
@@ -321,7 +323,7 @@ export function ChatComposer() {
 
     recorder.onstop = async () => {
       try {
-        const rawMime = recorder.mimeType || "audio/webm";
+        const rawMime = recorder.mimeType || recordingMimeTypeRef.current || "audio/webm";
         const cleanMime = rawMime.split(";")[0].trim() || "audio/webm";
         const audioBlob = new Blob(audioChunksRef.current, { type: cleanMime });
 

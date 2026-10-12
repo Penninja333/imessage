@@ -34,8 +34,9 @@ export function WallpaperProvider({ children }) {
     const partnerId = targetPartnerId || activeConversationId;
     if (partnerId) {
       setConversationWallpaper(String(partnerId), id);
+    } else {
+      setDefaultWallpaperIdState(id);
     }
-    setDefaultWallpaperIdState(id);
   };
 
   return (
